@@ -506,6 +506,28 @@ class WebhookService {
       const durationMinutes = Math.ceil(durationSeconds / 60);
       const creditsUsed = durationMinutes;
 
+      // Save transcript if available
+      let transcriptId: string | undefined;
+      if (payload.transcript) {
+        logger.info('💾 Saving transcript from completed event', { 
+          execution_id: executionId,
+          transcript_length: payload.transcript.length 
+        });
+
+        try {
+          // Parse transcript into segments
+          const segments = parseTranscriptToSegments(payload.transcript);
+          
+          // We need to create the call first, so we'll save transcript separately
+          // For now, we'll set a flag to save it after call creation
+        } catch (error) {
+          logger.error('❌ Failed to parse transcript', {
+            execution_id: executionId,
+            error: error instanceof Error ? error.message : String(error)
+          });
+        }
+      }
+
       await Call.create({
         agent_id: agent.id,
         user_id: agent.user_id,
@@ -533,8 +555,41 @@ class WebhookService {
       logger.info('✅ Call record created from completed event', { 
         execution_id: executionId,
         duration_seconds: durationSeconds,
-        recording_url: payload.telephony_data?.recording_url
+        recording_url: payload.telephony_data?.recording_url,
+        has_transcript: !!payload.transcript
       });
+
+      // Save transcript after call is created
+      if (payload.transcript) {
+        // Re-fetch call to get the ID
+        const createdCall = await Call.findByExecutionId(executionId);
+        if (createdCall) {
+          try {
+            const segments = parseTranscriptToSegments(payload.transcript);
+            const transcriptRecord = await Transcript.createTranscript({
+              call_id: createdCall.id,
+              content: payload.transcript,
+              speaker_segments: segments
+            });
+
+            // Update call with transcript_id
+            await Call.updateByExecutionId(executionId, {
+              transcript_id: transcriptRecord.id
+            });
+
+            logger.info('✅ Transcript saved from completed event', { 
+              execution_id: executionId,
+              transcript_id: transcriptRecord.id,
+              segments_count: segments.length
+            });
+          } catch (error) {
+            logger.error('❌ Failed to save transcript from completed event', {
+              execution_id: executionId,
+              error: error instanceof Error ? error.message : String(error)
+            });
+          }
+        }
+      }
 
       // Re-fetch the newly created call
       call = await Call.findByExecutionId(executionId);
