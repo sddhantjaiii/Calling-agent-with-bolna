@@ -3,22 +3,20 @@
 
 // Determine API base URL based on environment
 export const getApiBaseUrl = () => {
-  // Check for explicit environment variable first
+  // Check for explicit environment variable first (REQUIRED for production)
   if (import.meta.env.VITE_API_BASE_URL) {
     console.log('Using VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL);
     return import.meta.env.VITE_API_BASE_URL;
   }
   
-  // Production environment detection
-  if (import.meta.env.PROD) {
-    console.warn('Using production mode. Ensure VITE_API_BASE_URL is configured in env.');
-    // If not configured, fall back to same-origin (works when backend is reverse-proxied)
-    const origin = window?.location?.origin;
-    if (origin) return origin;
+  // Development: use localhost backend
+  if (!import.meta.env.PROD) {
+    console.log('Development mode: using localhost backend');
+    return 'http://localhost:3000';
   }
   
-  // No fallback: enforce env configuration to avoid hardcoding
-  const msg = 'VITE_API_BASE_URL is not configured. Please set it in Frontend/.env.';
+  // Production without env var: throw error
+  const msg = 'VITE_API_BASE_URL is required in production. Set it in Vercel environment variables.';
   console.error(msg);
   throw new Error(msg);
 };
