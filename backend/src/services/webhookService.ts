@@ -180,12 +180,21 @@ class WebhookService {
       return;
     }
 
-    // Get phone number from context_details or telephony_data
-    const phoneNumber = payload.context_details?.recipient_phone_number || 
-                       payload.telephony_data?.to_number;
+    // Get phone number based on call type
+    // For inbound: use from_number (caller's number)
+    // For outbound: use to_number (recipient's number)
+    const callType = payload.telephony_data?.call_type || 'outbound';
+    let phoneNumber: string | undefined;
+    
+    if (callType === 'inbound') {
+      phoneNumber = payload.telephony_data?.from_number;
+    } else {
+      phoneNumber = payload.context_details?.recipient_phone_number || 
+                   payload.telephony_data?.to_number;
+    }
     
     if (!phoneNumber) {
-      throw new Error('Phone number not found in payload');
+      throw new Error(`Phone number not found in ${callType} call payload`);
     }
 
     // Create call record
@@ -198,7 +207,7 @@ class WebhookService {
       call_source: 'phone',
       status: 'in_progress',
       call_lifecycle_status: 'initiated',
-      lead_type: payload.telephony_data?.call_type || 'outbound',
+      lead_type: callType,
       duration_seconds: 0,
       duration_minutes: 0,
       credits_used: 0,
@@ -463,13 +472,32 @@ class WebhookService {
         return;
       }
 
-      // Get phone number from context_details or telephony_data
-      const phoneNumber = payload.context_details?.recipient_phone_number || 
-                         payload.telephony_data?.to_number ||
-                         payload.telephony_data?.from_number;
+      // Get phone number based on call type
+      // For inbound: use from_number (caller's number)
+      // For outbound: use to_number (recipient's number)
+      const callType = payload.telephony_data?.call_type || 'inbound';
+      let phoneNumber: string | undefined;
+      
+      if (callType === 'inbound') {
+        phoneNumber = payload.telephony_data?.from_number;
+        logger.info('Inbound call detected, using from_number', { 
+          from_number: phoneNumber,
+          to_number: payload.telephony_data?.to_number 
+        });
+      } else {
+        phoneNumber = payload.context_details?.recipient_phone_number || 
+                     payload.telephony_data?.to_number;
+        logger.info('Outbound call detected, using to_number', { 
+          to_number: phoneNumber,
+          from_number: payload.telephony_data?.from_number 
+        });
+      }
       
       if (!phoneNumber) {
-        logger.error('Phone number not found in completed payload', { execution_id: executionId });
+        logger.error('Phone number not found in completed payload', { 
+          execution_id: executionId,
+          call_type: callType 
+        });
         return;
       }
 

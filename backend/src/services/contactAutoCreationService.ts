@@ -226,10 +226,13 @@ export class ContactAutoCreationService {
         RETURNING id
       `;
 
+      // Use "Anonymous" if no name is provided (required field)
+      const contactName = leadData.extractedName || 'Anonymous';
       const notes = `Auto-created from call ${callId}`;
+      
       const values = [
         userId,
-        leadData.extractedName || null,
+        contactName, // Always provide a name, use "Anonymous" if none extracted
         leadData.extractedEmail || null,
         phoneNumber ? this.normalizePhoneNumber(phoneNumber) : null,
         leadData.companyName || null,
@@ -244,6 +247,13 @@ export class ContactAutoCreationService {
       if (!result.rows[0]?.id) {
         throw new Error('Failed to create contact - no ID returned');
       }
+
+      logger.info('Contact created', {
+        contactId: result.rows[0].id,
+        name: contactName,
+        phoneNumber,
+        wasAnonymous: !leadData.extractedName
+      });
 
       return result.rows[0].id;
     } catch (error) {
@@ -273,37 +283,73 @@ export class ContactAutoCreationService {
     phoneNumber: string | undefined
   ): Promise<boolean> {
     try {
+      // First, get the current contact data to check what needs updating
+      const getContactQuery = 'SELECT name, email, phone_number, company FROM contacts WHERE id = $1';
+      const contactResult = await database.query(getContactQuery, [contactId]);
+      
+      if (!contactResult.rows[0]) {
+        logger.warn('Contact not found for update', { contactId });
+        return false;
+      }
+      
+      const currentContact = contactResult.rows[0];
       const updateFields: string[] = [];
       const values: any[] = [];
       let paramIndex = 1;
 
-      // Only update fields that are currently null or empty
-      if (leadData.extractedName) {
-        updateFields.push(`name = COALESCE(NULLIF(name, ''), $${paramIndex})`);
+      // Update name ONLY if current name is "Anonymous" and we have an extracted name
+      if (leadData.extractedName && currentContact.name === 'Anonymous') {
+        updateFields.push(`name = $${paramIndex}`);
         values.push(leadData.extractedName);
         paramIndex++;
+        logger.info('Updating Anonymous contact with extracted name', {
+          contactId,
+          oldName: 'Anonymous',
+          newName: leadData.extractedName
+        });
       }
 
-      if (leadData.extractedEmail) {
-        updateFields.push(`email = COALESCE(NULLIF(email, ''), $${paramIndex})`);
+      // Update email ONLY if current email is NULL or empty
+      if (leadData.extractedEmail && (!currentContact.email || currentContact.email.trim() === '')) {
+        updateFields.push(`email = $${paramIndex}`);
         values.push(leadData.extractedEmail);
         paramIndex++;
+        logger.info('Adding missing email to contact', {
+          contactId,
+          email: leadData.extractedEmail
+        });
       }
 
-      if (phoneNumber) {
-        updateFields.push(`phone_number = COALESCE(NULLIF(phone_number, ''), $${paramIndex})`);
+      // Update phone ONLY if current phone is NULL or empty
+      if (phoneNumber && (!currentContact.phone_number || currentContact.phone_number.trim() === '')) {
+        updateFields.push(`phone_number = $${paramIndex}`);
         values.push(this.normalizePhoneNumber(phoneNumber));
         paramIndex++;
+        logger.info('Adding missing phone to contact', {
+          contactId,
+          phone: phoneNumber
+        });
       }
 
-      if (leadData.companyName) {
-        updateFields.push(`company = COALESCE(NULLIF(company, ''), $${paramIndex})`);
+      // Update company ONLY if current company is NULL or empty
+      if (leadData.companyName && (!currentContact.company || currentContact.company.trim() === '')) {
+        updateFields.push(`company = $${paramIndex}`);
         values.push(leadData.companyName);
         paramIndex++;
+        logger.info('Adding missing company to contact', {
+          contactId,
+          company: leadData.companyName
+        });
       }
 
       if (updateFields.length === 0) {
-        logger.debug('No fields to update for contact', { contactId });
+        logger.debug('No fields to update for contact - all fields already have values', { 
+          contactId,
+          currentName: currentContact.name,
+          hasEmail: !!currentContact.email,
+          hasPhone: !!currentContact.phone_number,
+          hasCompany: !!currentContact.company
+        });
         return false;
       }
 
@@ -319,7 +365,7 @@ export class ContactAutoCreationService {
       const result = await database.query(query, values);
 
       const updated = result.rowCount > 0;
-      logger.debug('Contact update completed', {
+      logger.info('Contact update completed', {
         contactId,
         fieldsUpdated: updateFields.length,
         rowsAffected: result.rowCount,
