@@ -25,8 +25,9 @@ import type { Contact } from '@/types/api';
 interface Agent {
   id: string;
   name: string;
-  type: string;
-  status: string;
+  type?: string;
+  status?: string;
+  isActive?: boolean;
 }
 
 interface CallAgentModalProps {
@@ -72,7 +73,7 @@ export function CallAgentModal({
       }
       
       // Filter only active agents
-      const activeAgents = agentsList.filter((agent: Agent) => agent.status === 'active');
+      const activeAgents = agentsList.filter((agent: Agent) => agent.status === 'active' || agent.isActive);
       setAgents(activeAgents);
 
       // Auto-select first agent if available
@@ -211,7 +212,7 @@ export function CallAgentModal({
                 <SelectContent>
                   {agents.map((agent) => (
                     <SelectItem key={agent.id} value={agent.id}>
-                      {agent.name} ({agent.type})
+                      {agent.name}{agent.type ? ` (${agent.type})` : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>

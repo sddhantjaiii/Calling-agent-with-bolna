@@ -540,18 +540,21 @@ export const BulkContactUpload: React.FC<BulkContactUploadProps> = ({
               </h4>
               <div className="space-y-2 max-h-40 overflow-y-auto">
                 {errors.slice(0, 10).map((error, index) => {
-                  const isDuplicate = error.error?.includes('already exists');
+                  const isDuplicate = error.message?.includes('already exists');
+                  const contactName = error.data?.name ? String(error.data.name) : 'Unknown';
+                  const phoneNumber = error.data?.phone_number ? String(error.data.phone_number) : '';
+                  
                   return (
                     <div key={index} className={`text-sm p-2 rounded border-l-4 ${
                       isDuplicate 
                         ? 'bg-yellow-50 border-yellow-200' 
                         : 'bg-red-50 border-red-200'
                     }`}>
-                      <div className="font-medium">Row {error.row}: {error.data?.name || 'Unknown'}</div>
+                      <div className="font-medium">Row {error.row}: {contactName}</div>
                       <div className={isDuplicate ? 'text-yellow-700' : 'text-red-600'}>
                         {isDuplicate 
-                          ? `Contact "${error.data?.name}" with phone ${error.data?.phone_number} already exists`
-                          : error.error || error.message
+                          ? `Contact "${contactName}" with phone ${phoneNumber} already exists`
+                          : error.message
                         }
                       </div>
                     </div>

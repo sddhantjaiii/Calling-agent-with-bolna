@@ -18,8 +18,6 @@ import { CreditBanner } from "./components/dashboard/CreditBanner";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import Settings from "./pages/Settings";
-import UserAnalytics from "./pages/UserAnalytics";
-import AgentAnalytics from "./pages/AgentAnalytics";
 import NotFound from "./pages/NotFound";
 import LeadProfileTab from "./components/chat/LeadProfileTab";
 import ChatDataPage from "./pages/ChatDataPage";
