@@ -138,6 +138,7 @@ export class PhoneNumberModel extends BaseModel<PhoneNumberInterface> {
 
     return await this.create({
       ...data,
+      assigned_to_agent_id: data.assigned_to_agent_id || null, // Convert undefined to null
       is_active: true
     });
   }
