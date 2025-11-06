@@ -1,0 +1,19 @@
+{
+  "timestamp": "2025-09-25T20:16:56.337Z",
+  "dryRun": false,
+  "stats": {
+    "totalAgents": 0,
+    "migratedAgents": 0,
+    "failedAgents": 0,
+    "totalCalls": 0,
+    "migratedCalls": 0,
+    "failedCalls": 0,
+    "errors": []
+  },
+  "backupPath": "C:\\Users\\sddha\\Coding\\Sniperthinkv2\\calling agent migration to bolna ai\\Calling agent-kiro before going for bolna ai\\Calling agent-kiro\\backend\\backups\\migration-backup-1758831414579.json",
+  "summary": {
+    "agentSuccessRate": "NaN%",
+    "callSuccessRate": "NaN%",
+    "totalErrors": 0
+  }
+}

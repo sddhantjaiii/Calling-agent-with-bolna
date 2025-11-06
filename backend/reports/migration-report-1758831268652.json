@@ -1,0 +1,23 @@
+{
+  "timestamp": "2025-09-25T20:14:28.652Z",
+  "dryRun": false,
+  "stats": {
+    "totalAgents": 3,
+    "migratedAgents": 0,
+    "failedAgents": 3,
+    "totalCalls": 50,
+    "migratedCalls": 50,
+    "failedCalls": 0,
+    "errors": [
+      "Failed to migrate agent Sniperthink-Pure English\n\n: Cannot read properties of undefined (reading 'agent_name')",
+      "Failed to migrate agent Sniperthink Hinglish: Cannot read properties of undefined (reading 'agent_name')",
+      "Failed to migrate agent Sniperthink-Pure English Hindi accent: Cannot read properties of undefined (reading 'agent_name')"
+    ]
+  },
+  "backupPath": "C:\\Users\\sddha\\Coding\\Sniperthinkv2\\calling agent migration to bolna ai\\Calling agent-kiro before going for bolna ai\\Calling agent-kiro\\backend\\backups\\migration-backup-1758831260727.json",
+  "summary": {
+    "agentSuccessRate": "0.0%",
+    "callSuccessRate": "100.0%",
+    "totalErrors": 3
+  }
+}
