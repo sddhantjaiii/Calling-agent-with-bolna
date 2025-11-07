@@ -17,7 +17,7 @@ const router = Router();
 router.get('/template', async (req: Request, res: Response): Promise<Response | void> => {
   try {
     // Use the same template generation method as contacts
-    const templateBuffer = ContactService.generateExcelTemplate();
+    const templateBuffer = await ContactService.generateExcelTemplate();
     
     // Set comprehensive headers for Excel file download
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

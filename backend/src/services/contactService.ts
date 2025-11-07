@@ -1,6 +1,7 @@
 import ContactModel, { ContactInterface, CreateContactData, UpdateContactData } from '../models/Contact';
 import { logger } from '../utils/logger';
 import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 // Contact service - business logic for contact management
 export class ContactService {
@@ -579,33 +580,38 @@ export class ContactService {
       for (let i = 1; i < jsonData.length; i++) {
         const row = jsonData[i];
         
-        // Skip empty rows
-        if (!row || row.every(cell => !cell)) {
+        // Skip completely empty rows (undefined, null, or all empty cells)
+        if (!row || row.length === 0) {
+          continue;
+        }
+        
+        // Skip rows where all cells are empty strings or whitespace
+        const hasContent = row.some(cell => cell && cell.toString().trim() !== '');
+        if (!hasContent) {
           continue;
         }
 
         // Coerce values to strings safely and strip formatting
         const rawName = row[nameIndex];
         const rawPhone = row[phoneIndex];
-        const toCleanString = (v: any) => (v === undefined || v === null) ? '' : v.toString().trim();
+        const toCleanString = (v: any) => (v === undefined || v === null || v === '') ? '' : v.toString().trim();
+
+        const phoneStr = toCleanString(rawPhone);
 
         // Avoid scientific notation by relying on raw:false above,
         // but add a fallback normalization just in case
-        const cleanPhone = toCleanString(rawPhone)
+        const cleanPhone = phoneStr
           .replace(/\s+/g, '') // remove internal spaces
           .replace(/[\u200B-\u200D\uFEFF]/g, ''); // zero-width chars
 
         // Skip rows where phone number is empty or doesn't contain any digits
-        // This filters out instruction text like "MANDATORY FIELDS:", "OPTIONAL FIELDS:", etc.
-        if (!cleanPhone || !/\d/.test(cleanPhone)) {
-          logger.debug(`Skipping row ${i + 1}: No valid phone number found`, { rawPhone });
+        if (!cleanPhone || cleanPhone === '' || !/\d/.test(cleanPhone)) {
           continue;
         }
 
         // Skip rows where phone number is clearly not a phone number (e.g., contains only text)
         const digitCount = (cleanPhone.match(/\d/g) || []).length;
         if (digitCount < 10) {
-          logger.debug(`Skipping row ${i + 1}: Phone number has less than 10 digits`, { cleanPhone, digitCount });
           continue;
         }
 
@@ -681,52 +687,104 @@ export class ContactService {
   /**
    * Generate Excel template for contact upload
    */
-  static generateExcelTemplate(): Buffer {
+  static async generateExcelTemplate(): Promise<Buffer> {
     try {
-      // Create workbook
-      const workbook = XLSX.utils.book_new();
+      // Create workbook using ExcelJS for proper cell formatting
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet('Contacts');
 
-      // Create data array with headers and sample data
-      const data = [
-        ['name', 'phone_number', 'email', 'company', 'notes'],
-        ['John Doe', '\'+91 9876543210', 'john@example.com', 'Example Corp', 'Sample contact'],
-        ['Jane Smith', '\'+91 8765432109', 'jane@company.com', 'Tech Solutions', 'Important client']
+      // Set column headers and formats
+      worksheet.columns = [
+        { header: 'name', key: 'name', width: 20 },
+        { header: 'phone_number', key: 'phone_number', width: 20, style: { numFmt: '@' } }, // TEXT format
+        { header: 'email', key: 'email', width: 25 },
+        { header: 'company', key: 'company', width: 20 },
+        { header: 'notes', key: 'notes', width: 30 }
       ];
 
-      // Create worksheet from array
-      const worksheet = XLSX.utils.aoa_to_sheet(data);
+      // Format the phone_number column (column B) as TEXT to prevent Excel auto-conversion
+      worksheet.getColumn(2).numFmt = '@';
 
-      // Set column widths
-      worksheet['!cols'] = [
-        { width: 20 }, // name
-        { width: 18 }, // phone_number (wider for +91 prefix)
-        { width: 25 }, // email
-        { width: 20 }, // company
-        { width: 30 }  // notes
-      ];
-
-      // CRITICAL: Pre-format phone_number column (B) as text for rows 4-10003
-      // This ensures when users add new phone numbers, they're treated as text
-      const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
-      
-      // Extend range to row 10003 (to format 10,000 data rows after header + 2 sample rows)
-      range.e.r = 10002;
-      worksheet['!ref'] = XLSX.utils.encode_range(range);
-      
-      // Format all cells in phone_number column (column B, index 1) as text
-      for (let row = 3; row <= 10002; row++) {
-        const cellAddress = XLSX.utils.encode_cell({ r: row, c: 1 });
-        worksheet[cellAddress] = { t: 's', v: '', z: '@' };
-      }
-
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Contacts');
-
-      // Write workbook
-      return XLSX.write(workbook, { 
-        type: 'buffer', 
-        bookType: 'xlsx',
-        cellStyles: true 
+      // Add sample data rows
+      worksheet.addRow({
+        name: 'John Doe',
+        phone_number: '+919876543210',
+        email: 'john@example.com',
+        company: 'Example Corp',
+        notes: 'Sample contact'
       });
+
+      worksheet.addRow({
+        name: 'Jane Smith',
+        phone_number: '+12025551234',
+        email: 'jane@company.com',
+        company: 'Tech Solutions',
+        notes: 'Important client'
+      });
+      
+      worksheet.addRow({
+        name: 'Ali Ahmed',
+        phone_number: '+971501234567',
+        email: 'ali@business.ae',
+        company: 'Dubai Trading Co',
+        notes: 'Priority customer'
+      });
+
+      // Add empty row for separation
+      worksheet.addRow({});
+
+      // Add simple instruction rows without colors
+      worksheet.addRow({
+        name: 'DELETE ROWS 2-11 BEFORE UPLOADING',
+        phone_number: 'INSTRUCTIONS BELOW',
+        email: '',
+        company: '',
+        notes: ''
+      });
+
+      worksheet.addRow({
+        name: '1. Phone MUST start with +',
+        phone_number: 'Example: +919876543210',
+        email: '(with country code)',
+        company: '',
+        notes: ''
+      });
+
+      worksheet.addRow({
+        name: '2. Only phone is required',
+        phone_number: 'Name auto-generated if empty',
+        email: 'Email optional',
+        company: 'Company optional',
+        notes: 'Notes optional'
+      });
+
+      worksheet.addRow({
+        name: '3. Delete sample data',
+        phone_number: 'Delete rows 2-11',
+        email: 'Keep only header (row 1)',
+        company: 'Add your contacts',
+        notes: ''
+      });
+
+      worksheet.addRow({
+        name: '4. Supported formats',
+        phone_number: '+91 (India)',
+        email: '+1 (USA)',
+        company: '+971 (UAE)',
+        notes: '+44 (UK)'
+      });
+
+      worksheet.addRow({
+        name: 'WARNING: DELETE THIS & ABOVE ROWS',
+        phone_number: 'Keep only header + your data',
+        email: '',
+        company: '',
+        notes: ''
+      });
+
+      // Write workbook to buffer
+      const buffer = await workbook.xlsx.writeBuffer();
+      return Buffer.from(buffer);
     } catch (error) {
       logger.error('Error generating Excel template:', error);
       throw new Error('Failed to generate Excel template');

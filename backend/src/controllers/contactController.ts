@@ -616,7 +616,7 @@ export class ContactController {
    */
   static async downloadTemplate(req: Request, res: Response): Promise<Response | void> {
     try {
-      const templateBuffer = ContactService.generateExcelTemplate();
+      const templateBuffer = await ContactService.generateExcelTemplate();
       
       // Set comprehensive headers for Excel file download
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

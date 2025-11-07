@@ -31,6 +31,7 @@ import {
 import { authenticatedFetch, getAuthHeaders } from '@/utils/auth';
 import { CampaignCreditEstimator } from '@/components/campaigns/CampaignCreditEstimator';
 import { useCreditToasts } from '@/components/ui/ToastProvider';
+import * as XLSX from 'xlsx';
 
 interface CreateCampaignModalProps {
   isOpen: boolean;
@@ -71,6 +72,7 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [uploadResult, setUploadResult] = useState<CsvUploadResult | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [parsedContactCount, setParsedContactCount] = useState(0);
   
   // Credit estimation states
   const [showEstimator, setShowEstimator] = useState(false);
@@ -197,7 +199,7 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
     },
   });
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       if (!(/\.(csv|xlsx|xls)$/i).test(file.name)) {
@@ -208,6 +210,75 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
         });
         return;
       }
+      
+      // Parse file to count valid contacts
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: 'array', raw: false });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false }) as any[][];
+        
+        if (jsonData.length < 2) {
+          setParsedContactCount(0);
+        } else {
+          // Get headers
+          const headers = jsonData[0].map((h: any) => 
+            h?.toString().toLowerCase().trim().replace(/\s+/g, '_')
+          );
+          
+          // Find phone column index
+          const phoneIndex = headers.findIndex((h: string) => 
+            ['phone', 'phone_number', 'mobile', 'cell', 'phonenumber'].includes(h)
+          );
+          
+          if (phoneIndex === -1) {
+            toast({
+              title: 'Invalid Template',
+              description: 'Phone number column not found in the file',
+              variant: 'destructive',
+            });
+            return;
+          }
+          
+          // Count valid contacts (skip header, count rows with valid phone numbers)
+          let validCount = 0;
+          for (let i = 1; i < jsonData.length; i++) {
+            const row = jsonData[i];
+            
+            // Skip empty rows
+            if (!row || row.length === 0) continue;
+            const hasContent = row.some((cell: any) => cell && cell.toString().trim() !== '');
+            if (!hasContent) continue;
+            
+            // Check if phone number is valid
+            const phone = row[phoneIndex];
+            if (!phone) continue;
+            
+            const phoneStr = phone.toString().trim();
+            const cleanPhone = phoneStr.replace(/\s+/g, '');
+            
+            // Skip rows without digits (instruction rows won't have phone numbers)
+            if (!cleanPhone || !/\d/.test(cleanPhone)) continue;
+            
+            const digitCount = (cleanPhone.match(/\d/g) || []).length;
+            if (digitCount < 10) continue;
+            
+            validCount++;
+          }
+          
+          setParsedContactCount(validCount);
+        }
+      } catch (error) {
+        console.error('Error parsing file:', error);
+        toast({
+          title: 'Parse Error',
+          description: 'Failed to parse the file. Please ensure it\'s a valid Excel or CSV file.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      
       setCsvFile(file);
       setUploadResult(null);
     }
@@ -215,6 +286,7 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
 
   const handleRemoveFile = () => {
     setCsvFile(null);
+    setParsedContactCount(0);
     setUploadResult(null);
   };
 
@@ -288,9 +360,8 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
     let campaignData: any = null;
 
     if (csvFile) {
-      // For CSV uploads, we need to estimate contact count
-      // This is a rough estimate based on file size (could be improved)
-      contactCount = Math.ceil(csvFile.size / 100); // Rough estimate
+      // Use the parsed contact count from file analysis
+      contactCount = parsedContactCount;
       campaignData = {
         type: 'csv',
         name,
@@ -532,11 +603,11 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
             </Select>
           </div>
 
-          {/* CSV Upload Section */}
+          {/* File Upload Section */}
           {preSelectedContacts.length === 0 && (
             <div>
               <div className="flex items-center justify-between mb-2">
-                <Label>Upload Contacts (CSV)</Label>
+                <Label>Upload Contacts (Excel/CSV)</Label>
                 <Button
                   type="button"
                   variant="outline"
@@ -555,13 +626,13 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
                 {!csvFile ? (
                   <>
                     <Upload className="w-12 h-12 mx-auto mb-3 text-gray-400" />
-                    <p className="mb-2">Drop your CSV file here or click to browse</p>
+                    <p className="mb-2">Drop your Excel or CSV file here or click to browse</p>
                     <p className="text-sm text-gray-500 mb-4">
-                      CSV should have columns: name, email, phone
+                      Supports .xlsx, .xls, and .csv files. Only phone_number is required.
                     </p>
                     <Input
                       type="file"
-                      accept=".csv"
+                      accept=".csv,.xlsx,.xls"
                       onChange={handleFileSelect}
                       className="hidden"
                       id="csv-upload"
@@ -571,7 +642,7 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
                       variant="outline"
                       onClick={() => document.getElementById('csv-upload')?.click()}
                     >
-                      Select CSV File
+                      Select File
                     </Button>
                   </>
                 ) : (
