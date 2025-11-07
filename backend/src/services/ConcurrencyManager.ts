@@ -1,4 +1,4 @@
-import { pool } from '../config/database';
+import database from '../config/database';
 import { logger } from '../utils/logger';
 
 export interface ActiveCallInfo {
@@ -34,7 +34,7 @@ export class ConcurrencyManager {
   }> {
     try {
       // Debug: Check current active calls for this user
-      const debugResult = await pool.query(`
+      const debugResult = await database.query(`
         SELECT id, call_type, started_at 
         FROM active_calls 
         WHERE user_id = $1 
@@ -48,7 +48,7 @@ export class ConcurrencyManager {
       });
 
       // Use a database transaction to ensure atomicity
-      const result = await pool.query(`
+      const result = await database.query(`
         WITH user_stats AS (
           SELECT 
             u.concurrent_calls_limit,
@@ -119,7 +119,7 @@ export class ConcurrencyManager {
       }
 
       // Now reserve the slot for the direct call
-      await pool.query(`
+      await database.query(`
         INSERT INTO active_calls (id, user_id, call_type, started_at)
         VALUES ($1, $2, 'direct', NOW())
         ON CONFLICT (id) DO UPDATE SET
@@ -155,7 +155,7 @@ export class ConcurrencyManager {
   }> {
     try {
       // Check and reserve in a single atomic operation
-      const result = await pool.query(`
+      const result = await database.query(`
         WITH user_stats AS (
           SELECT 
             u.concurrent_calls_limit,
@@ -195,7 +195,7 @@ export class ConcurrencyManager {
       }
 
       // Reserve the slot for the campaign call
-      await pool.query(`
+      await database.query(`
         INSERT INTO active_calls (id, user_id, call_type, started_at)
         VALUES ($1, $2, 'campaign', NOW())
         ON CONFLICT (id) DO UPDATE SET
@@ -225,7 +225,7 @@ export class ConcurrencyManager {
    */
   async updateActiveCallWithExecutionId(callId: string, executionId: string): Promise<void> {
     try {
-      await pool.query(`
+      await database.query(`
         UPDATE active_calls 
         SET bolna_execution_id = $2
         WHERE id = $1
@@ -247,7 +247,7 @@ export class ConcurrencyManager {
    */
   async releaseCallSlot(callId: string): Promise<void> {
     try {
-      const result = await pool.query(`
+      const result = await database.query(`
         DELETE FROM active_calls 
         WHERE id = $1 
         RETURNING user_id, call_type, bolna_execution_id
@@ -271,7 +271,7 @@ export class ConcurrencyManager {
    */
   async releaseCallSlotByExecutionId(executionId: string): Promise<void> {
     try {
-      const result = await pool.query(`
+      const result = await database.query(`
         DELETE FROM active_calls 
         WHERE bolna_execution_id = $1 
         RETURNING id, user_id, call_type
@@ -299,7 +299,7 @@ export class ConcurrencyManager {
     userLimit: number;
     userAvailableSlots: number;
   }> {
-    const result = await pool.query(`
+    const result = await database.query(`
       SELECT 
         u.concurrent_calls_limit,
         COALESCE(ac.active_count, 0) as active_calls
@@ -332,7 +332,7 @@ export class ConcurrencyManager {
    * Get count of user's active campaign calls
    */
   private async getUserCampaignCallsCount(userId: string): Promise<number> {
-    const result = await pool.query(`
+    const result = await database.query(`
       SELECT COUNT(*) as campaign_calls
       FROM active_calls
       WHERE user_id = $1 AND call_type = 'campaign'
@@ -349,7 +349,7 @@ export class ConcurrencyManager {
     systemLimit: number;
     systemAvailableSlots: number;
   }> {
-    const result = await pool.query(`
+    const result = await database.query(`
       SELECT COUNT(*) as system_active_calls
       FROM active_calls
     `);
@@ -368,7 +368,7 @@ export class ConcurrencyManager {
    * Get active calls for a user
    */
   async getActiveCallsForUser(userId: string): Promise<ActiveCallInfo[]> {
-    const result = await pool.query(`
+    const result = await database.query(`
       SELECT 
         ac.id,
         ac.user_id,
@@ -393,13 +393,13 @@ export class ConcurrencyManager {
     byUser: Array<{ userId: string; count: number; directCalls: number; campaignCalls: number }>;
   }> {
     const [totalResult, byTypeResult, byUserResult] = await Promise.all([
-      pool.query('SELECT COUNT(*) as total FROM active_calls'),
-      pool.query(`
+      database.query('SELECT COUNT(*) as total FROM active_calls'),
+      database.query(`
         SELECT call_type, COUNT(*) as count 
         FROM active_calls 
         GROUP BY call_type
       `),
-      pool.query(`
+      database.query(`
         SELECT 
           user_id,
           COUNT(*) as total_count,
@@ -433,7 +433,7 @@ export class ConcurrencyManager {
    */
   async cleanupOrphanedActiveCalls(): Promise<number> {
     try {
-      const result = await pool.query(`
+      const result = await database.query(`
         SELECT cleanup_orphaned_active_calls() as cleanup_count
       `);
       

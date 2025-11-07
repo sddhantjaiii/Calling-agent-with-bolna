@@ -400,7 +400,29 @@ class WebhookService {
             // Use setImmediate to run after transaction commits
             setImmediate(() => {
               this.maybeSendCampaignSummary(queueItem.campaign_id, queueItem.user_id).catch((e: any) => {
-                logger.error('Failed to send campaign summary email', { error: e?.message || String(e) });
+                logger.error('Failed to send campaign summary email', { 
+                  campaign_id: queueItem.campaign_id,
+                  user_id: queueItem.user_id,
+                  error: e?.message || String(e),
+                  stack: e?.stack
+                });
+                
+                // Capture in Sentry with warning level (non-critical background task)
+                Sentry.captureException(e, {
+                  level: 'warning',
+                  tags: {
+                    error_type: 'campaign_summary_email_failed',
+                    campaign_id: queueItem.campaign_id,
+                    severity: 'low'
+                  },
+                  contexts: {
+                    campaign_summary: {
+                      campaign_id: queueItem.campaign_id,
+                      user_id: queueItem.user_id,
+                      operation: 'maybeSendCampaignSummary'
+                    }
+                  }
+                });
               });
             });
           }
@@ -956,7 +978,29 @@ class WebhookService {
         // Best-effort: if campaign has fully completed, send a summary email (feature-gated)
         if (process.env.EMAIL_CAMPAIGN_SUMMARY_ENABLED === 'true' && queueItem.campaign_id) {
           this.maybeSendCampaignSummary(queueItem.campaign_id, queueItem.user_id).catch((e: any) => {
-            logger.error('Failed to send campaign summary email', { error: e?.message || String(e) });
+            logger.error('Failed to send campaign summary email', { 
+              campaign_id: queueItem.campaign_id,
+              user_id: queueItem.user_id,
+              error: e?.message || String(e),
+              stack: e?.stack
+            });
+            
+            // Capture in Sentry with warning level (non-critical background task)
+            Sentry.captureException(e, {
+              level: 'warning',
+              tags: {
+                error_type: 'campaign_summary_email_failed',
+                campaign_id: queueItem.campaign_id,
+                severity: 'low'
+              },
+              contexts: {
+                campaign_summary: {
+                  campaign_id: queueItem.campaign_id,
+                  user_id: queueItem.user_id,
+                  operation: 'maybeSendCampaignSummary'
+                }
+              }
+            });
           });
         }
       } else {
@@ -1001,9 +1045,8 @@ class WebhookService {
       const queued = parseInt(String((analytics as any).queued_calls || (analytics as any).queued || 0));
       if (!total || completed < total || inProgress > 0 || queued > 0) return;
 
-      // Gather top hot leads for this campaign
-      const { pool } = await import('../config/database');
-      const topLeadsResult = await pool.query(
+      // Gather top hot leads for this campaign - use database.query() for proper connection management
+      const topLeadsResult = await database.query(
         `SELECT 
            COALESCE(q.contact_name, q.phone_number) AS name,
            q.phone_number as phone,
@@ -1024,7 +1067,7 @@ class WebhookService {
       }));
 
       // Optional CSV of all hot leads (score >= 80)
-      const csvResult = await pool.query(
+      const csvResult = await database.query(
         `SELECT 
            COALESCE(q.contact_name, q.phone_number) AS name,
            q.phone_number as phone,
@@ -1085,7 +1128,34 @@ class WebhookService {
         }
       });
     } catch (e) {
-      // swallow errors
+      // Log detailed error information for debugging
+      logger.error('❌ Campaign summary email failed', {
+        campaign_id: campaignId,
+        user_id: userId,
+        error: e instanceof Error ? e.message : String(e),
+        stack: e instanceof Error ? e.stack : undefined,
+        error_name: e instanceof Error ? e.constructor.name : typeof e
+      });
+      
+      // Capture in Sentry with contextual information
+      Sentry.captureException(e, {
+        level: 'warning',
+        tags: {
+          error_type: 'campaign_summary_generation_failed',
+          campaign_id: campaignId,
+          severity: 'low'
+        },
+        contexts: {
+          campaign_summary_generation: {
+            campaign_id: campaignId,
+            user_id: userId,
+            operation: 'maybeSendCampaignSummary',
+            error_message: e instanceof Error ? e.message : String(e)
+          }
+        }
+      });
+      
+      // Swallow error - this is best-effort, don't propagate
     }
   }
 }

@@ -11,7 +11,7 @@ const router = Router();
  * @desc    Create a new campaign
  * @access  Private
  */
-router.post('/', authenticateToken, async (req: Request, res: Response): Promise<any> => {
+router.post('/', async (req: Request, res: Response): Promise<any> => {
   try {
     const userId = (req as any).userId;
     if (!userId) {
@@ -50,7 +50,7 @@ router.post('/', authenticateToken, async (req: Request, res: Response): Promise
  * @desc    Create campaign from CSV upload
  * @access  Private
  */
-router.post('/upload-csv', authenticateToken, async (req: Request, res: Response): Promise<any> => {
+router.post('/upload-csv', async (req: Request, res: Response): Promise<any> => {
   try {
     const userId = (req as any).userId;
     if (!userId) {
@@ -215,7 +215,7 @@ router.post('/upload-csv', authenticateToken, async (req: Request, res: Response
  * @desc    Get all campaigns for user
  * @access  Private
  */
-router.get('/', authenticateToken, async (req: Request, res: Response): Promise<any> => {
+router.get('/', async (req: Request, res: Response): Promise<any> => {
   try {
     const userId = (req as any).userId;
     if (!userId) {
@@ -261,7 +261,7 @@ router.get('/', authenticateToken, async (req: Request, res: Response): Promise<
  * @desc    Get campaigns summary (count by status)
  * @access  Private
  */
-router.get('/summary', authenticateToken, async (req: Request, res: Response): Promise<any> => {
+router.get('/summary', async (req: Request, res: Response): Promise<any> => {
   try {
     const userId = (req as any).userId;
     if (!userId) {
@@ -288,7 +288,7 @@ router.get('/summary', authenticateToken, async (req: Request, res: Response): P
  * @desc    Get campaign by ID
  * @access  Private
  */
-router.get('/:id', authenticateToken, async (req: Request, res: Response): Promise<any> => {
+router.get('/:id', async (req: Request, res: Response): Promise<any> => {
   try {
     const userId = (req as any).userId;
     if (!userId) {
@@ -322,7 +322,7 @@ router.get('/:id', authenticateToken, async (req: Request, res: Response): Promi
  * @desc    Update campaign
  * @access  Private
  */
-router.put('/:id', authenticateToken, async (req: Request, res: Response): Promise<any> => {
+router.put('/:id', async (req: Request, res: Response): Promise<any> => {
   try {
     const userId = (req as any).userId;
     if (!userId) {
@@ -362,7 +362,7 @@ router.put('/:id', authenticateToken, async (req: Request, res: Response): Promi
  * @desc    Delete campaign
  * @access  Private
  */
-router.delete('/:id', authenticateToken, async (req: Request, res: Response): Promise<any> => {
+router.delete('/:id', async (req: Request, res: Response): Promise<any> => {
   try {
     const userId = (req as any).userId;
     if (!userId) {
@@ -398,7 +398,7 @@ router.delete('/:id', authenticateToken, async (req: Request, res: Response): Pr
  * @desc    Start campaign
  * @access  Private
  */
-router.post('/:id/start', authenticateToken, async (req: Request, res: Response): Promise<any> => {
+router.post('/:id/start', async (req: Request, res: Response): Promise<any> => {
   try {
     const userId = (req as any).userId;
     if (!userId) {
@@ -435,7 +435,7 @@ router.post('/:id/start', authenticateToken, async (req: Request, res: Response)
  * @desc    Pause campaign
  * @access  Private
  */
-router.post('/:id/pause', authenticateToken, async (req: Request, res: Response): Promise<any> => {
+router.post('/:id/pause', async (req: Request, res: Response): Promise<any> => {
   try {
     const userId = (req as any).userId;
     if (!userId) {
@@ -472,7 +472,7 @@ router.post('/:id/pause', authenticateToken, async (req: Request, res: Response)
  * @desc    Resume campaign
  * @access  Private
  */
-router.post('/:id/resume', authenticateToken, async (req: Request, res: Response): Promise<any> => {
+router.post('/:id/resume', async (req: Request, res: Response): Promise<any> => {
   try {
     const userId = (req as any).userId;
     if (!userId) {
@@ -509,7 +509,7 @@ router.post('/:id/resume', authenticateToken, async (req: Request, res: Response
  * @desc    Cancel campaign
  * @access  Private
  */
-router.post('/:id/cancel', authenticateToken, async (req: Request, res: Response): Promise<any> => {
+router.post('/:id/cancel', async (req: Request, res: Response): Promise<any> => {
   try {
     const userId = (req as any).userId;
     if (!userId) {
@@ -546,7 +546,7 @@ router.post('/:id/cancel', authenticateToken, async (req: Request, res: Response
  * @desc    Get campaign statistics
  * @access  Private
  */
-router.get('/:id/statistics', authenticateToken, async (req: Request, res: Response): Promise<any> => {
+router.get('/:id/statistics', async (req: Request, res: Response): Promise<any> => {
   try {
     const userId = (req as any).userId;
     if (!userId) {
@@ -583,7 +583,7 @@ router.get('/:id/statistics', authenticateToken, async (req: Request, res: Respo
  * @desc    Get campaign analytics
  * @access  Private
  */
-router.get('/:id/analytics', authenticateToken, async (req: Request, res: Response): Promise<any> => {
+router.get('/:id/analytics', async (req: Request, res: Response): Promise<any> => {
   try {
     const userId = (req as any).userId;
     if (!userId) {

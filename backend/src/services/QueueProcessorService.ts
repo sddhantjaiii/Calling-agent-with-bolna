@@ -2,7 +2,7 @@ import { CallQueueModel } from '../models/CallQueue';
 import { CallCampaignModel } from '../models/CallCampaign';
 import { userService } from './userService';
 import { concurrencyManager } from './ConcurrencyManager';
-import { pool } from '../config/database';
+import database from '../config/database';
 import crypto from 'crypto';
 import * as Sentry from '@sentry/node';
 import { hashPhoneNumber, hashUserId } from '../utils/sentryHelpers';
@@ -154,7 +154,7 @@ export class QueueProcessorService {
     concurrent_calls_limit: number;
     pending_count: number;
   }>> {
-    const result = await pool.query(`
+    const result = await database.query(`
       SELECT 
         u.id as user_id,
         u.concurrent_calls_limit,
@@ -463,14 +463,14 @@ export class QueueProcessorService {
     const activeCalls = await CallQueueModel.countActiveCalls(userId);
     
     // Get user's limit from database
-    const userResult = await pool.query(
+    const userResult = await database.query(
       'SELECT concurrent_calls_limit FROM users WHERE id = $1',
       [userId]
     );
     const userLimit = userResult.rows[0]?.concurrent_calls_limit || this.defaultUserLimit;
 
     // Get queued calls count
-    const queueResult = await pool.query(
+    const queueResult = await database.query(
       `SELECT COUNT(*)::int as count 
        FROM call_queue 
        WHERE user_id = $1 AND status = 'queued'`,
@@ -494,7 +494,7 @@ export class QueueProcessorService {
       console.log(`[QueueProcessor] Pausing campaigns for user ${userId} due to insufficient credits`);
       
       // Update all active campaigns to 'paused' status
-      await pool.query(`
+      await database.query(`
         UPDATE call_campaigns 
         SET status = 'paused',
             updated_at = CURRENT_TIMESTAMP

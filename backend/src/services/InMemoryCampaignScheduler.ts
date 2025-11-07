@@ -1,4 +1,4 @@
-import { pool } from '../config/database';
+import database from '../config/database';
 import { QueueProcessorService } from './QueueProcessorService';
 import { logger } from '../middleware';
 
@@ -72,7 +72,7 @@ export class InMemoryCampaignScheduler {
       const startTime = Date.now();
 
       // Check for queued direct calls FIRST
-      const directCallsResult = await pool.query(`
+      const directCallsResult = await database.query(`
         SELECT COUNT(*) as direct_count
         FROM call_queue 
         WHERE status = 'queued' 
@@ -94,7 +94,7 @@ export class InMemoryCampaignScheduler {
         });
       }
 
-      const result = await pool.query(`
+      const result = await database.query(`
         SELECT 
           cc.id as campaign_id,
           cc.user_id,
@@ -314,7 +314,7 @@ export class InMemoryCampaignScheduler {
   private async checkContinueOrSleep(): Promise<void> {
     try {
       // Quick query to check if any campaigns still have queued calls in active windows
-      const result = await pool.query(`
+      const result = await database.query(`
         SELECT 
           cc.id,
           cc.first_call_time,

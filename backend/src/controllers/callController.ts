@@ -4,7 +4,7 @@ import { ContactService } from '../services/contactService';
 import { userService } from '../services/userService';
 import { bolnaService } from '../services/bolnaService';
 import { concurrencyManager } from '../services/ConcurrencyManager';
-import { pool } from '../config/database';
+import database from '../config/database';
 import { AgentOwnershipRequest } from '../middleware/agentOwnership';
 import { logger } from '../utils/logger';
 import fetch from 'node-fetch';
@@ -697,7 +697,7 @@ export class CallController {
         });
 
         // Update the active_calls record with the execution ID
-        await pool.query(`
+        await database.query(`
           UPDATE active_calls 
           SET bolna_execution_id = $1 
           WHERE id = $2
