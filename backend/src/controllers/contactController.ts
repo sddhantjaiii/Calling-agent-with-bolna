@@ -31,18 +31,27 @@ export class ContactController {
         sortOrder: sortOrder as 'asc' | 'desc'
       };
 
-      // Generate cache key with all parameters
-      const cacheKey = queryCache.generateKey('contacts:list', {
-        userId,
-        ...options
-      });
+      // Only cache first 2 pages (40-50 items) for better memory management
+      const shouldCache = options.offset < 40;
+      
+      let result;
+      if (shouldCache) {
+        // Generate cache key with all parameters
+        const cacheKey = queryCache.generateKey('contacts:list', {
+          userId,
+          ...options
+        });
 
-      // Wrap query with caching
-      const result = await queryCache.wrapQuery(
-        cacheKey,
-        () => ContactService.getUserContacts(userId, options),
-        2 * 60 * 1000 // 2 minutes TTL
-      );
+        // Wrap query with caching (1 minute TTL for frequently accessed data)
+        result = await queryCache.wrapQuery(
+          cacheKey,
+          () => ContactService.getUserContacts(userId, options),
+          60 * 1000 // 1 minute TTL - shorter to prevent stale data
+        );
+      } else {
+        // Don't cache pages beyond the first 2 - direct query
+        result = await ContactService.getUserContacts(userId, options);
+      }
       
       res.json({
         success: true,

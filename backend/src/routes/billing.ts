@@ -68,8 +68,9 @@ router.post('/confirm-payment', [
 /**
  * GET /api/billing/pricing
  * Get pricing information
+ * DISABLED
  */
-router.get('/pricing', (req: Request, res: Response) => BillingController.getPricing(req, res));
+// router.get('/pricing', (req: Request, res: Response) => BillingController.getPricing(req, res));
 
 /**
  * GET /api/billing/payment-history

@@ -29,13 +29,9 @@ import {
   MoreHorizontal,
   Edit,
   Trash2,
-  ChevronLeft,
-  ChevronRight,
   PhoneCall,
   Loader2,
 } from 'lucide-react';
-import Pagination from '@/components/ui/pagination';
-import LazyLoader from '@/components/ui/LazyLoader';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,13 +41,11 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { useContacts } from '@/hooks/useContacts';
 import { useToast } from '@/components/ui/use-toast';
-import { useSmartInfiniteScroll } from '@/hooks/useSmartInfiniteScroll';
-import { InfiniteScrollLoader } from '@/components/ui/InfiniteScrollLoader';
 import DeleteContactDialog from './DeleteContactDialog';
 import BulkContactUpload from './BulkContactUpload';
 import { CallAgentModal } from './CallAgentModal';
 import CreateCampaignModal from '@/components/campaigns/CreateCampaignModal';
-import type { Contact, ContactsListOptions, ContactUploadResult } from '@/types';
+import type { Contact, ContactsListOptions } from '@/types';
 
 interface ContactListProps {
   onContactSelect?: (contact: Contact) => void;
@@ -62,20 +56,25 @@ interface ContactListProps {
   enableInfiniteScroll?: boolean;
 }
 
+// Constants
+const ITEMS_PER_BATCH = 100; // Load 100 contacts per batch
+const LOAD_TRIGGER_OFFSET = 10; // Trigger next load when within 10 items of end
+
 export const ContactList: React.FC<ContactListProps> = ({
   onContactSelect,
   onContactEdit,
   onContactCreate,
   useLazyLoading = false,
-  initialPageSize = 20, // Changed to 20 for better UX
+  initialPageSize = 100,
   enableInfiniteScroll = true,
 }) => {
-  const ITEMS_PER_PAGE = initialPageSize;
   const { toast } = useToast();
+  
+  // State
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'phone_number' | 'created_at'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentOffset, setCurrentOffset] = useState(0);
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [contactToDelete, setContactToDelete] = useState<Contact | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -84,34 +83,48 @@ export const ContactList: React.FC<ContactListProps> = ({
   const [filterType, setFilterType] = useState<'all' | 'auto_created' | 'linked_to_calls'>('all');
   const [isAgentModalOpen, setIsAgentModalOpen] = useState(false);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   
-  // Bulk call state
+  // Bulk selection state
   const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(new Set());
   const [isCampaignModalOpen, setIsCampaignModalOpen] = useState(false);
   const [campaignPreselectedContacts, setCampaignPreselectedContacts] = useState<string[]>([]);
+
+  // Debug modal state
+  useEffect(() => {
+    console.log('📊 Campaign Modal State:', {
+      isOpen: isCampaignModalOpen,
+      preSelectedContacts: campaignPreselectedContacts,
+    });
+  }, [isCampaignModalOpen, campaignPreselectedContacts]);
+
+  // Refs
+  const lastLoadedOffsetRef = useRef<number>(-1); // Track last loaded offset
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const triggerElementRef = useRef<HTMLDivElement | null>(null);
 
   // Debounce search term
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearchTerm(searchTerm);
-      setCurrentPage(1); // Reset to first page when searching
-      if (enableInfiniteScroll) {
-        setAllLoadedContacts([]); // Clear loaded contacts when searching
-      }
+      setCurrentOffset(0); // Reset to first batch
+      setAllLoadedContacts([]); // Clear loaded contacts
+      lastLoadedOffsetRef.current = -1; // Reset tracker
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [searchTerm, enableInfiniteScroll]);
+  }, [searchTerm]);
 
-  // Prepare options for the hook with server-side pagination
+  // Prepare options for useContacts hook
   const contactsOptions: ContactsListOptions = {
     search: debouncedSearchTerm,
     sortBy,
     sortOrder,
-    limit: ITEMS_PER_PAGE,
-    offset: (currentPage - 1) * ITEMS_PER_PAGE,
+    limit: ITEMS_PER_BATCH,
+    offset: currentOffset,
   };
 
+  // Fetch contacts
   const {
     contacts,
     pagination,
@@ -123,154 +136,112 @@ export const ContactList: React.FC<ContactListProps> = ({
     clearError,
   } = useContacts(contactsOptions);
 
-  // Handle infinite scroll vs traditional pagination and apply filters
-  let baseContacts = enableInfiniteScroll ? allLoadedContacts : contacts;
-  
-  // Apply filter based on selected filter type
-  const displayContacts = baseContacts.filter(contact => {
-    switch (filterType) {
-      case 'auto_created':
-        return contact.isAutoCreated;
-      case 'linked_to_calls':
-        return contact.callLinkType === 'auto_created' || contact.callLinkType === 'manually_linked';
-      case 'all':
-      default:
-        return true;
-    }
+  // Determine if there are more contacts to load
+  const hasMore = pagination?.hasMore ?? false;
+  const totalContacts = pagination?.total ?? 0;
+
+  // Handle infinite scroll vs traditional pagination
+  const displayContacts = enableInfiniteScroll ? allLoadedContacts : contacts;
+
+  // Apply filter
+  const filteredContacts = displayContacts.filter(contact => {
+    if (filterType === 'auto_created') return contact.isAutoCreated;
+    if (filterType === 'linked_to_calls') return contact.linkedCallId != null;
+    return true; // 'all'
   });
 
-  // Calculate pagination info from server response
-  const totalContacts = pagination?.total || contacts.length;
-  const totalPages = Math.ceil(totalContacts / ITEMS_PER_PAGE);
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const endIndex = startIndex + contacts.length;
-  const hasMore = pagination?.hasMore || false;
-
-  // Debug logging for infinite scroll
-  useEffect(() => {
-    if (enableInfiniteScroll) {
-      console.log('📊 Infinite Scroll State:', {
-        currentPage,
-        hasMore,
-        loading,
-        totalLoadedContacts: allLoadedContacts.length,
-        displayContacts: displayContacts.length,
-        paginationTotal: pagination?.total,
-        paginationHasMore: pagination?.hasMore,
-        contactsLength: contacts.length,
-      });
-    }
-  }, [currentPage, hasMore, loading, allLoadedContacts.length, displayContacts.length, enableInfiniteScroll]);
-
-  // Smart infinite scroll hook - use allLoadedContacts.length for accurate trigger
-  const { triggerRef, isLoadingMore, isTriggerItem } = useSmartInfiniteScroll({
-    enabled: enableInfiniteScroll,
-    hasMore,
-    isLoading: loading,
-    onLoadMore: () => {
-      console.log('🔄 IntersectionObserver trigger - loading more from page', currentPage, 'to', currentPage + 1);
-      setCurrentPage(prev => prev + 1);
-    },
-    triggerThreshold: 0.8, // Trigger at 80% - more likely to be in viewport
-    rootMargin: '500px', // Large margin to trigger very early
-    intersectionThreshold: 0,
-  });
-
-  // Update accumulated contacts for infinite scroll
-  useEffect(() => {
-    if (enableInfiniteScroll) {
-      if (currentPage === 1) {
-        // Reset for new search or first load
-        setAllLoadedContacts(contacts);
-      } else {
-        // Append new contacts
-        setAllLoadedContacts(prev => {
-          const existingIds = new Set(prev.map(c => c.id));
-          const newContacts = contacts.filter(c => !existingIds.has(c.id));
-          return [...prev, ...newContacts];
-        });
-      }
-    }
-  }, [contacts, currentPage, enableInfiniteScroll]);
-
-  // Auto-load if page isn't tall enough to scroll
-  useEffect(() => {
-    if (!enableInfiniteScroll || !hasMore || loading || isLoadingMore) return;
-
-    const checkIfPageTooShort = () => {
-      const scrollHeight = document.documentElement.scrollHeight;
-      const clientHeight = document.documentElement.clientHeight;
-      const canScroll = scrollHeight > clientHeight;
-
-      if (!canScroll && displayContacts.length > 0) {
-        console.log('📏 Page too short to scroll - auto-loading more content', {
-          scrollHeight,
-          clientHeight,
-          itemsLoaded: displayContacts.length,
-        });
-        setCurrentPage(prev => prev + 1);
-      }
-    };
-
-    // Check after a short delay to ensure DOM is updated
-    const timer = setTimeout(checkIfPageTooShort, 300);
-    return () => clearTimeout(timer);
-  }, [enableInfiniteScroll, hasMore, loading, isLoadingMore, displayContacts.length]);
-
-  // Backup scroll listener for fast scrolling - catches what IntersectionObserver might miss
-  const lastLoadTrigger = useRef<number>(0);
-  const lastScrollTop = useRef<number>(0);
-  const scrollVelocity = useRef<number>(0);
-  
+  // Update accumulated contacts when new batch arrives
   useEffect(() => {
     if (!enableInfiniteScroll) return;
+    
+    // Skip if no contacts or empty result when we already have contacts loaded
+    if (contacts.length === 0) {
+      if (allLoadedContacts.length > 0) {
+        console.log('⏭️ Skipping empty batch - keeping existing contacts');
+      }
+      return;
+    }
 
-    const handleScroll = () => {
-      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-      const scrollHeight = document.documentElement.scrollHeight;
-      const clientHeight = document.documentElement.clientHeight;
-      const distanceFromBottom = scrollHeight - (scrollTop + clientHeight);
+    // Skip if we've already processed this offset
+    if (lastLoadedOffsetRef.current === currentOffset) {
+      console.log('⏭️ Batch already processed:', currentOffset);
+      return;
+    }
 
-      // Calculate scroll velocity to detect fast scrolling
-      const scrollDelta = scrollTop - lastScrollTop.current;
-      scrollVelocity.current = Math.abs(scrollDelta);
-      lastScrollTop.current = scrollTop;
-
-      const now = Date.now();
-      const timeSinceLastTrigger = now - lastLoadTrigger.current;
-      
-      // Fast scroll: velocity > 100px, trigger at 1200px
-      // Normal scroll: trigger at 600px
-      const triggerDistance = scrollVelocity.current > 100 ? 1200 : 600;
-
-      // Trigger earlier for fast scrolling
-      if (distanceFromBottom < triggerDistance && hasMore && !loading && !isLoadingMore && timeSinceLastTrigger > 300) {
-        const isFastScroll = scrollVelocity.current > 100;
-        console.log(isFastScroll ? '🚀 FAST scroll detected' : '📜 Normal scroll', {
-          velocity: Math.round(scrollVelocity.current),
-          distanceFromBottom: Math.round(distanceFromBottom),
-          triggerDistance,
-        });
+    if (currentOffset === 0) {
+      // Initial load
+      console.log('✅ Initial batch loaded:', contacts.length);
+      setAllLoadedContacts(contacts);
+      lastLoadedOffsetRef.current = 0;
+      setIsLoadingMore(false);
+    } else {
+      // Append new batch
+      setAllLoadedContacts(prev => {
+        const existingIds = new Set(prev.map(c => c.id));
+        const newContacts = contacts.filter(c => !existingIds.has(c.id));
         
-        lastLoadTrigger.current = now;
-        
-        // Load 2 pages ahead if scrolling very fast
-        if (isFastScroll && scrollVelocity.current > 200) {
-          console.log('⚡ SUPER FAST - Loading 2 pages ahead!');
-          setCurrentPage(prev => prev + 2);
-        } else {
-          setCurrentPage(prev => prev + 1);
+        if (newContacts.length > 0) {
+          console.log('➕ Appending batch:', {
+            previous: prev.length,
+            new: newContacts.length,
+            total: prev.length + newContacts.length,
+          });
+          lastLoadedOffsetRef.current = currentOffset;
+          setIsLoadingMore(false);
+          return [...prev, ...newContacts];
         }
+        
+        setIsLoadingMore(false);
+        return prev;
+      });
+    }
+  }, [contacts, currentOffset, enableInfiniteScroll, allLoadedContacts.length]);
+
+  // Load more contacts
+  const loadMoreContacts = useCallback(() => {
+    if (!enableInfiniteScroll || isLoadingMore || !hasMore || loading) return;
+    
+    const nextOffset = currentOffset + ITEMS_PER_BATCH;
+    console.log('🔄 Loading next batch:', {
+      currentOffset,
+      nextOffset,
+      currentLoaded: allLoadedContacts.length,
+    });
+    
+    setIsLoadingMore(true);
+    setCurrentOffset(nextOffset);
+  }, [currentOffset, isLoadingMore, hasMore, loading, enableInfiniteScroll, allLoadedContacts.length]);
+
+  // Setup Intersection Observer for trigger element
+  useEffect(() => {
+    if (!enableInfiniteScroll || !triggerElementRef.current) return;
+
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry.isIntersecting) {
+          console.log('👀 Trigger element visible - loading more');
+          loadMoreContacts();
+        }
+      },
+      {
+        root: null,
+        rootMargin: '200px',
+        threshold: 0,
+      }
+    );
+
+    observerRef.current.observe(triggerElementRef.current);
+
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect();
       }
     };
+  }, [enableInfiniteScroll, loadMoreContacts]);
 
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => {
-      window.removeEventListener('scroll', handleScroll);
-    };
-  }, [enableInfiniteScroll, hasMore, loading, isLoadingMore]);
-
-  const handleDeleteContact = (contact: Contact) => {
+  // Handlers
+  const handleDeleteClick = (contact: Contact) => {
     setContactToDelete(contact);
     setIsDeleteDialogOpen(true);
   };
@@ -278,628 +249,329 @@ export const ContactList: React.FC<ContactListProps> = ({
   const handleDeleteConfirm = async () => {
     if (!contactToDelete) return;
 
-    try {
-      const success = await deleteContact(contactToDelete.id);
-      if (success) {
-        toast({
-          title: 'Contact deleted',
-          description: `${contactToDelete.name} has been deleted successfully.`,
-        });
-      } else {
-        toast({
-          title: 'Delete failed',
-          description: 'Failed to delete contact. Please try again.',
-          variant: 'destructive',
-        });
-      }
-    } catch (error) {
+    const success = await deleteContact(contactToDelete.id);
+    if (success) {
       toast({
-        title: 'Delete failed',
-        description: 'An error occurred while deleting the contact.',
+        title: 'Success',
+        description: 'Contact deleted successfully',
+      });
+      setIsDeleteDialogOpen(false);
+      setContactToDelete(null);
+      refreshContacts(contactsOptions);
+    } else {
+      toast({
+        title: 'Error',
+        description: 'Failed to delete contact',
         variant: 'destructive',
       });
     }
-
-    setIsDeleteDialogOpen(false);
-    setContactToDelete(null);
   };
 
-  const handleDeleteCancel = () => {
-    setIsDeleteDialogOpen(false);
-    setContactToDelete(null);
+  const handleBulkUploadSuccess = () => {
+    refreshContacts(contactsOptions);
+    toast({
+      title: 'Success',
+      description: 'Contacts uploaded successfully',
+    });
   };
 
-  const handleSortChange = (newSortBy: typeof sortBy) => {
-    if (newSortBy === sortBy) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortBy(newSortBy);
-      setSortOrder('asc');
-    }
-    setCurrentPage(1);
-  };
-
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-    // The useContacts hook will automatically refresh when contactsOptions change
-  };
-
-  const handleLoadMore = () => {
-    if (useLazyLoading && hasMore && !loading) {
-      setCurrentPage(prev => prev + 1);
-    }
-  };
-
-  const handleBulkUploadComplete = async (result: ContactUploadResult) => {
-    console.log('📋 ContactList: Upload completed callback triggered', result);
-    
-    if (result.success && result.summary.successful > 0) {
-      toast({
-        title: 'Bulk upload completed',
-        description: `Successfully uploaded ${result.summary.successful} contacts.`,
-      });
-      
-      console.log('🔄 ContactList: Resetting state (mutation already triggered refetch)...');
-      
-      // Reset to first page and clear accumulated contacts for fresh data
-      setCurrentPage(1);
-      setAllLoadedContacts([]);
-      
-      // The upload mutation's onSuccess already triggered refetchQueries
-      // So the data should already be refetching, we just need to wait for it
-      console.log('✅ ContactList: State reset complete, fresh data should be loading');
-    }
-  };
-
-  const handleCallContact = (contact: Contact) => {
+  const handleCallClick = (contact: Contact) => {
     setSelectedContact(contact);
     setIsAgentModalOpen(true);
   };
 
-  // Handle individual contact call via campaign
-  const handleCallViaCampaign = (contact: Contact) => {
-    setCampaignPreselectedContacts([contact.id]);
-    setIsCampaignModalOpen(true);
-  };
-
-  // Handle bulk call via campaign
-  const handleBulkCallViaCampaign = () => {
-    if (selectedContactIds.size === 0) {
-      toast({
-        title: 'No contacts selected',
-        description: 'Please select at least one contact to create a campaign.',
-        variant: 'destructive',
-      });
-      return;
-    }
-    
-    setCampaignPreselectedContacts(Array.from(selectedContactIds));
-    setIsCampaignModalOpen(true);
-  };
-
-  // Handle checkbox selection
-  const handleSelectContact = (contactId: string, checked: boolean) => {
-    const newSelected = new Set(selectedContactIds);
-    if (checked) {
-      newSelected.add(contactId);
-    } else {
-      newSelected.delete(contactId);
-    }
-    setSelectedContactIds(newSelected);
-  };
-
-  // Handle select all
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      const allIds = new Set(displayContacts.map(c => c.id));
-      setSelectedContactIds(allIds);
+      const allIds = filteredContacts.map(c => c.id);
+      setSelectedContactIds(new Set(allIds));
     } else {
       setSelectedContactIds(new Set());
     }
   };
 
-  // Check if all visible contacts are selected
-  const allSelected = displayContacts.length > 0 && displayContacts.every(c => selectedContactIds.has(c.id));
-  const someSelected = displayContacts.some(c => selectedContactIds.has(c.id)) && !allSelected;
+  const handleSelectContact = (contactId: string, checked: boolean) => {
+    const newSet = new Set(selectedContactIds);
+    if (checked) {
+      newSet.add(contactId);
+    } else {
+      newSet.delete(contactId);
+    }
+    setSelectedContactIds(newSet);
+  };
 
-  const handleConfirmCall = async (agentId: string) => {
-    if (!selectedContact) return;
-
-    const phone = (selectedContact as any).phoneNumber || (selectedContact as any).phone_number;
-    if (!phone) {
+  const handleCreateCampaign = () => {
+    console.log('🎯 Create Campaign clicked');
+    const selected = Array.from(selectedContactIds);
+    console.log('📋 Selected contacts:', selected);
+    if (selected.length === 0) {
       toast({
-        title: 'Phone missing',
-        description: 'This contact does not have a phone number.',
+        title: 'No contacts selected',
+        description: 'Please select at least one contact',
         variant: 'destructive',
       });
       return;
     }
-
-    // Bolna.ai call initiation payload
-    const payload = {
-      agent_id: agentId,
-      recipient_phone_number: phone,
-      user_data: {
-        contact_name: selectedContact.name,
-        contact_id: selectedContact.id
-      }
-    };
-
-    // Debug toast/log to verify click and payload
-    toast({ title: 'Submitting call...', description: `${selectedContact.name} via agent ${agentId}` });
-    console.log('Bolna.ai submit payload:', payload);
-
-    try {
-      // Call backend API instead of directly calling external service
-      const response = await fetch('/api/calls/initiate', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const text = await response.text();
-      let body: any;
-      try { body = JSON.parse(text); } catch { body = text; }
-
-      if (response.ok) {
-        toast({
-          title: 'Call Initiated',
-          description: `Call to ${selectedContact.name} is being initiated.`,
-        });
-        console.log('Call submission response:', body);
-      } else {
-        console.error('Call submission error:', body);
-        throw new Error((body && (body.detail || body.message)) || `Failed with ${response.status}`);
-      }
-    } catch (error) {
-      toast({
-        title: 'Error Initiating Call',
-        description: error instanceof Error ? error.message : 'An unknown error occurred.',
-        variant: 'destructive',
-      });
-      console.error('Error initiating call:', error);
-    }
-
-    setIsAgentModalOpen(false);
-    setSelectedContact(null);
+    console.log('✅ Setting campaign modal open with contacts:', selected);
+    setCampaignPreselectedContacts(selected);
+    setIsCampaignModalOpen(true);
   };
 
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString();
+  const handleSortChange = (newSortBy: 'name' | 'phone_number' | 'created_at') => {
+    if (sortBy === newSortBy) {
+      setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(newSortBy);
+      setSortOrder('asc');
+    }
   };
 
-  const formatPhoneNumber = (phone: string | null | undefined) => {
-    // Handle null/undefined phone numbers
-    if (!phone || typeof phone !== 'string') {
-      return 'N/A';
-    }
-    
-    // Basic phone number formatting
-    const cleaned = phone.replace(/\D/g, '');
-    if (cleaned.length === 10) {
-      return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
-    }
-    return phone;
-  };
-
-  if (error) {
-    return (
-      <Card className="p-6">
-        <div className="text-center">
-          <p className="text-red-600 mb-4">{error}</p>
-          <Button onClick={() => { clearError(); refreshContacts(); }}>
-            Try Again
-          </Button>
-        </div>
-      </Card>
-    );
-  }
+  // Calculate trigger position (10 items before end)
+  const triggerPosition = Math.max(0, filteredContacts.length - LOAD_TRIGGER_OFFSET);
 
   return (
-    <div className="space-y-6 pl-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Contacts</h2>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={() => setIsBulkUploadOpen(true)}
-            className="flex items-center gap-2"
-          >
-            <Upload className="w-4 h-4" />
-            Bulk Upload
-          </Button>
-          <Button onClick={onContactCreate} className="flex items-center gap-2">
-            <Plus className="w-4 h-4" />
-            Add Contact
-          </Button>
-        </div>
-      </div>
+    <div className="h-full flex flex-col">
+      <Card className="flex-1 flex flex-col overflow-hidden">
+        {/* Fixed Header */}
+        <CardHeader className="flex-shrink-0 border-b">
+          <div className="flex items-center justify-between mb-4">
+            <CardTitle>Contacts ({totalContacts})</CardTitle>
+            <div className="flex gap-2">
+              {selectedContactIds.size > 0 && (
+                <Button
+                  onClick={handleCreateCampaign}
+                  variant="default"
+                  size="sm"
+                >
+                  Create Campaign ({selectedContactIds.size})
+                </Button>
+              )}
+              <Button
+                onClick={() => setIsBulkUploadOpen(true)}
+                variant="outline"
+                size="sm"
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                Upload CSV
+              </Button>
+              <Button
+                onClick={onContactCreate}
+                size="sm"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Contact
+              </Button>
+            </div>
+          </div>
 
-      {/* Search and Filter Controls */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex items-center gap-4">
-            <div className="relative flex-1 max-w-md">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+          {/* Search and Filters */}
+          <div className="flex gap-4">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
               <Input
-                placeholder="Search contacts by name, phone, email, or company..."
+                placeholder="Search contacts..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
               />
             </div>
+            <Select
+              value={filterType}
+              onValueChange={(value: any) => setFilterType(value)}
+            >
+              <SelectTrigger className="w-48">
+                <Filter className="w-4 h-4 mr-2" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Contacts</SelectItem>
+                <SelectItem value="auto_created">Auto Created</SelectItem>
+                <SelectItem value="linked_to_calls">Linked to Calls</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardHeader>
 
-            <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-gray-400" />
-              
-              <Select value={filterType} onValueChange={(value: any) => setFilterType(value)}>
-                <SelectTrigger className="w-48">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Contacts</SelectItem>
-                  <SelectItem value="auto_created">Auto-created</SelectItem>
-                  <SelectItem value="linked_to_calls">Linked to Calls</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Select value={sortBy} onValueChange={handleSortChange}>
-                <SelectTrigger className="w-40">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="name">Sort by Name</SelectItem>
-                  <SelectItem value="phone_number">Sort by Phone</SelectItem>
-                  <SelectItem value="created_at">Sort by Date Added</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-              >
-                {sortOrder === 'asc' ? '↑' : '↓'}
-              </Button>
+        {/* Scrollable Content Area */}
+        <CardContent className="flex-1 overflow-hidden p-0 relative">
+          {/* Loading overlay for initial load */}
+          {loading && allLoadedContacts.length === 0 && (
+            <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-20 flex items-center justify-center">
+              <div className="text-center">
+                <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
+                <p>Loading contacts...</p>
+              </div>
             </div>
+          )}
+
+          {/* Error state */}
+          {error && allLoadedContacts.length === 0 && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Card className="m-4">
+                <CardContent className="pt-6">
+                  <p className="text-red-500 mb-4">{error}</p>
+                  <Button onClick={() => refreshContacts(contactsOptions)}>
+                    Retry
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Contacts Table with Scrollable Body */}
+          <div className="h-full overflow-auto">
+            <table className="w-full">
+              <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
+                <tr className="border-b" style={{ backgroundColor: 'hsl(var(--background))' }}>
+                  <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground w-12" style={{ position: 'sticky', top: 0, backgroundColor: 'hsl(var(--background))' }}>
+                    <Checkbox
+                      checked={selectedContactIds.size === filteredContacts.length && filteredContacts.length > 0}
+                      onCheckedChange={handleSelectAll}
+                    />
+                  </th>
+                  <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground" style={{ position: 'sticky', top: 0, backgroundColor: 'hsl(var(--background))' }}>
+                    Name
+                  </th>
+                  <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground" style={{ position: 'sticky', top: 0, backgroundColor: 'hsl(var(--background))' }}>
+                    Phone
+                  </th>
+                  <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground" style={{ position: 'sticky', top: 0, backgroundColor: 'hsl(var(--background))' }}>Email</th>
+                  <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground" style={{ position: 'sticky', top: 0, backgroundColor: 'hsl(var(--background))' }}>Company</th>
+                  <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground" style={{ position: 'sticky', top: 0, backgroundColor: 'hsl(var(--background))' }}>
+                    Created
+                  </th>
+                  <th className="h-12 px-4 text-right align-middle font-medium text-muted-foreground" style={{ position: 'sticky', top: 0, backgroundColor: 'hsl(var(--background))' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredContacts.map((contact, index) => {
+                  // Place trigger element near the end
+                  const isTriggerPosition = index === triggerPosition;
+                  
+                  return (
+                    <React.Fragment key={contact.id}>
+                      <tr className="border-b transition-colors hover:bg-muted/50">
+                        <td className="p-4 align-middle">
+                          <Checkbox
+                            checked={selectedContactIds.has(contact.id)}
+                            onCheckedChange={(checked) => handleSelectContact(contact.id, checked as boolean)}
+                          />
+                        </td>
+                        <td className="p-4 align-middle font-medium">{contact.name}</td>
+                        <td className="p-4 align-middle">{contact.phoneNumber}</td>
+                        <td className="p-4 align-middle">{contact.email || '-'}</td>
+                        <td className="p-4 align-middle">{contact.company || '-'}</td>
+                        <td className="p-4 align-middle">
+                          {new Date(contact.createdAt).toLocaleDateString()}
+                        </td>
+                        <td className="p-4 align-middle text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleCallClick(contact)}
+                            >
+                              <PhoneCall className="w-4 h-4" />
+                            </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon">
+                                  <MoreHorizontal className="w-4 h-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => onContactSelect?.(contact)}>
+                                  View Details
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => onContactEdit?.(contact)}>
+                                  <Edit className="w-4 h-4 mr-2" />
+                                  Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => handleDeleteClick(contact)}
+                                  className="text-red-600"
+                                >
+                                  <Trash2 className="w-4 h-4 mr-2" />
+                                  Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </td>
+                      </tr>
+                      {/* Trigger element for loading more */}
+                      {isTriggerPosition && enableInfiniteScroll && (
+                        <tr>
+                          <td colSpan={7}>
+                            <div ref={triggerElementRef} className="h-1" />
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+
+            {/* Loading More Indicator */}
+            {isLoadingMore && (
+              <div className="flex justify-center items-center p-4 gap-2 border-t">
+                <Loader2 className="w-5 h-5 animate-spin" />
+                <span>Loading more contacts...</span>
+              </div>
+            )}
+
+            {/* End of List Message */}
+            {!hasMore && allLoadedContacts.length > 0 && (
+              <div className="text-center p-4 text-gray-500 border-t">
+                All {allLoadedContacts.length} contacts loaded
+              </div>
+            )}
+
+            {/* Empty State */}
+            {filteredContacts.length === 0 && !loading && (
+              <div className="text-center p-8">
+                <p className="text-gray-500">No contacts found</p>
+                {searchTerm && (
+                  <Button
+                    variant="link"
+                    onClick={() => setSearchTerm('')}
+                    className="mt-2"
+                  >
+                    Clear search
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
 
-      {/* Contact Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span>
-              {loading ? 'Loading contacts...' : (
-                <>
-                  {displayContacts.length} 
-                  {filterType === 'all' ? ' contacts' : 
-                   filterType === 'auto_created' ? ' auto-created contacts' :
-                   ' contacts linked to calls'}
-                  {filterType !== 'all' && totalContacts !== displayContacts.length && (
-                    <span className="text-sm text-gray-500 ml-1">
-                      (of {totalContacts} total)
-                    </span>
-                  )}
-                </>
-              )}
-            </span>
-            <div className="flex items-center gap-2">
-              {selectedContactIds.size > 0 && (
-                <Button
-                  onClick={handleBulkCallViaCampaign}
-                  style={{ backgroundColor: '#1A6262' }}
-                  className="text-white flex items-center gap-2"
-                >
-                  <PhoneCall className="w-4 h-4" />
-                  Bulk Call ({selectedContactIds.size})
-                </Button>
-              )}
-              {!loading && contacts.length > 0 && (
-                <span className="text-sm text-gray-500">
-                  Page {currentPage} of {totalPages}
-                </span>
-              )}
-            </div>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {loading && displayContacts.length === 0 ? (
-            // Only show skeleton on initial load when no contacts are loaded yet
-            <div className="space-y-0">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="p-4 border-b border-border">
-                  <div className="flex items-center space-x-3">
-                    <div className="flex-1 grid grid-cols-6 gap-4">
-                      <div className="h-4 bg-muted rounded animate-pulse"></div>
-                      <div className="h-4 bg-muted rounded animate-pulse"></div>
-                      <div className="h-4 bg-muted rounded animate-pulse"></div>
-                      <div className="h-4 bg-muted rounded animate-pulse"></div>
-                      <div className="h-4 bg-muted rounded animate-pulse"></div>
-                      <div className="h-8 w-8 bg-muted rounded animate-pulse ml-auto"></div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : displayContacts.length === 0 ? (
-            <div className="p-12 text-center">
-              <div className="text-gray-400 mb-4">
-                <Phone className="w-12 h-12 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">
-                  No contacts found
-                </h3>
-                <p className="text-gray-500">
-                  {searchTerm
-                    ? `No contacts match "${searchTerm}"`
-                    : 'Get started by adding your first contact'}
-                </p>
-              </div>
-              {!searchTerm && (
-                <Button onClick={onContactCreate}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add Your First Contact
-                </Button>
-              )}
-            </div>
-          ) : (
-            <>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-12">
-                      <Checkbox
-                        checked={allSelected}
-                        onCheckedChange={handleSelectAll}
-                        aria-label="Select all contacts"
-                      />
-                    </TableHead>
-                    <TableHead
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => handleSortChange('name')}
-                    >
-                      Name {sortBy === 'name' && (sortOrder === 'asc' ? '↑' : '↓')}
-                    </TableHead>
-                    <TableHead
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => handleSortChange('phone_number')}
-                    >
-                      Phone {sortBy === 'phone_number' && (sortOrder === 'asc' ? '↑' : '↓')}
-                    </TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Company</TableHead>
-                    <TableHead
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => handleSortChange('created_at')}
-                    >
-                      Added {sortBy === 'created_at' && (sortOrder === 'asc' ? '↑' : '↓')}
-                    </TableHead>
-                    <TableHead className="w-24">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {displayContacts.map((contact, index) => {
-                    // Calculate trigger based on ALL loaded contacts, not just displayed
-                    // This ensures the trigger is positioned correctly even with filters
-                    const actualIndex = allLoadedContacts.findIndex(c => c.id === contact.id);
-                    const shouldBeTrigger = isTriggerItem(actualIndex, allLoadedContacts.length);
-                    
-                    return (
-                      <TableRow
-                        key={contact.id}
-                        ref={shouldBeTrigger ? (triggerRef as any) : null}
-                        className={`cursor-pointer hover:bg-muted/50 ${
-                          selectedContactIds.has(contact.id) ? 'bg-primary/5' : ''
-                        }`}
-                        onClick={() => onContactSelect?.(contact)}
-                      >
-                        <TableCell onClick={(e) => e.stopPropagation()}>
-                          <Checkbox
-                            checked={selectedContactIds.has(contact.id)}
-                            onCheckedChange={(checked) => handleSelectContact(contact.id, !!checked)}
-                          />
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          <div>
-                            <div>{contact.name}</div>
-                            {contact.isAutoCreated && (
-                              <div className="text-xs text-muted-foreground mt-1">
-                                Auto created and linked to call
-                              </div>
-                            )}
-                            {contact.callLinkType === 'manually_linked' && (
-                              <div className="text-xs text-muted-foreground mt-1">
-                                Manually linked to call
-                              </div>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {formatPhoneNumber((contact as any).phoneNumber || (contact as any).phone_number)}
-                        </TableCell>
-                        <TableCell>
-                          {(contact as any).email || (
-                            <span className="text-gray-400">No email</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {(contact as any).company || (
-                            <span className="text-gray-400">No company</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-gray-500">
-                          {formatDate((contact as any).createdAt || (contact as any).created_at)}
-                        </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onContactEdit?.(contact);
-                              }}
-                            >
-                              <Edit className="w-4 h-4 mr-2" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleCallContact(contact);
-                              }}
-                            >
-                              <Phone className="w-4 h-4 mr-2" />
-                              Call (Direct)
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleCallViaCampaign(contact);
-                              }}
-                            >
-                              <PhoneCall className="w-4 h-4 mr-2" />
-                              Call via Campaign
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                // TODO: Implement message functionality
-                                toast({
-                                  title: 'Message feature',
-                                  description: 'Message functionality will be implemented soon.',
-                                });
-                              }}
-                            >
-                              <MessageSquare className="w-4 h-4 mr-2" />
-                              Message
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if ((contact as any).email) {
-                                  window.open(`mailto:${(contact as any).email}`);
-                                } else {
-                                  toast({
-                                    title: 'No email',
-                                    description: 'This contact does not have an email address.',
-                                    variant: 'destructive',
-                                  });
-                                }
-                              }}
-                            >
-                              <Mail className="w-4 h-4 mr-2" />
-                              Email
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="text-red-600"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteContact(contact);
-                              }}
-                              disabled={deleting}
-                            >
-                              <Trash2 className="w-4 h-4 mr-2" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-
-              {/* Smart Infinite Scroll - Bottom Loader Only */}
-              {enableInfiniteScroll ? (
-                <InfiniteScrollLoader
-                  isLoading={isLoadingMore}
-                  hasMore={hasMore}
-                  itemCount={displayContacts.length}
-                  itemType="contacts"
-                  isInitialLoad={loading && currentPage === 1}
-                />
-              ) : useLazyLoading ? (
-                <LazyLoader
-                  hasMore={hasMore}
-                  loading={isLoadingMore}
-                  onLoadMore={handleLoadMore}
-                  threshold={200}
-                />
-              ) : (
-                totalPages > 1 && (
-                  <Pagination
-                    currentPage={currentPage}
-                    totalPages={totalPages}
-                    totalItems={totalContacts}
-                    itemsPerPage={ITEMS_PER_PAGE}
-                    onPageChange={handlePageChange}
-                    loading={loading}
-                  />
-                )
-              )}
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Delete Confirmation Dialog */}
+      {/* Modals */}
       <DeleteContactDialog
         isOpen={isDeleteDialogOpen}
-        onOpenChange={handleDeleteCancel}
-        contact={contactToDelete}
+        onOpenChange={setIsDeleteDialogOpen}
         onConfirm={handleDeleteConfirm}
+        contact={contactToDelete}
         isDeleting={deleting}
       />
 
-      {/* Bulk Contact Upload Dialog */}
       <BulkContactUpload
         isOpen={isBulkUploadOpen}
         onOpenChange={setIsBulkUploadOpen}
-        onUploadComplete={handleBulkUploadComplete}
+        onUploadComplete={handleBulkUploadSuccess}
       />
 
-      {/* Call Agent Modal for Direct Calls */}
-      <CallAgentModal
-        open={isAgentModalOpen}
-        contact={selectedContact}
-        onClose={() => {
-          setIsAgentModalOpen(false);
-          setSelectedContact(null);
-        }}
-        onCallInitiated={(callId) => {
-          console.log('Call initiated:', callId);
-          toast({
-            title: 'Call in progress',
-            description: `Calling ${selectedContact?.name}...`,
-          });
-        }}
-      />
+      {selectedContact && (
+        <CallAgentModal
+          open={isAgentModalOpen}
+          onClose={() => setIsAgentModalOpen(false)}
+          contact={selectedContact}
+        />
+      )}
 
-      {/* Create Campaign Modal */}
       <CreateCampaignModal
         isOpen={isCampaignModalOpen}
-        onClose={() => {
-          setIsCampaignModalOpen(false);
-          setSelectedContactIds(new Set());
-          setCampaignPreselectedContacts([]);
-        }}
+        onClose={() => setIsCampaignModalOpen(false)}
         preSelectedContacts={campaignPreselectedContacts}
       />
     </div>
