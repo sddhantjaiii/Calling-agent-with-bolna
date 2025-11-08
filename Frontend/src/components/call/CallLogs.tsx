@@ -59,6 +59,7 @@ const CallLogs: React.FC<CallLogsProps> = ({
 }) => {
   const { theme } = useTheme();
   const { toast } = useToast();
+  const { navigateToLeadIntelligence } = useNavigation();
   const [showTranscript, setShowTranscript] = useState(false);
   const [selectedCall, setSelectedCall] = useState<Call | null>(null);
   const [showCallingModal, setShowCallingModal] = useState(false);
@@ -647,7 +648,7 @@ const CallLogs: React.FC<CallLogsProps> = ({
                     <div>
                       <h3
                         className={`font-semibold cursor-pointer hover:underline ${theme === "dark" ? "text-white" : "text-gray-900"}`}
-                        onClick={() => handleCall(call.contactName || 'Unknown', call.phoneNumber)}
+                        onClick={() => navigateToLeadIntelligence({ phone: call.phoneNumber })}
                       >
                         {call.contactName || 'Unknown Contact'}
                       </h3>
@@ -691,13 +692,25 @@ const CallLogs: React.FC<CallLogsProps> = ({
                 {/* Bottom section - Metadata & Audio Player */}
                 <div className={`px-4 py-3 border-t ${theme === 'dark' ? 'bg-slate-900/50 border-slate-800' : 'bg-gray-50 border-gray-200'}`}>
                   {playingAudio !== call.id && isAudioLoading !== call.id ? (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div className="grid grid-cols-2 md:grid-cols-6 gap-4 text-sm">
                       <div className="space-y-1">
                         <p className="text-slate-400">Status</p>
                         <div className="flex items-center">
                           <span className={`w-2 h-2 rounded-full mr-2 ${getStatusColor(call)}`}></span>
                           <span className="font-medium">{getDisplayStatus(call)}</span>
                         </div>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-slate-400">Call Type</p>
+                        <p className="font-medium capitalize">
+                          {call.leadType === 'inbound' ? (
+                            <span className="text-blue-600 dark:text-blue-400">Inbound</span>
+                          ) : call.leadType === 'outbound' ? (
+                            <span className="text-green-600 dark:text-green-400">Outbound</span>
+                          ) : (
+                            'N/A'
+                          )}
+                        </p>
                       </div>
                        <div className="space-y-1">
                         <p className="text-slate-400">Duration</p>
@@ -730,8 +743,27 @@ const CallLogs: React.FC<CallLogsProps> = ({
                         <p className="font-medium">{call.agentName || 'N/A'}</p>
                       </div>
                       <div className="space-y-1">
-                        <p className="text-slate-400">Date</p>
-                        <p className="font-medium">{call.createdAt ? new Date(call.createdAt).toLocaleDateString('en-GB') : 'N/A'}</p>
+                        <p className="text-slate-400">Date & Time</p>
+                        <p className="font-medium">
+                          {call.createdAt ? (
+                            <>
+                              {new Date(call.createdAt).toLocaleDateString('en-GB')}
+                              {' '}
+                              {new Date(call.createdAt).toLocaleTimeString('en-GB', { 
+                                hour: '2-digit', 
+                                minute: '2-digit',
+                                hour12: false 
+                              })}
+                            </>
+                          ) : 'N/A'}
+                        </p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-slate-400">Hung Up By</p>
+                        <p className="font-medium capitalize">{call.hangupBy || 'N/A'}</p>
+                        {call.hangupReason && (
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{call.hangupReason}</p>
+                        )}
                       </div>
                     </div>
                   ) : (

@@ -646,7 +646,7 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                         className="cursor-pointer hover:bg-muted-foreground/10"
                         onClick={() => handleInteractionClick(interaction.id)}
                       >
-                        {/* Name Column */}
+                        {/* Name Column - Show extracted name to see what AI captured */}
                         <TableCell className="text-foreground font-medium">
                           {interaction.leadName || "Anonymous"}
                         </TableCell>
@@ -753,7 +753,7 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                           </div>
                         </TableCell>
                         
-                        {/* Email */}
+                        {/* Email - Show extracted email to see what AI captured */}
                         <TableCell className="text-xs text-foreground">
                           {interaction.extractedEmail || "—"}
                         </TableCell>

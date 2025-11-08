@@ -839,16 +839,35 @@ class WebhookService {
                 demoBookDatetime: individualData?.demo_book_datetime || null
               };
 
-              await ContactAutoCreationService.createOrUpdateContact(
+              const contactResult = await ContactAutoCreationService.createOrUpdateContact(
                 updatedCall.user_id,
                 leadData,
                 updatedCall.id,
                 updatedCall.phone_number
               );
 
+              // Link contact to call if we got a valid contact ID
+              if (contactResult.contactId) {
+                await ContactAutoCreationService.linkContactToCall(
+                  updatedCall.id,
+                  contactResult.contactId
+                );
+                
+                logger.info('✅ Contact linked to call', {
+                  execution_id: executionId,
+                  phone_number: updatedCall.phone_number,
+                  contact_id: contactResult.contactId,
+                  was_created: contactResult.created,
+                  was_updated: contactResult.updated
+                });
+              }
+
               logger.info('✅ Contact updated with AI extracted data', {
                 execution_id: executionId,
-                phone_number: updatedCall.phone_number
+                phone_number: updatedCall.phone_number,
+                contact_id: contactResult.contactId,
+                created: contactResult.created,
+                updated: contactResult.updated
               });
             } catch (contactError) {
               logger.error('❌ Failed to update contact with AI data', {

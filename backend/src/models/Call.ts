@@ -790,12 +790,40 @@ export class CallModel extends BaseModel<CallInterface> {
         }
       }
 
-      // Build final query with pagination
+      // Build final query with pagination - Optimized field selection
       const mainQuery = `
         SELECT 
-          c.*,
+          c.id,
+          c.agent_id,
+          c.user_id,
+          c.contact_id,
+          c.phone_number,
+          c.duration_minutes,
+          c.duration_seconds,
+          c.credits_used,
+          c.status,
+          c.recording_url,
+          c.created_at,
+          c.completed_at,
+          c.call_source,
+          c.caller_name,
+          c.caller_email,
+          c.lead_type,
+          c.updated_at,
+          c.bolna_execution_id,
+          c.call_lifecycle_status,
+          c.hangup_by,
+          c.hangup_reason,
+          c.hangup_provider_code,
+          c.ringing_started_at,
+          c.call_answered_at,
+          c.call_disconnected_at,
+          c.transcript_id,
+          c.bolna_conversation_id,
           a.name as agent_name,
           ct.name as contact_name,
+          ct.email as contact_email,
+          ct.company as contact_company,
           la.total_score,
           la.intent_level,
           la.urgency_level,

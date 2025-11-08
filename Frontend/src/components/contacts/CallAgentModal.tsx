@@ -130,7 +130,7 @@ export function CallAgentModal({
     setIsFetchingPhoneNumbers(true);
     try {
       const token = localStorage.getItem('auth_token');
-      const response = await fetch('/api/phone-numbers', {
+      const response = await fetch(API_ENDPOINTS.PHONE_NUMBERS.LIST, {
         headers: {
           'Content-Type': 'application/json',
           ...(token && { 'Authorization': `Bearer ${token}` }),

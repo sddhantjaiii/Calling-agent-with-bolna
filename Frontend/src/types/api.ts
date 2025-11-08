@@ -347,13 +347,25 @@ export interface Call {
   metadata: Record<string, unknown>;
   createdAt: string;
   completedAt?: string;
+  updatedAt?: string;
   // Call source detection fields
   callSource?: 'phone' | 'internet' | 'unknown';
   callerName?: string;
   callerEmail?: string;
+  leadType?: 'inbound' | 'outbound';
+  // Lifecycle tracking
+  hangupBy?: string;
+  hangupReason?: string;
+  hangupProviderCode?: number;
+  ringingStartedAt?: string;
+  callAnsweredAt?: string;
+  callDisconnectedAt?: string;
+  transcriptId?: string;
+  bolnaConversationId?: string;
   // Joined data from related tables
   contactName?: string;
   contactEmail?: string;
+  contactCompany?: string;
   agentName?: string;
   transcript?: Transcript;
   leadAnalytics?: LeadAnalytics;

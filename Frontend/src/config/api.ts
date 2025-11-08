@@ -194,6 +194,11 @@ export const API_ENDPOINTS = {
     UPDATE_PASSWORD: `${API_URL}/user/password`,
   },
 
+  // Phone Numbers
+  PHONE_NUMBERS: {
+    LIST: `${API_URL}/phone-numbers`,
+  },
+
   // Customers
   CUSTOMERS: {
     LIST: `${API_URL}/customers`,

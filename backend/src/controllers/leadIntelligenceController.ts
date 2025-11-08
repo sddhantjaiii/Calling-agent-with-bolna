@@ -87,9 +87,9 @@ export class LeadIntelligenceController {
             c.phone_number::text as group_key,
             'phone'::text as group_type,
             c.phone_number::text as phone,
-            FIRST_VALUE(la.extracted_email) OVER (PARTITION BY c.phone_number ORDER BY c.created_at DESC)::text as email,
-            FIRST_VALUE(COALESCE(la.extracted_name, 'Anonymous')) OVER (PARTITION BY c.phone_number ORDER BY c.created_at DESC)::text as name,
-            FIRST_VALUE(la.company_name) OVER (PARTITION BY c.phone_number ORDER BY c.created_at DESC)::text as company,
+            FIRST_VALUE(COALESCE(co.email, la.extracted_email)) OVER (PARTITION BY c.phone_number ORDER BY c.created_at DESC)::text as email,
+            FIRST_VALUE(COALESCE(co.name, la.extracted_name, 'Anonymous')) OVER (PARTITION BY c.phone_number ORDER BY c.created_at DESC)::text as name,
+            FIRST_VALUE(COALESCE(co.company, la.company_name)) OVER (PARTITION BY c.phone_number ORDER BY c.created_at DESC)::text as company,
             FIRST_VALUE(c.lead_type) OVER (PARTITION BY c.phone_number ORDER BY c.created_at DESC)::text as lead_type,
             FIRST_VALUE(
               CASE 
@@ -131,9 +131,9 @@ export class LeadIntelligenceController {
             la.extracted_email::text as group_key,
             'email'::text as group_type,
             NULL::text as phone,
-            la.extracted_email::text as email,
-            FIRST_VALUE(COALESCE(la.extracted_name, 'Anonymous')) OVER (PARTITION BY la.extracted_email ORDER BY c.created_at DESC)::text as name,
-            FIRST_VALUE(la.company_name) OVER (PARTITION BY la.extracted_email ORDER BY c.created_at DESC)::text as company,
+            COALESCE(co.email, la.extracted_email)::text as email,
+            FIRST_VALUE(COALESCE(co.name, la.extracted_name, 'Anonymous')) OVER (PARTITION BY la.extracted_email ORDER BY c.created_at DESC)::text as name,
+            FIRST_VALUE(COALESCE(co.company, la.company_name)) OVER (PARTITION BY la.extracted_email ORDER BY c.created_at DESC)::text as company,
             FIRST_VALUE(c.lead_type) OVER (PARTITION BY la.extracted_email ORDER BY c.created_at DESC)::text as lead_type,
             FIRST_VALUE(
               CASE 
@@ -177,13 +177,15 @@ export class LeadIntelligenceController {
             c.id::text as group_key,
             'individual'::text as group_type,
             NULL::text as phone,
-            NULL::text as email,
+            COALESCE(co.email, la.extracted_email)::text as email,
             CASE 
+              WHEN co.name IS NOT NULL AND co.name != ''
+              THEN co.name
               WHEN la.extracted_name IS NOT NULL AND la.extracted_name != ''
               THEN la.extracted_name
               ELSE 'Anonymous ' || TO_CHAR(c.created_at, 'MM/DD/YYYY HH24:MI')
             END::text as name,
-            la.company_name::text as company,
+            COALESCE(co.company, la.company_name)::text as company,
             c.lead_type::text as lead_type,
             CASE 
               WHEN la.lead_status_tag IS NOT NULL THEN la.lead_status_tag
@@ -309,6 +311,8 @@ export class LeadIntelligenceController {
           SELECT 
             c.id,
             la.extracted_name as lead_name,
+            la.extracted_email as extracted_email,
+            la.company_name as company_name,
             a.name as interaction_agent,
             c.created_at as interaction_date,
             CASE 
@@ -322,7 +326,6 @@ export class LeadIntelligenceController {
             END as call_direction,
             c.hangup_by,
             c.hangup_reason,
-            la.company_name,
             CASE 
               WHEN la.lead_status_tag IS NOT NULL THEN la.lead_status_tag
               WHEN c.status = 'failed' AND c.call_lifecycle_status IS NOT NULL THEN c.call_lifecycle_status
@@ -341,7 +344,6 @@ export class LeadIntelligenceController {
             la.budget_constraint,
             la.urgency_level as timeline_urgency,
             la.fit_alignment,
-            la.extracted_email,
             la.total_score,
             la.intent_score,
             la.urgency_score,
@@ -362,6 +364,7 @@ export class LeadIntelligenceController {
           FROM calls c
           LEFT JOIN lead_analytics la ON c.id = la.call_id AND la.analysis_type = 'individual'
           LEFT JOIN agents a ON c.agent_id = a.id
+          LEFT JOIN contacts ct ON c.contact_id = ct.id
           LEFT JOIN follow_ups fu ON (
             (fu.call_id = c.id) OR 
             (fu.call_id IS NULL AND fu.lead_phone = c.phone_number AND fu.user_id = $1)
@@ -376,6 +379,8 @@ export class LeadIntelligenceController {
           SELECT 
             c.id,
             la.extracted_name as lead_name,
+            la.extracted_email as extracted_email,
+            la.company_name as company_name,
             a.name as interaction_agent,
             c.created_at as interaction_date,
             CASE 
@@ -389,7 +394,6 @@ export class LeadIntelligenceController {
             END as call_direction,
             c.hangup_by,
             c.hangup_reason,
-            la.company_name,
             CASE 
               WHEN la.lead_status_tag IS NOT NULL THEN la.lead_status_tag
               WHEN c.status = 'failed' AND c.call_lifecycle_status IS NOT NULL THEN c.call_lifecycle_status
@@ -408,7 +412,6 @@ export class LeadIntelligenceController {
             la.budget_constraint,
             la.urgency_level as timeline_urgency,
             la.fit_alignment,
-            la.extracted_email,
             la.total_score,
             la.intent_score,
             la.urgency_score,
@@ -429,6 +432,7 @@ export class LeadIntelligenceController {
           FROM calls c
           LEFT JOIN lead_analytics la ON c.id = la.call_id AND la.analysis_type = 'individual'
           LEFT JOIN agents a ON c.agent_id = a.id
+          LEFT JOIN contacts ct ON c.contact_id = ct.id
           LEFT JOIN follow_ups fu ON (
             (fu.call_id = c.id) OR 
             (fu.call_id IS NULL AND fu.lead_email = la.extracted_email AND fu.user_id = $1)
@@ -443,6 +447,8 @@ export class LeadIntelligenceController {
           SELECT 
             c.id,
             la.extracted_name as lead_name,
+            la.extracted_email as extracted_email,
+            la.company_name as company_name,
             a.name as interaction_agent,
             c.created_at as interaction_date,
             CASE 
@@ -456,7 +462,6 @@ export class LeadIntelligenceController {
             END as call_direction,
             c.hangup_by,
             c.hangup_reason,
-            la.company_name,
             CASE 
               WHEN la.lead_status_tag IS NOT NULL THEN la.lead_status_tag
               WHEN c.status = 'failed' AND c.call_lifecycle_status IS NOT NULL THEN c.call_lifecycle_status
@@ -475,7 +480,6 @@ export class LeadIntelligenceController {
             la.budget_constraint,
             la.urgency_level as timeline_urgency,
             la.fit_alignment,
-            la.extracted_email,
             la.total_score,
             la.intent_score,
             la.urgency_score,
@@ -496,6 +500,7 @@ export class LeadIntelligenceController {
           FROM calls c
           LEFT JOIN lead_analytics la ON c.id = la.call_id AND la.analysis_type = 'individual'
           LEFT JOIN agents a ON c.agent_id = a.id
+          LEFT JOIN contacts ct ON c.contact_id = ct.id
           WHERE c.user_id = $1 
             AND c.id = $2
           ORDER BY c.created_at DESC;
