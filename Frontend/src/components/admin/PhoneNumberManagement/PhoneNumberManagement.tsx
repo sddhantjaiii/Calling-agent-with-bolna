@@ -52,6 +52,7 @@ interface PhoneNumberManagementProps {
 interface PhoneNumberFormData {
   name: string;
   phone_number: string;
+  user_id: string;
   assigned_to_agent_id: string | null;
 }
 
@@ -67,9 +68,11 @@ const PhoneNumberManagement: React.FC<PhoneNumberManagementProps> = ({ className
   const [formData, setFormData] = useState<PhoneNumberFormData>({
     name: '',
     phone_number: '',
+    user_id: '',
     assigned_to_agent_id: null,
   });
   const [agentSearch, setAgentSearch] = useState('');
+  const [userSearch, setUserSearch] = useState('');
 
   const queryClient = useQueryClient();
 
@@ -92,9 +95,19 @@ const PhoneNumberManagement: React.FC<PhoneNumberManagementProps> = ({ className
     data: agentsResponse,
     isLoading: isLoadingAgents
   } = useQuery({
-    queryKey: ['admin-available-agents', agentSearch],
-    queryFn: () => adminApiService.getAvailableAgents(agentSearch),
-    enabled: isCreateDialogOpen || isAssignDialogOpen,
+    queryKey: ['admin-available-agents', agentSearch, formData.user_id],
+    queryFn: () => adminApiService.getAvailableAgents(agentSearch, formData.user_id),
+    enabled: (isCreateDialogOpen || isAssignDialogOpen) && !!formData.user_id,
+    staleTime: 60000,
+  });
+
+  const {
+    data: usersResponse,
+    isLoading: isLoadingUsers
+  } = useQuery({
+    queryKey: ['admin-users', userSearch],
+    queryFn: () => adminApiService.getUsers({ search: userSearch || undefined, page: 1, limit: 100 }),
+    enabled: isCreateDialogOpen,
     staleTime: 60000,
   });
 
@@ -178,6 +191,7 @@ const PhoneNumberManagement: React.FC<PhoneNumberManagementProps> = ({ className
     setFormData({
       name: '',
       phone_number: '',
+      user_id: '',
       assigned_to_agent_id: null,
     });
     setSelectedPhoneNumber(null);
@@ -189,8 +203,8 @@ const PhoneNumberManagement: React.FC<PhoneNumberManagementProps> = ({ className
   };
 
   const handleCreate = () => {
-    if (!formData.name || !formData.phone_number) {
-      toast.error('Name and phone number are required');
+    if (!formData.name || !formData.phone_number || !formData.user_id) {
+      toast.error('Name, phone number, and user are required');
       return;
     }
 
@@ -229,6 +243,7 @@ const PhoneNumberManagement: React.FC<PhoneNumberManagementProps> = ({ className
     setFormData({
       name: phoneNumber.name,
       phone_number: phoneNumber.phone_number,
+      user_id: phoneNumber.user_id,
       assigned_to_agent_id: phoneNumber.assigned_to_agent_id,
     });
     setIsEditDialogOpen(true);
@@ -306,6 +321,43 @@ const PhoneNumberManagement: React.FC<PhoneNumberManagementProps> = ({ className
             </DialogHeader>
             <div className="space-y-4">
               <div>
+                <Label htmlFor="user">Select User *</Label>
+                <div className="space-y-2">
+                  <Input
+                    placeholder="Search users by name or email..."
+                    value={userSearch}
+                    onChange={(e) => setUserSearch(e.target.value)}
+                    className="mb-2"
+                  />
+                  <Select
+                    value={formData.user_id || undefined}
+                    onValueChange={(value) => {
+                      setFormData({ ...formData, user_id: value, assigned_to_agent_id: null });
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select user..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {isLoadingUsers ? (
+                        <SelectItem value="loading" disabled>Loading users...</SelectItem>
+                      ) : (usersResponse?.data?.users || []).length > 0 ? (
+                        (usersResponse?.data?.users || []).map((user: any) => (
+                          <SelectItem key={user.id} value={user.id}>
+                            {user.name || user.email}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="no-users" disabled>No users found</SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Select which user owns this phone number
+                </p>
+              </div>
+              <div>
                 <Label htmlFor="name">Name</Label>
                 <Input
                   id="name"
@@ -331,9 +383,10 @@ const PhoneNumberManagement: React.FC<PhoneNumberManagementProps> = ({ className
                 <Select
                   value={formData.assigned_to_agent_id || undefined}
                   onValueChange={(value) => setFormData({ ...formData, assigned_to_agent_id: value })}
+                  disabled={!formData.user_id}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select agent..." />
+                    <SelectValue placeholder={formData.user_id ? "Select agent..." : "Select user first..."} />
                   </SelectTrigger>
                   <SelectContent>
                     {agents.map((agent) => (
@@ -343,6 +396,11 @@ const PhoneNumberManagement: React.FC<PhoneNumberManagementProps> = ({ className
                     ))}
                   </SelectContent>
                 </Select>
+                {formData.user_id && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Only agents belonging to the selected user are shown
+                  </p>
+                )}
               </div>
             </div>
             <DialogFooter>

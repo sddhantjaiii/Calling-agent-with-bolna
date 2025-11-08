@@ -51,6 +51,7 @@ export interface CallInitiationRequest {
   phoneNumber: string;
   userId: string;
   contactId?: string;
+  callerPhoneNumberId?: string; // Optional: user-selected phone number to call from
   metadata?: any;
 }
 
@@ -494,8 +495,51 @@ export class CallService {
               }
             });
             
-            // Fetch agent's assigned phone number (if any)
-            const assignedPhoneNumber = await PhoneNumber.findByAgentId(callRequest.agentId);
+            // Determine which phone number to use for the call
+            let callerPhoneNumber: any = null;
+            
+            // Priority 1: Use user-selected phone number if provided
+            if (callRequest.callerPhoneNumberId) {
+              callerPhoneNumber = await PhoneNumber.findById(callRequest.callerPhoneNumberId);
+              
+              // Verify the phone number belongs to the user
+              if (callerPhoneNumber && callerPhoneNumber.user_id !== callRequest.userId) {
+                const error = new Error('Selected phone number does not belong to user');
+                Sentry.captureException(error, {
+                  tags: {
+                    error_type: 'unauthorized_phone_number_access',
+                    user_id_hash: hashUserId(callRequest.userId),
+                    severity: 'high'
+                  }
+                });
+                throw error;
+              }
+              
+              Sentry.addBreadcrumb({
+                category: 'call',
+                message: 'Using user-selected phone number',
+                level: 'info',
+                data: {
+                  phoneNumberId: callerPhoneNumber?.id,
+                  phoneNumberName: callerPhoneNumber?.name
+                }
+              });
+            } else {
+              // Priority 2: Fallback to agent's assigned phone number (if any)
+              callerPhoneNumber = await PhoneNumber.findByAgentId(callRequest.agentId);
+              
+              if (callerPhoneNumber) {
+                Sentry.addBreadcrumb({
+                  category: 'call',
+                  message: 'Using agent assigned phone number',
+                  level: 'info',
+                  data: {
+                    phoneNumberId: callerPhoneNumber.id,
+                    phoneNumberName: callerPhoneNumber.name
+                  }
+                });
+              }
+            }
             
             // Prepare Bolna.ai call request
             const bolnaCallData: BolnaCallRequest = {
@@ -506,23 +550,14 @@ export class CallService {
                 user_id: callRequest.userId,
                 agent_id: callRequest.agentId,
                 contact_id: callRequest.contactId,
+                caller_phone_number_id: callRequest.callerPhoneNumberId,
                 ...callRequest.metadata
               }
             };
 
-            // Add from_phone_number only if agent has an assigned phone number
-            if (assignedPhoneNumber && assignedPhoneNumber.phone_number) {
-              bolnaCallData.from_phone_number = assignedPhoneNumber.phone_number;
-              
-              Sentry.addBreadcrumb({
-                category: 'call',
-                message: 'Using agent assigned phone number',
-                level: 'info',
-                data: {
-                  phoneNumberId: assignedPhoneNumber.id,
-                  phoneNumberName: assignedPhoneNumber.name
-                }
-              });
+            // Add from_phone_number if a phone number is available
+            if (callerPhoneNumber && callerPhoneNumber.phone_number) {
+              bolnaCallData.from_phone_number = callerPhoneNumber.phone_number;
             }
             
             Sentry.addBreadcrumb({

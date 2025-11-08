@@ -1,9 +1,11 @@
 import BaseModel, { BaseModelInterface } from './BaseModel';
+import { pool } from '../config/database';
 
 export interface PhoneNumberInterface extends BaseModelInterface {
   id: string;
   name: string;
   phone_number: string;
+  user_id: string;
   assigned_to_agent_id: string | null;
   created_by_admin_id: string;
   is_active: boolean;
@@ -120,6 +122,7 @@ export class PhoneNumberModel extends BaseModel<PhoneNumberInterface> {
     name: string;
     phone_number: string;
     created_by_admin_id: string;
+    user_id: string;
     assigned_to_agent_id?: string;
   }): Promise<PhoneNumberInterface> {
     // Check if phone number already exists
@@ -128,11 +131,25 @@ export class PhoneNumberModel extends BaseModel<PhoneNumberInterface> {
       throw new Error('Phone number already exists in the system');
     }
 
-    // If assigning to agent, validate the agent exists and doesn't have a number
+    // If assigning to agent, validate the agent exists, belongs to same user, and doesn't have a number
     if (data.assigned_to_agent_id) {
       const existingAssignment = await this.findByAgentId(data.assigned_to_agent_id);
       if (existingAssignment) {
         throw new Error('Agent already has a phone number assigned');
+      }
+      
+      // Verify agent belongs to the same user
+      const agentQuery = await pool.query(
+        'SELECT user_id FROM agents WHERE id = $1',
+        [data.assigned_to_agent_id]
+      );
+      
+      if (agentQuery.rows.length === 0) {
+        throw new Error('Agent not found');
+      }
+      
+      if (agentQuery.rows[0].user_id !== data.user_id) {
+        throw new Error('Agent must belong to the same user as the phone number');
       }
     }
 

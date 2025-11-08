@@ -90,14 +90,14 @@ export class PhoneNumberController {
    */
   static async createPhoneNumber(req: Request, res: Response): Promise<void> {
     try {
-      const { name, phone_number, assigned_to_agent_id } = req.body;
+      const { name, phone_number, user_id, assigned_to_agent_id } = req.body;
       const adminId = (req.user as any)?.id;
 
       // Validation
-      if (!name || !phone_number) {
+      if (!name || !phone_number || !user_id) {
         res.status(400).json({
           success: false,
-          error: 'Name and phone_number are required'
+          error: 'Name, phone_number, and user_id are required'
         });
         return;
       }
@@ -120,7 +120,7 @@ export class PhoneNumberController {
         return;
       }
 
-      // If assigning to agent, validate agent exists
+      // If assigning to agent, validate agent exists and belongs to the same user
       if (assigned_to_agent_id) {
         const agent = await Agent.findById(assigned_to_agent_id);
         if (!agent) {
@@ -130,11 +130,20 @@ export class PhoneNumberController {
           });
           return;
         }
+        
+        if (agent.user_id !== user_id) {
+          res.status(400).json({
+            success: false,
+            error: 'Agent must belong to the selected user'
+          });
+          return;
+        }
       }
 
       const phoneNumber = await PhoneNumber.createPhoneNumber({
         name,
         phone_number,
+        user_id,
         created_by_admin_id: adminId,
         assigned_to_agent_id
       });

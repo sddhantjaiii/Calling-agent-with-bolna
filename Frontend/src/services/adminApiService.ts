@@ -874,6 +874,7 @@ class AdminApiService {
   async createPhoneNumber(data: {
     name: string;
     phone_number: string;
+    user_id: string;
     assigned_to_agent_id?: string | null;
   }): Promise<ApiResponse<PhoneNumber>> {
     return adminRequest<PhoneNumber>(ADMIN_ENDPOINTS.PHONE_NUMBERS.CREATE, {
@@ -932,14 +933,18 @@ class AdminApiService {
     return adminRequest<PhoneNumber | null>(ADMIN_ENDPOINTS.PHONE_NUMBERS.GET_AGENT_PHONE(agentId));
   }
 
-  async getAvailableAgents(search?: string): Promise<ApiResponse<{ 
+  async getAvailableAgents(search?: string, userId?: string): Promise<ApiResponse<{ 
     agents: AssignableAgent[];
     total: number;
     page: number;
     limit: number;
     totalPages: number;
   }>> {
-    const queryParams = search ? `?search=${encodeURIComponent(search)}` : '';
+    const params = new URLSearchParams();
+    if (search) params.append('search', search);
+    if (userId) params.append('userId', userId);
+    const queryParams = params.toString() ? `?${params.toString()}` : '';
+    
     return adminRequest<{ 
       agents: AssignableAgent[];
       total: number;

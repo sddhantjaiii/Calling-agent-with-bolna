@@ -28,6 +28,16 @@ interface Agent {
   type?: string;
   status?: string;
   isActive?: boolean;
+  assignedPhoneNumberId?: string;
+}
+
+interface PhoneNumber {
+  id: string;
+  name: string;
+  phoneNumber: string;
+  assignedToAgentId?: string | null;
+  agentName?: string;
+  isActive: boolean;
 }
 
 interface CallAgentModalProps {
@@ -44,20 +54,44 @@ export function CallAgentModal({
   onCallInitiated,
 }: CallAgentModalProps) {
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [phoneNumbers, setPhoneNumbers] = useState<PhoneNumber[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState<string>('');
+  const [selectedPhoneNumberId, setSelectedPhoneNumberId] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [isFetchingAgents, setIsFetchingAgents] = useState(false);
+  const [isFetchingPhoneNumbers, setIsFetchingPhoneNumbers] = useState(false);
   const { toast } = useToast();
 
   // Get phone number from contact (handle both field names: phone, phone_number, phoneNumber)
   const contactPhone = contact ? ((contact as any).phone || (contact as any).phone_number || contact.phoneNumber) : '';
 
-  // Fetch agents when modal opens
+  // Fetch agents and phone numbers when modal opens
   useEffect(() => {
     if (open) {
       fetchAgents();
+      fetchPhoneNumbers();
     }
   }, [open]);
+
+  // Update selected phone number when agent changes
+  useEffect(() => {
+    if (selectedAgentId && phoneNumbers.length > 0) {
+      // Find agent's assigned phone number
+      const selectedAgent = agents.find(a => a.id === selectedAgentId);
+      if (selectedAgent?.assignedPhoneNumberId) {
+        setSelectedPhoneNumberId(selectedAgent.assignedPhoneNumberId);
+      } else {
+        // Find phone number assigned to this agent
+        const agentPhone = phoneNumbers.find(p => p.assignedToAgentId === selectedAgentId);
+        if (agentPhone) {
+          setSelectedPhoneNumberId(agentPhone.id);
+        } else if (!selectedPhoneNumberId && phoneNumbers.length > 0) {
+          // Default to first available phone number
+          setSelectedPhoneNumberId(phoneNumbers[0].id);
+        }
+      }
+    }
+  }, [selectedAgentId, phoneNumbers, agents]);
 
   const fetchAgents = async () => {
     setIsFetchingAgents(true);
@@ -92,22 +126,92 @@ export function CallAgentModal({
     }
   };
 
+  const fetchPhoneNumbers = async () => {
+    setIsFetchingPhoneNumbers(true);
+    try {
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch('/api/phone-numbers', {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` }),
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch phone numbers');
+      }
+
+      const data = await response.json();
+      
+      // Handle response format
+      let phoneNumbersList: PhoneNumber[] = [];
+      if (data.success && Array.isArray(data.data)) {
+        phoneNumbersList = data.data.map((pn: any) => ({
+          id: pn.id,
+          name: pn.name,
+          phoneNumber: pn.phone_number || pn.phoneNumber,
+          assignedToAgentId: pn.assigned_to_agent_id || pn.assignedToAgentId,
+          agentName: pn.agent_name || pn.agentName,
+          isActive: pn.is_active !== false,
+        }));
+      } else if (Array.isArray(data)) {
+        phoneNumbersList = data.map((pn: any) => ({
+          id: pn.id,
+          name: pn.name,
+          phoneNumber: pn.phone_number || pn.phoneNumber,
+          assignedToAgentId: pn.assigned_to_agent_id || pn.assignedToAgentId,
+          agentName: pn.agent_name || pn.agentName,
+          isActive: pn.is_active !== false,
+        }));
+      }
+
+      // Filter only active phone numbers
+      const activePhoneNumbers = phoneNumbersList.filter(pn => pn.isActive);
+      setPhoneNumbers(activePhoneNumbers);
+
+      // Auto-select first phone number if available
+      if (activePhoneNumbers.length > 0 && !selectedPhoneNumberId) {
+        setSelectedPhoneNumberId(activePhoneNumbers[0].id);
+      }
+    } catch (error) {
+      console.error('Error fetching phone numbers:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load phone numbers. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsFetchingPhoneNumbers(false);
+    }
+  };
+
   const handleInitiateCall = async () => {
-    if (!contact || !selectedAgentId) {
+    if (!contact || !selectedAgentId || !selectedPhoneNumberId) {
       toast({
         title: 'Missing information',
-        description: 'Please select an agent to initiate the call.',
+        description: 'Please select an agent and phone number to initiate the call.',
         variant: 'destructive',
       });
       return;
     }
 
     // Get phone number from contact (handle both field names: phone, phone_number, phoneNumber)
-    const phoneNumber = (contact as any).phone || (contact as any).phone_number || contact.phoneNumber;
-    if (!phoneNumber) {
+    const recipientPhoneNumber = (contact as any).phone || (contact as any).phone_number || contact.phoneNumber;
+    if (!recipientPhoneNumber) {
       toast({
         title: 'Missing phone number',
         description: 'Contact does not have a phone number.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Get selected caller phone number
+    const selectedPhone = phoneNumbers.find(p => p.id === selectedPhoneNumberId);
+    if (!selectedPhone) {
+      toast({
+        title: 'Invalid phone number',
+        description: 'Selected phone number not found.',
         variant: 'destructive',
       });
       return;
@@ -126,7 +230,8 @@ export function CallAgentModal({
         body: JSON.stringify({
           contactId: contact.id,
           agentId: selectedAgentId,
-          phoneNumber: phoneNumber,
+          phoneNumber: recipientPhoneNumber,
+          callerPhoneNumberId: selectedPhoneNumberId,
         }),
       });
 
@@ -140,7 +245,7 @@ export function CallAgentModal({
       
       toast({
         title: 'Call initiated',
-        description: `Calling ${contact.name} (${phoneNumber})...`,
+        description: `Calling ${contact.name} (${recipientPhoneNumber}) from ${selectedPhone.phoneNumber}...`,
       });
 
       if (onCallInitiated && callData?.id) {
@@ -220,6 +325,49 @@ export function CallAgentModal({
             )}
           </div>
 
+          {/* Phone Number Selection */}
+          <div className="space-y-2">
+            <Label htmlFor="phoneNumber">Caller Phone Number</Label>
+            {isFetchingPhoneNumbers ? (
+              <div className="flex items-center justify-center p-3 border rounded-md">
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                <span className="text-sm text-muted-foreground">Loading phone numbers...</span>
+              </div>
+            ) : phoneNumbers.length === 0 ? (
+              <div className="p-3 border rounded-md bg-destructive/10 text-destructive text-sm">
+                No phone numbers available. Please add a phone number first.
+              </div>
+            ) : (
+              <Select value={selectedPhoneNumberId} onValueChange={setSelectedPhoneNumberId}>
+                <SelectTrigger id="phoneNumber">
+                  <SelectValue placeholder="Choose a phone number" />
+                </SelectTrigger>
+                <SelectContent>
+                  {phoneNumbers.map((phone) => {
+                    // Find the agent name for this phone number
+                    const assignedAgent = phone.assignedToAgentId 
+                      ? agents.find(a => a.id === phone.assignedToAgentId)
+                      : null;
+                    
+                    return (
+                      <SelectItem key={phone.id} value={phone.id}>
+                        <div className="flex flex-col">
+                          <span className="font-medium">{phone.phoneNumber}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {phone.name}
+                            {assignedAgent 
+                              ? ` • Linked to ${assignedAgent.name}` 
+                              : ' • Not linked to any agent'}
+                          </span>
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+
           {/* Call Information */}
           <div className="p-3 border rounded-md bg-blue-50 dark:bg-blue-950/20 text-sm">
             <p className="font-medium text-blue-900 dark:text-blue-100 mb-1">
@@ -243,7 +391,7 @@ export function CallAgentModal({
           <Button
             type="button"
             onClick={handleInitiateCall}
-            disabled={isLoading || !selectedAgentId || agents.length === 0}
+            disabled={isLoading || !selectedAgentId || !selectedPhoneNumberId || agents.length === 0 || phoneNumbers.length === 0}
             className="gap-2"
           >
             {isLoading ? (

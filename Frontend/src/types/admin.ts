@@ -542,6 +542,7 @@ export interface PhoneNumber {
   id: string;
   name: string;
   phone_number: string;
+  user_id: string;
   assigned_to_agent_id: string | null;
   created_by_admin_id: string;
   is_active: boolean;
@@ -583,6 +584,7 @@ export interface PhoneNumberFilters {
 export interface CreatePhoneNumberRequest {
   name: string;
   phone_number: string;
+  user_id: string;
   assigned_to_agent_id?: string | null;
 }
 

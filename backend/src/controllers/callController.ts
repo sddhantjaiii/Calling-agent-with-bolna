@@ -558,7 +558,7 @@ export class CallController {
         return res.status(401).json({ error: 'User not authenticated' });
       }
 
-      const { contactId, agentId, phoneNumber } = req.body;
+      const { contactId, agentId, phoneNumber, callerPhoneNumberId } = req.body;
 
       // Validate required fields
       if (!agentId) {
@@ -691,6 +691,7 @@ export class CallController {
           agentId,
           contactId: contactId || undefined,
           phoneNumber: recipientPhone,
+          callerPhoneNumberId: callerPhoneNumberId || undefined,
           metadata: {
             preReservedCallId: callId // Pass the pre-reserved ID
           }
