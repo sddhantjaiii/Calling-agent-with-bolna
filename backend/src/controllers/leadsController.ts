@@ -118,11 +118,14 @@ export class LeadsController {
         // Use actual lead analytics data when available, fallback to reasonable defaults
         const leadAnalytics = call.lead_analytics;
         
-        // Determine lead tag based on total score
+        // Determine lead tag based on analytics or call status
         let leadTag = 'Cold';
         if (leadAnalytics?.total_score) {
           if (leadAnalytics.total_score >= 80) leadTag = 'Hot';
           else if (leadAnalytics.total_score >= 60) leadTag = 'Warm';
+        } else if (call.status === 'failed' && call.call_lifecycle_status) {
+          // For failed calls without analytics, show call lifecycle status
+          leadTag = call.call_lifecycle_status;
         }
 
         return {
@@ -289,11 +292,14 @@ export class LeadsController {
 
       const leadAnalytics = call.lead_analytics;
       
-      // Determine lead tag based on total score
+      // Determine lead tag based on analytics or call status
       let leadTag = 'Cold';
       if (leadAnalytics?.total_score) {
         if (leadAnalytics.total_score >= 80) leadTag = 'Hot';
         else if (leadAnalytics.total_score >= 60) leadTag = 'Warm';
+      } else if (call.status === 'failed' && call.call_lifecycle_status) {
+        // For failed calls without analytics, show call lifecycle status
+        leadTag = call.call_lifecycle_status;
       }
 
       // Create timeline entry for this interaction
@@ -517,8 +523,11 @@ export class LeadsController {
   }
 
   /**
+   * @deprecated This method is no longer used. Use LeadIntelligenceController instead.
+   * The active endpoint is /api/lead-intelligence (singular) via leadIntelligence.ts route
+   * 
    * Get lead intelligence data with grouping and aggregation
-   * GET /api/leads/intelligence
+   * GET /api/leads/intelligence (DEPRECATED - route removed)
    */
   async getLeadIntelligence(req: AgentOwnershipRequest, res: Response): Promise<void> {
     try {
@@ -620,6 +629,19 @@ export class LeadsController {
 
         // Initialize or update lead group
         if (!leadGroups.has(groupKey)) {
+          // Determine initial lead tag - use call_lifecycle_status if call failed and no analytics
+          let initialLeadTag = 'Cold';
+          if (call.status === 'failed' && !call.lead_analytics?.lead_status_tag) {
+            // For failed calls, show the call lifecycle status instead of "Cold"
+            initialLeadTag = call.call_lifecycle_status || 'Not Connected';
+            logger.info(`Call ${call.id} - Using lifecycle status: ${initialLeadTag} (status: ${call.status}, lifecycle: ${call.call_lifecycle_status})`);
+          } else if (call.lead_analytics?.lead_status_tag) {
+            initialLeadTag = call.lead_analytics.lead_status_tag;
+            logger.info(`Call ${call.id} - Using analytics tag: ${initialLeadTag}`);
+          } else {
+            logger.info(`Call ${call.id} - Using default 'Cold' (status: ${call.status}, lifecycle: ${call.call_lifecycle_status}, has_analytics: ${!!call.lead_analytics})`);
+          }
+
           leadGroups.set(groupKey, {
             id: groupKey,
             name: leadName,
@@ -631,7 +653,7 @@ export class LeadsController {
             agents: new Set<string>(),
             interactions: 0,
             lastContact: call.created_at,
-            recentLeadTag: 'Cold',
+            recentLeadTag: initialLeadTag,
             leadType: call.lead_type || 'outbound',
             demoScheduled: false,
             followUpScheduled: null
@@ -647,14 +669,22 @@ export class LeadsController {
           leadGroup.agents.add(call.agent_name);
         }
 
-        // Update last contact date (most recent)
-        if (new Date(call.created_at) > new Date(leadGroup.lastContact)) {
+        // Update last contact date and recent lead tag ONLY if this call is more recent
+        const isMoreRecent = new Date(call.created_at) > new Date(leadGroup.lastContact);
+        if (isMoreRecent) {
           leadGroup.lastContact = call.created_at;
-        }
-
-        // Update recent lead tag based on most recent call's analytics
-        if (call.lead_analytics?.lead_status_tag) {
-          leadGroup.recentLeadTag = call.lead_analytics.lead_status_tag;
+          
+          // Update recent lead tag based on most recent call's analytics or lifecycle status
+          if (call.lead_analytics?.lead_status_tag) {
+            leadGroup.recentLeadTag = call.lead_analytics.lead_status_tag;
+            logger.info(`Updated ${groupKey} - Using analytics tag: ${call.lead_analytics.lead_status_tag} (most recent call)`);
+          } else if (call.status === 'failed' && call.call_lifecycle_status) {
+            // For failed calls without analytics, show call lifecycle status
+            leadGroup.recentLeadTag = call.call_lifecycle_status;
+            logger.info(`Updated ${groupKey} - Using lifecycle status: ${call.call_lifecycle_status} (status: ${call.status}, most recent call)`);
+          } else {
+            logger.info(`Updated ${groupKey} - Keeping existing tag (status: ${call.status}, lifecycle: ${call.call_lifecycle_status}, has_analytics: ${!!call.lead_analytics})`);
+          }
         }
 
         // Check for demo CTA in any call
@@ -730,8 +760,11 @@ export class LeadsController {
   }
 
   /**
+   * @deprecated This method is no longer used. Use LeadIntelligenceController.getLeadTimeline() instead.
+   * The active endpoint is /api/lead-intelligence/:groupId/timeline via leadIntelligence.ts route
+   * 
    * Get detailed timeline for a specific lead group
-   * GET /api/leads/intelligence/:groupId/timeline
+   * GET /api/leads/intelligence/:groupId/timeline (DEPRECATED - route removed)
    */
   async getLeadIntelligenceTimeline(req: AgentOwnershipRequest, res: Response): Promise<void> {
     try {
@@ -817,7 +850,7 @@ export class LeadsController {
   async createFollowUp(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
       const userId = req.user!.id;
-      const { leadPhone, leadEmail, leadName, followUpDate, remark } = req.body;
+      const { leadPhone, leadEmail, leadName, followUpDate, remark, callId } = req.body;
 
       if (!followUpDate) {
         res.status(400).json({
@@ -843,7 +876,8 @@ export class LeadsController {
         leadName,
         followUpDate: new Date(followUpDate),
         remark,
-        createdBy: userId
+        createdBy: userId,
+        callId: callId || null
       });
 
       res.json({
@@ -1036,8 +1070,9 @@ export class LeadsController {
         lead_name, 
         follow_up_date, 
         remark, 
-        created_by
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+        created_by,
+        call_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *;
     `;
 
@@ -1048,7 +1083,8 @@ export class LeadsController {
       data.leadName || null,
       data.followUpDate,
       data.remark || null,
-      data.createdBy
+      data.createdBy,
+      data.callId || null
     ]);
 
     return {
@@ -1061,7 +1097,8 @@ export class LeadsController {
       remark: result.rows[0].remark,
       isCompleted: result.rows[0].is_completed,
       createdAt: result.rows[0].created_at,
-      createdBy: result.rows[0].created_by
+      createdBy: result.rows[0].created_by,
+      callId: result.rows[0].call_id
     };
   }
 
@@ -1125,11 +1162,14 @@ export class LeadsController {
 
       const leadAnalytics = call.lead_analytics;
       
-      // Determine lead tag based on total score
+      // Determine lead tag based on analytics or call status
       let leadTag = 'Cold';
       if (leadAnalytics?.total_score) {
         if (leadAnalytics.total_score >= 80) leadTag = 'Hot';
         else if (leadAnalytics.total_score >= 60) leadTag = 'Warm';
+      } else if (call.status === 'failed' && call.call_lifecycle_status) {
+        // For failed calls without analytics, show call lifecycle status
+        leadTag = call.call_lifecycle_status;
       }
 
       // Create comprehensive profile data

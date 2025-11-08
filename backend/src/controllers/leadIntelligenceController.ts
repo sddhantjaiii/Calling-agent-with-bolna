@@ -31,6 +31,9 @@ export interface LeadTimelineEntry {
   interactionAgent: string;
   interactionDate: string;
   platform: string;
+  phoneNumber?: string;
+  callStatus: string;
+  callLifecycleStatus?: string;
   companyName?: string;
   status: string;
   useCase: string;
@@ -40,6 +43,26 @@ export interface LeadTimelineEntry {
   budgetConstraint?: string;
   timelineUrgency?: string;
   fitAlignment?: string;
+  extractedName?: string;
+  extractedEmail?: string;
+  totalScore?: number;
+  intentScore?: number;
+  urgencyScore?: number;
+  budgetScore?: number;
+  fitScore?: number;
+  engagementScore?: number;
+  ctaPricingClicked?: boolean;
+  ctaDemoClicked?: boolean;
+  ctaFollowupClicked?: boolean;
+  ctaSampleClicked?: boolean;
+  ctaEscalatedToHuman?: boolean;
+  demoBookDatetime?: string;
+  smartNotification?: string;
+  followUpDate?: string;
+  followUpRemark?: string;
+  followUpStatus?: string;
+  followUpCompleted?: boolean;
+  followUpCallId?: string; // The call that triggered this follow-up
 }
 
 export class LeadIntelligenceController {
@@ -68,7 +91,13 @@ export class LeadIntelligenceController {
             FIRST_VALUE(COALESCE(la.extracted_name, 'Anonymous')) OVER (PARTITION BY c.phone_number ORDER BY c.created_at DESC)::text as name,
             FIRST_VALUE(la.company_name) OVER (PARTITION BY c.phone_number ORDER BY c.created_at DESC)::text as company,
             FIRST_VALUE(c.lead_type) OVER (PARTITION BY c.phone_number ORDER BY c.created_at DESC)::text as lead_type,
-            FIRST_VALUE(COALESCE(la.lead_status_tag, 'Cold')) OVER (PARTITION BY c.phone_number ORDER BY c.created_at DESC)::text as recent_lead_tag,
+            FIRST_VALUE(
+              CASE 
+                WHEN la.lead_status_tag IS NOT NULL THEN la.lead_status_tag
+                WHEN c.status = 'failed' AND c.call_lifecycle_status IS NOT NULL THEN c.call_lifecycle_status
+                ELSE 'Cold'
+              END
+            ) OVER (PARTITION BY c.phone_number ORDER BY c.created_at DESC)::text as recent_lead_tag,
             FIRST_VALUE(la.engagement_health) OVER (PARTITION BY c.phone_number ORDER BY c.created_at DESC)::text as recent_engagement_level,
             FIRST_VALUE(la.intent_level) OVER (PARTITION BY c.phone_number ORDER BY c.created_at DESC)::text as recent_intent_level,
             FIRST_VALUE(la.budget_constraint) OVER (PARTITION BY c.phone_number ORDER BY c.created_at DESC)::text as recent_budget_constraint,
@@ -106,7 +135,13 @@ export class LeadIntelligenceController {
             FIRST_VALUE(COALESCE(la.extracted_name, 'Anonymous')) OVER (PARTITION BY la.extracted_email ORDER BY c.created_at DESC)::text as name,
             FIRST_VALUE(la.company_name) OVER (PARTITION BY la.extracted_email ORDER BY c.created_at DESC)::text as company,
             FIRST_VALUE(c.lead_type) OVER (PARTITION BY la.extracted_email ORDER BY c.created_at DESC)::text as lead_type,
-            FIRST_VALUE(COALESCE(la.lead_status_tag, 'Cold')) OVER (PARTITION BY la.extracted_email ORDER BY c.created_at DESC)::text as recent_lead_tag,
+            FIRST_VALUE(
+              CASE 
+                WHEN la.lead_status_tag IS NOT NULL THEN la.lead_status_tag
+                WHEN c.status = 'failed' AND c.call_lifecycle_status IS NOT NULL THEN c.call_lifecycle_status
+                ELSE 'Cold'
+              END
+            ) OVER (PARTITION BY la.extracted_email ORDER BY c.created_at DESC)::text as recent_lead_tag,
             FIRST_VALUE(la.engagement_health) OVER (PARTITION BY la.extracted_email ORDER BY c.created_at DESC)::text as recent_engagement_level,
             FIRST_VALUE(la.intent_level) OVER (PARTITION BY la.extracted_email ORDER BY c.created_at DESC)::text as recent_intent_level,
             FIRST_VALUE(la.budget_constraint) OVER (PARTITION BY la.extracted_email ORDER BY c.created_at DESC)::text as recent_budget_constraint,
@@ -150,7 +185,11 @@ export class LeadIntelligenceController {
             END::text as name,
             la.company_name::text as company,
             c.lead_type::text as lead_type,
-            COALESCE(la.lead_status_tag, 'Cold')::text as recent_lead_tag,
+            CASE 
+              WHEN la.lead_status_tag IS NOT NULL THEN la.lead_status_tag
+              WHEN c.status = 'failed' AND c.call_lifecycle_status IS NOT NULL THEN c.call_lifecycle_status
+              ELSE 'Cold'
+            END::text as recent_lead_tag,
             la.engagement_health::text as recent_engagement_level,
             la.intent_level::text as recent_intent_level,
             la.budget_constraint::text as recent_budget_constraint,
@@ -275,8 +314,15 @@ export class LeadIntelligenceController {
               WHEN c.metadata->>'call_source' = 'internet' THEN 'Internet'
               ELSE 'Phone'
             END as platform,
+            c.phone_number,
+            c.status as call_status,
+            c.call_lifecycle_status,
             la.company_name,
-            la.lead_status_tag as status,
+            CASE 
+              WHEN la.lead_status_tag IS NOT NULL THEN la.lead_status_tag
+              WHEN c.status = 'failed' AND c.call_lifecycle_status IS NOT NULL THEN c.call_lifecycle_status
+              ELSE 'Cold'
+            END as status,
             la.call_summary_title as use_case,
             CASE 
               WHEN COALESCE(c.duration_seconds, 0) > 0 THEN 
@@ -289,10 +335,31 @@ export class LeadIntelligenceController {
             la.intent_level,
             la.budget_constraint,
             la.urgency_level as timeline_urgency,
-            la.fit_alignment
+            la.fit_alignment,
+            la.extracted_name,
+            la.extracted_email,
+            la.total_score,
+            la.intent_score,
+            la.urgency_score,
+            la.budget_score,
+            la.fit_score,
+            la.engagement_score,
+            la.cta_pricing_clicked,
+            la.cta_demo_clicked,
+            la.cta_followup_clicked,
+            la.cta_sample_clicked,
+            la.cta_escalated_to_human,
+            la.demo_book_datetime,
+            la.smart_notification,
+            fu.follow_up_date,
+            fu.remark as follow_up_remark,
+            fu.follow_up_status,
+            fu.is_completed as follow_up_completed,
+            fu.call_id as follow_up_call_id
           FROM calls c
-          LEFT JOIN lead_analytics la ON c.id = la.call_id
+          LEFT JOIN lead_analytics la ON c.id = la.call_id AND la.analysis_type = 'individual'
           LEFT JOIN agents a ON c.agent_id = a.id
+          LEFT JOIN follow_ups fu ON fu.lead_phone = c.phone_number AND fu.user_id = $1
           WHERE c.user_id = $1 
             AND c.phone_number = $2
           ORDER BY c.created_at DESC;
@@ -305,8 +372,15 @@ export class LeadIntelligenceController {
             a.name as interaction_agent,
             c.created_at as interaction_date,
             'Internet' as platform,
+            c.phone_number,
+            c.status as call_status,
+            c.call_lifecycle_status,
             la.company_name,
-            la.lead_status_tag as status,
+            CASE 
+              WHEN la.lead_status_tag IS NOT NULL THEN la.lead_status_tag
+              WHEN c.status = 'failed' AND c.call_lifecycle_status IS NOT NULL THEN c.call_lifecycle_status
+              ELSE 'Cold'
+            END as status,
             la.call_summary_title as use_case,
             CASE 
               WHEN COALESCE(c.duration_seconds, 0) > 0 THEN 
@@ -319,10 +393,31 @@ export class LeadIntelligenceController {
             la.intent_level,
             la.budget_constraint,
             la.urgency_level as timeline_urgency,
-            la.fit_alignment
+            la.fit_alignment,
+            la.extracted_name,
+            la.extracted_email,
+            la.total_score,
+            la.intent_score,
+            la.urgency_score,
+            la.budget_score,
+            la.fit_score,
+            la.engagement_score,
+            la.cta_pricing_clicked,
+            la.cta_demo_clicked,
+            la.cta_followup_clicked,
+            la.cta_sample_clicked,
+            la.cta_escalated_to_human,
+            la.demo_book_datetime,
+            la.smart_notification,
+            fu.follow_up_date,
+            fu.remark as follow_up_remark,
+            fu.follow_up_status,
+            fu.is_completed as follow_up_completed,
+            fu.call_id as follow_up_call_id
           FROM calls c
-          LEFT JOIN lead_analytics la ON c.id = la.call_id
+          LEFT JOIN lead_analytics la ON c.id = la.call_id AND la.analysis_type = 'individual'
           LEFT JOIN agents a ON c.agent_id = a.id
+          LEFT JOIN follow_ups fu ON fu.lead_email = la.extracted_email AND fu.user_id = $1
           WHERE c.user_id = $1 
             AND la.extracted_email = $2
           ORDER BY c.created_at DESC;
@@ -335,8 +430,15 @@ export class LeadIntelligenceController {
             a.name as interaction_agent,
             c.created_at as interaction_date,
             'Internet' as platform,
+            c.phone_number,
+            c.status as call_status,
+            c.call_lifecycle_status,
             la.company_name,
-            la.lead_status_tag as status,
+            CASE 
+              WHEN la.lead_status_tag IS NOT NULL THEN la.lead_status_tag
+              WHEN c.status = 'failed' AND c.call_lifecycle_status IS NOT NULL THEN c.call_lifecycle_status
+              ELSE 'Cold'
+            END as status,
             la.call_summary_title as use_case,
             CASE 
               WHEN COALESCE(c.duration_seconds, 0) > 0 THEN 
@@ -349,9 +451,29 @@ export class LeadIntelligenceController {
             la.intent_level,
             la.budget_constraint,
             la.urgency_level as timeline_urgency,
-            la.fit_alignment
+            la.fit_alignment,
+            la.extracted_name,
+            la.extracted_email,
+            la.total_score,
+            la.intent_score,
+            la.urgency_score,
+            la.budget_score,
+            la.fit_score,
+            la.engagement_score,
+            la.cta_pricing_clicked,
+            la.cta_demo_clicked,
+            la.cta_followup_clicked,
+            la.cta_sample_clicked,
+            la.cta_escalated_to_human,
+            la.demo_book_datetime,
+            la.smart_notification,
+            NULL as follow_up_date,
+            NULL as follow_up_remark,
+            NULL as follow_up_status,
+            NULL as follow_up_completed,
+            NULL as follow_up_call_id
           FROM calls c
-          LEFT JOIN lead_analytics la ON c.id = la.call_id
+          LEFT JOIN lead_analytics la ON c.id = la.call_id AND la.analysis_type = 'individual'
           LEFT JOIN agents a ON c.agent_id = a.id
           WHERE c.user_id = $1 
             AND c.id = $2
@@ -367,6 +489,9 @@ export class LeadIntelligenceController {
         interactionAgent: row.interaction_agent || 'Unknown Agent',
         interactionDate: row.interaction_date,
         platform: row.platform,
+        phoneNumber: row.phone_number,
+        callStatus: row.call_status,
+        callLifecycleStatus: row.call_lifecycle_status,
         companyName: row.company_name,
         status: row.status || 'Cold',
         useCase: row.use_case || 'No summary available',
@@ -375,7 +500,37 @@ export class LeadIntelligenceController {
         intentLevel: row.intent_level,
         budgetConstraint: row.budget_constraint,
         timelineUrgency: row.timeline_urgency,
-        fitAlignment: row.fit_alignment
+        fitAlignment: row.fit_alignment,
+        // Analytics scores
+        intentScore: row.intent_score,
+        urgencyScore: row.urgency_score,
+        budgetScore: row.budget_score,
+        fitScore: row.fit_score,
+        engagementScore: row.engagement_score,
+        overallScore: row.overall_score,
+        // CTA interactions
+        ctaPricingClicked: row.cta_pricing_clicked,
+        ctaDemoRequested: row.cta_demo_requested,
+        ctaCalendlyOpened: row.cta_calendly_opened,
+        ctaLinkShared: row.cta_link_shared,
+        // Follow-up information
+        followUpDate: row.follow_up_date,
+        followUpRemark: row.follow_up_remark,
+        followUpStatus: row.follow_up_status,
+        followUpCompleted: row.follow_up_completed,
+        followUpCallId: row.follow_up_call_id,
+        // Extracted data
+        extractedName: row.extracted_name,
+        extractedEmail: row.extracted_email,
+        extractedCompany: row.extracted_company,
+        // Additional fields
+        smartNotificationsSent: row.smart_notifications_sent,
+        demoBookingConfirmed: row.demo_booking_confirmed,
+        customActionTaken: row.custom_action_taken,
+        // Lead analytics metadata
+        leadStatusTag: row.lead_status_tag,
+        leadPriority: row.lead_priority,
+        conversionProbability: row.conversion_probability
       }));
 
       res.json(timeline);

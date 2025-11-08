@@ -52,10 +52,32 @@ export class CallModel extends BaseModel<CallInterface> {
     }
   ): Promise<CallInterface[]> {
     let query = `
-      SELECT c.*, a.name as agent_name, ct.name as contact_name
+      SELECT c.*, a.name as agent_name, ct.name as contact_name,
+             la.id as lead_analytics_id,
+             la.total_score,
+             la.lead_status_tag,
+             la.intent_score,
+             la.intent_level,
+             la.urgency_score,
+             la.urgency_level,
+             la.budget_score,
+             la.budget_constraint,
+             la.fit_score,
+             la.fit_alignment,
+             la.engagement_score,
+             la.engagement_health,
+             la.reasoning,
+             la.cta_interactions,
+             la.extracted_name,
+             la.extracted_email,
+             la.company_name,
+             la.cta_demo_clicked,
+             la.created_at as lead_analytics_created_at,
+             la.updated_at as lead_analytics_updated_at
       FROM calls c
       LEFT JOIN agents a ON c.agent_id = a.id
       LEFT JOIN contacts ct ON c.contact_id = ct.id
+      LEFT JOIN lead_analytics la ON c.id = la.call_id AND la.analysis_type = 'individual'
       WHERE c.user_id = $1
     `;
     
@@ -91,7 +113,7 @@ export class CallModel extends BaseModel<CallInterface> {
     }
 
     const result = await this.query(query, params);
-    return result.rows;
+    return result.rows.map((row: any) => this.mapRowWithAnalytics(row));
   }
 
   /**
@@ -165,6 +187,7 @@ export class CallModel extends BaseModel<CallInterface> {
       duration_minutes: row.duration_minutes,
       credits_used: row.credits_used,
       status: row.status,
+      call_lifecycle_status: row.call_lifecycle_status,
       recording_url: row.recording_url,
       metadata: row.metadata,
       created_at: row.created_at,

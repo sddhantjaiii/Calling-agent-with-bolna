@@ -76,6 +76,9 @@ interface LeadTimelineEntry {
   interactionAgent: string;
   interactionDate: string;
   platform: string;
+  phoneNumber?: string;
+  callStatus?: string;
+  callLifecycleStatus?: string;
   companyName?: string;
   status: string;
   useCase: string;
@@ -85,6 +88,26 @@ interface LeadTimelineEntry {
   budgetConstraint?: string;
   timelineUrgency?: string;
   fitAlignment?: string;
+  extractedName?: string;
+  extractedEmail?: string;
+  totalScore?: number;
+  intentScore?: number;
+  urgencyScore?: number;
+  budgetScore?: number;
+  fitScore?: number;
+  engagementScore?: number;
+  ctaPricingClicked?: boolean;
+  ctaDemoClicked?: boolean;
+  ctaFollowupClicked?: boolean;
+  ctaSampleClicked?: boolean;
+  ctaEscalatedToHuman?: boolean;
+  demoBookDatetime?: string;
+  smartNotification?: string;
+  followUpDate?: string;
+  followUpRemark?: string;
+  followUpStatus?: string;
+  followUpCompleted?: boolean;
+  followUpCallId?: string; // The call this follow-up is linked to
 }
 
 interface CreateFollowUpRequest {
@@ -93,6 +116,7 @@ interface CreateFollowUpRequest {
   leadName?: string;
   followUpDate: string;
   remark?: string;
+  callId?: string; // Link to specific call that triggered the follow-up
 }
 
 interface LeadIntelligenceProps {
@@ -238,12 +262,16 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
   const handleSaveFollowUp = async () => {
     if (followUpDate && currentFollowUpContact) {
       try {
+        // Get the most recent call ID from timeline
+        const mostRecentCall = timeline.length > 0 ? timeline[0] : null;
+        
         const followUpData: CreateFollowUpRequest = {
           leadPhone: currentFollowUpContact.phone,
           leadEmail: currentFollowUpContact.email,
           leadName: currentFollowUpContact.name,
           followUpDate: format(followUpDate, 'yyyy-MM-dd'),
-          remark: followUpRemark || undefined
+          remark: followUpRemark || undefined,
+          callId: mostRecentCall?.id // Link to the most recent call
         };
 
         await createFollowUp(followUpData);
@@ -515,21 +543,21 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                     <TableHead>Agent</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead>Platform</TableHead>
-                    <TableHead>Company</TableHead>
-                    <TableHead>Status</TableHead>
+                    <TableHead>Phone</TableHead>
+                    <TableHead>Call Status</TableHead>
+                    <TableHead>Lead Status</TableHead>
                     <TableHead>Use Case</TableHead>
                     <TableHead>Duration</TableHead>
-                    <TableHead>Engagement</TableHead>
-                    <TableHead>Intent</TableHead>
-                    <TableHead>Budget</TableHead>
-                    <TableHead>Urgency</TableHead>
-                    <TableHead>Fit</TableHead>
+                    <TableHead>Scores</TableHead>
+                    <TableHead>CTAs</TableHead>
+                    <TableHead>Contact Info</TableHead>
+                    <TableHead>Follow-up</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {timelineLoading ? (
                     <TableRow>
-                      <TableCell colSpan={17} className="text-center py-8">
+                      <TableCell colSpan={12} className="text-center py-8">
                         <div className="flex items-center justify-center gap-2">
                           <Loader2 className="w-4 h-4 animate-spin" />
                           <span>Loading timeline...</span>
@@ -538,7 +566,7 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                     </TableRow>
                   ) : timeline.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={17} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={12} className="text-center py-8 text-muted-foreground">
                         No interaction history found
                       </TableCell>
                     </TableRow>
@@ -563,8 +591,21 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                         <TableCell className="text-foreground">
                           {interaction.platform}
                         </TableCell>
-                        <TableCell className="text-foreground">
-                          {interaction.companyName || "—"}
+                        <TableCell className="text-foreground text-sm">
+                          {interaction.phoneNumber || "—"}
+                        </TableCell>
+                        <TableCell>
+                          {interaction.callStatus === 'failed' && interaction.callLifecycleStatus ? (
+                            <Badge variant="outline" className="border-orange-500 text-orange-700 bg-orange-50 dark:bg-orange-950 dark:text-orange-300">
+                              {interaction.callLifecycleStatus}
+                            </Badge>
+                          ) : interaction.callStatus ? (
+                            <Badge variant="outline" className="border-green-500 text-green-700 bg-green-50 dark:bg-green-950 dark:text-green-300">
+                              {interaction.callStatus}
+                            </Badge>
+                          ) : (
+                            "—"
+                          )}
                         </TableCell>
                         <TableCell>
                           <Badge
@@ -574,26 +615,93 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                             {interaction.status}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-foreground">
+                        <TableCell className="text-foreground max-w-xs truncate">
                           {interaction.useCase}
                         </TableCell>
                         <TableCell className="text-foreground">
                           {interaction.duration || "—"}
                         </TableCell>
-                        <TableCell className="text-foreground">
-                          {interaction.engagementLevel || "—"}
+                        <TableCell>
+                          <div className="space-y-1 text-xs">
+                            {interaction.intentScore !== null && interaction.intentScore !== undefined && (
+                              <div className="flex items-center gap-1">
+                                <span className="text-muted-foreground w-12">Intent:</span>
+                                <span className="font-medium">{interaction.intentScore}/10</span>
+                              </div>
+                            )}
+                            {interaction.urgencyScore !== null && interaction.urgencyScore !== undefined && (
+                              <div className="flex items-center gap-1">
+                                <span className="text-muted-foreground w-12">Urgent:</span>
+                                <span className="font-medium">{interaction.urgencyScore}/10</span>
+                              </div>
+                            )}
+                            {interaction.engagementScore !== null && interaction.engagementScore !== undefined && (
+                              <div className="flex items-center gap-1">
+                                <span className="text-muted-foreground w-12">Engage:</span>
+                                <span className="font-medium">{interaction.engagementScore}/10</span>
+                              </div>
+                            )}
+                            {(!interaction.intentScore && !interaction.urgencyScore && !interaction.engagementScore) && "—"}
+                          </div>
                         </TableCell>
-                        <TableCell className="text-foreground">
-                          {interaction.intentLevel || "—"}
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {interaction.ctaPricingClicked && (
+                              <Badge variant="secondary" className="text-xs">💰 Pricing</Badge>
+                            )}
+                            {interaction.ctaDemoClicked && (
+                              <Badge variant="secondary" className="text-xs">🎯 Demo</Badge>
+                            )}
+                            {interaction.ctaFollowupClicked && (
+                              <Badge variant="secondary" className="text-xs">📞 Follow-up</Badge>
+                            )}
+                            {interaction.ctaEscalatedToHuman && (
+                              <Badge variant="secondary" className="text-xs">👤 Escalated</Badge>
+                            )}
+                            {(!interaction.ctaPricingClicked && !interaction.ctaDemoClicked && !interaction.ctaFollowupClicked && !interaction.ctaEscalatedToHuman) && "—"}
+                          </div>
                         </TableCell>
-                        <TableCell className="text-foreground">
-                          {interaction.budgetConstraint || "—"}
+                        <TableCell>
+                          <div className="text-xs space-y-1">
+                            {interaction.extractedName && (
+                              <div className="flex items-center gap-1">
+                                <span className="font-medium">{interaction.extractedName}</span>
+                              </div>
+                            )}
+                            {interaction.extractedEmail && (
+                              <div className="text-muted-foreground">{interaction.extractedEmail}</div>
+                            )}
+                            {(!interaction.extractedName && !interaction.extractedEmail) && "—"}
+                          </div>
                         </TableCell>
-                        <TableCell className="text-foreground">
-                          {interaction.timelineUrgency || "—"}
-                        </TableCell>
-                        <TableCell className="text-foreground">
-                          {interaction.fitAlignment || "—"}
+                        <TableCell>
+                          {interaction.followUpDate ? (
+                            <div className="text-xs space-y-1">
+                              <div className="flex items-center gap-1">
+                                <Badge variant="outline" className={interaction.followUpCompleted ? "border-green-500 text-green-700" : "border-blue-500 text-blue-700"}>
+                                  {interaction.followUpCompleted ? "✓ Completed" : "⏰ Scheduled"}
+                                </Badge>
+                              </div>
+                              <div className="text-muted-foreground">
+                                {new Date(interaction.followUpDate).toLocaleDateString('en-US', { 
+                                  month: 'short',
+                                  day: 'numeric'
+                                })}
+                              </div>
+                              {interaction.followUpRemark && (
+                                <div className="text-muted-foreground truncate max-w-[150px]" title={interaction.followUpRemark}>
+                                  {interaction.followUpRemark}
+                                </div>
+                              )}
+                              {interaction.followUpCallId && (
+                                <div className="text-xs text-blue-600 dark:text-blue-400">
+                                  📎 Linked to call
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            "—"
+                          )}
                         </TableCell>
                       </TableRow>
                     ))

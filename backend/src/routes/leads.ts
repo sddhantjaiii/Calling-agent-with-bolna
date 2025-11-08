@@ -25,20 +25,9 @@ router.get('/analytics', (req: Request, res: Response) =>
 );
 
 /**
- * GET /api/leads/intelligence
- * Get lead intelligence data with grouping and aggregation
+ * Note: Lead Intelligence endpoints moved to /api/lead-intelligence
+ * See leadIntelligence.ts route and LeadIntelligenceController
  */
-router.get('/intelligence', (req: Request, res: Response) => 
-  leadsController.getLeadIntelligence(req as AuthenticatedRequest, res)
-);
-
-/**
- * GET /api/leads/intelligence/:groupId/timeline
- * Get detailed timeline for a specific lead group
- */
-router.get('/intelligence/:groupId/timeline', (req: Request, res: Response) => 
-  leadsController.getLeadIntelligenceTimeline(req as AuthenticatedRequest, res)
-);
 
 /**
  * GET /api/leads/:id
