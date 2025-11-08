@@ -67,10 +67,18 @@ router.post('/confirm-payment', [
 
 /**
  * GET /api/billing/pricing
- * Get pricing information
- * DISABLED
+ * Get pricing information (Payment system not configured - returns empty data)
  */
-// router.get('/pricing', (req: Request, res: Response) => BillingController.getPricing(req, res));
+router.get('/pricing', (req: Request, res: Response) => {
+  res.status(200).json({
+    success: true,
+    data: {
+      enabled: false,
+      message: 'Payment system not configured',
+      plans: []
+    }
+  });
+});
 
 /**
  * GET /api/billing/payment-history
