@@ -10,6 +10,35 @@ import { ContactService } from '../services/contactService';
 const router = Router();
 
 /**
+ * Normalize phone number format to +[ISD code] [10-digit number]
+ * Must match the normalization logic in ContactService
+ */
+function normalizePhoneNumber(phoneNumber: string): string {
+  // Remove all non-digit characters except +
+  const cleaned = phoneNumber.replace(/[^\d+]/g, '');
+  
+  // Remove leading + to work with digits only
+  const digitsOnly = cleaned.replace(/^\+/, '');
+  
+  // Basic validation - should have at least 10 digits
+  if (digitsOnly.length < 10) {
+    throw new Error('Invalid phone number format');
+  }
+  
+  // Take last 10 digits as the main number
+  const mainNumber = digitsOnly.slice(-10);
+  
+  // Take everything before the last 10 digits as ISD code
+  const isdCode = digitsOnly.slice(0, -10);
+  
+  // If no ISD code found, default to +91 (India)
+  const finalIsdCode = isdCode || '91';
+  
+  // Return formatted as +[ISD] [main number]
+  return `+${finalIsdCode} ${mainNumber}`;
+}
+
+/**
  * @route   GET /api/campaigns/template
  * @desc    Download campaign contact upload template (same as contact template)
  * @access  Private
@@ -205,14 +234,24 @@ router.post('/upload-csv', uploadExcel.single('file'), async (req: Request, res:
         return;
       }
 
-      // Check for duplicate phone in CSV
-      if (seenPhones.has(row.phone_number)) {
-        errors.push(`Row ${index + 1}: Duplicate phone number ${row.phone_number}`);
+      try {
+        // Normalize phone number to match database format
+        const normalizedPhone = normalizePhoneNumber(row.phone_number);
+        
+        // Check for duplicate phone in CSV (using normalized format)
+        if (seenPhones.has(normalizedPhone)) {
+          errors.push(`Row ${index + 1}: Duplicate phone number ${row.phone_number}`);
+          return;
+        }
+
+        seenPhones.add(normalizedPhone);
+        // Store the normalized phone number back to the row
+        row.phone_number = normalizedPhone;
+        validContacts.push(row);
+      } catch (error) {
+        errors.push(`Row ${index + 1}: Invalid phone number format (${row.phone_number})`);
         return;
       }
-
-      seenPhones.add(row.phone_number);
-      validContacts.push(row);
     });
 
     if (validContacts.length === 0) {
