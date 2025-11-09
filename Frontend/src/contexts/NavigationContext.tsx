@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 interface NavigationContextType {
   activeTab: string;
@@ -23,9 +24,56 @@ export const NavigationProvider = ({
   initialTab = "overview", 
   initialSubTab = "" 
 }: NavigationProviderProps) => {
-  const [activeTab, setActiveTab] = useState(initialTab);
-  const [activeSubTab, setActiveSubTab] = useState(initialSubTab);
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  
+  // Read initial values from URL parameters, falling back to props
+  const urlTab = searchParams.get('tab');
+  const urlSubTab = searchParams.get('subtab');
+  
+  const [activeTab, setActiveTabState] = useState(urlTab || initialTab);
+  const [activeSubTab, setActiveSubTabState] = useState(urlSubTab || initialSubTab);
   const [targetLeadIdentifier, setTargetLeadIdentifier] = useState<{ phone?: string; email?: string } | null>(null);
+
+  // Update URL when tabs change
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (activeTab && activeTab !== 'overview') {
+      params.set('tab', activeTab);
+    }
+    if (activeSubTab) {
+      params.set('subtab', activeSubTab);
+    }
+    
+    const newSearch = params.toString();
+    const currentSearch = window.location.search.substring(1);
+    
+    // Only update URL if it actually changed
+    if (newSearch !== currentSearch) {
+      navigate(`/dashboard${newSearch ? `?${newSearch}` : ''}`, { replace: true });
+    }
+  }, [activeTab, activeSubTab, navigate]);
+
+  // Sync with URL changes (e.g., browser back/forward)
+  useEffect(() => {
+    const urlTab = searchParams.get('tab');
+    const urlSubTab = searchParams.get('subtab');
+    
+    if (urlTab && urlTab !== activeTab) {
+      setActiveTabState(urlTab);
+    }
+    if (urlSubTab !== null && urlSubTab !== activeSubTab) {
+      setActiveSubTabState(urlSubTab);
+    }
+  }, [searchParams]);
+
+  const setActiveTab = (tab: string) => {
+    setActiveTabState(tab);
+  };
+
+  const setActiveSubTab = (subTab: string) => {
+    setActiveSubTabState(subTab);
+  };
 
   const navigateToLeadIntelligence = (identifier?: { phone?: string; email?: string } | string) => {
     console.log('Navigating to Lead Intelligence with identifier:', identifier);

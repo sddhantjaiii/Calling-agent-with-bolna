@@ -66,21 +66,21 @@ const GoogleCalendarCallback = () => {
         setMessage(`Successfully connected to Google Calendar! (${data.google_email})`);
         toast.success("Google Calendar connected successfully!");
         
-        // Redirect to integrations page after 2 seconds
-        setTimeout(() => navigate("/integrations"), 2000);
+        // Redirect to dashboard integrations tab after 2 seconds
+        setTimeout(() => navigate("/dashboard?tab=integrations"), 2000);
       } else {
         const errorData = await response.json();
         setStatus("error");
         setMessage(errorData.message || "Failed to connect Google Calendar");
         toast.error("Failed to connect Google Calendar");
-        setTimeout(() => navigate("/integrations"), 3000);
+        setTimeout(() => navigate("/dashboard?tab=integrations"), 3000);
       }
     } catch (error) {
       console.error("Callback error:", error);
       setStatus("error");
       setMessage("An unexpected error occurred. Please try again.");
       toast.error("Failed to connect Google Calendar");
-      setTimeout(() => navigate("/integrations"), 3000);
+      setTimeout(() => navigate("/dashboard?tab=integrations"), 3000);
     }
   };
 
