@@ -115,8 +115,8 @@ export const createRateLimit = (options: RateLimitOptions) => {
 
 // Enhanced rate limiting configurations
 export const generalRateLimit = createRateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  maxRequests: process.env.NODE_ENV === 'development' ? 1000 : 300, // Increased production limit
+  windowMs: 30 * 60 * 1000, // 30 minutes
+  maxRequests: 1000, // 1000 requests per 30 minutes
   keyGenerator: (req: Request) => {
     // Use user ID if authenticated, fallback to IP
     const userId = (req as any).user?.id;
@@ -125,9 +125,9 @@ export const generalRateLimit = createRateLimit({
 });
 
 export const authRateLimit = createRateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  maxRequests: process.env.NODE_ENV === 'development' ? 50 : 5, // Much higher limit for development
-  blockDuration: process.env.NODE_ENV === 'development' ? 0 : 30 * 60 * 1000, // No blocking in development
+  windowMs: 30 * 60 * 1000, // 30 minutes
+  maxRequests: 1000, // 1000 requests per 30 minutes
+  blockDuration: 0, // No blocking - just rate limit
   keyGenerator: (req: Request) => req.ip || 'unknown',
   onLimitReached: (req: Request, res: Response) => {
     console.warn(`Authentication rate limit exceeded for IP: ${req.ip}`);

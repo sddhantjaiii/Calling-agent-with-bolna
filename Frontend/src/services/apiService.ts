@@ -569,16 +569,25 @@ class ApiService {
             // Handle rate limiting with Retry-After header
             let apiError: ApiServiceError;
             if (response.status === 429) {
-              const retryAfter = response.headers.get('retry-after');
+              const retryAfter = response.headers.get('retry-after') || response.headers.get('x-ratelimit-reset');
+              const retryAfterSeconds = errorData?.error?.retryAfter || errorData?.retryAfter || (retryAfter ? parseInt(retryAfter, 10) : undefined);
+              
               apiError = createApiError(
                 errorMessage,
                 response.status,
                 errorCode,
                 {
                   ...errorData?.error?.details || errorData?.details,
-                  retryAfter: retryAfter ? parseInt(retryAfter, 10) : undefined
+                  error: errorData?.error, // Include full error object for rate limit info
+                  retryAfter: retryAfterSeconds
                 }
               );
+              
+              // Add retryAfter to error object for easy access
+              (apiError as any).data = {
+                error: errorData?.error,
+                retryAfter: retryAfterSeconds
+              };
             } else {
               apiError = createApiError(
                 errorMessage,

@@ -276,11 +276,25 @@ function AuthContextProvider({ children }: { children: React.ReactNode }) {
         // Handle specific error cases with user-friendly messages
         if (error instanceof Error) {
           const errorCode = (error as any).code;
+          const errorData = (error as any).data;
 
           if (errorCode === 'INVALID_CREDENTIALS' || error.message.includes('Invalid email or password')) {
             setError('Invalid email or password. Please check your credentials and try again.');
           } else if (errorCode === 'ACCOUNT_LOCKED' || error.message.includes('locked')) {
             setError('Your account has been temporarily locked due to too many failed login attempts. Please try again in 30 minutes.');
+          } else if (errorCode === 'RATE_LIMIT_EXCEEDED' || errorCode === 'IP_TEMPORARILY_BLOCKED') {
+            // Handle rate limit errors with retry information
+            const retryAfter = errorData?.error?.retryAfter || errorData?.retryAfter;
+            if (retryAfter) {
+              const minutes = Math.ceil(retryAfter / 60);
+              const seconds = retryAfter % 60;
+              const timeMessage = minutes > 0 
+                ? `${minutes} minute${minutes > 1 ? 's' : ''}${seconds > 0 ? ` and ${seconds} second${seconds > 1 ? 's' : ''}` : ''}`
+                : `${seconds} second${seconds > 1 ? 's' : ''}`;
+              setError(`Too many requests. Please try again in ${timeMessage}. (Rate limit: 1000 requests per 30 minutes)`);
+            } else {
+              setError('Too many requests. Please try again later. (Rate limit: 1000 requests per 30 minutes)');
+            }
           } else if (error.message.includes('Network error') || error.message.includes('fetch')) {
             setError('Unable to connect to the server. Please check your internet connection and try again.');
           } else {
