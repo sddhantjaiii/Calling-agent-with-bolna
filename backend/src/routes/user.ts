@@ -2,8 +2,20 @@ import { Router } from 'express';
 import UserController from '../controllers/userController';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth';
 import { Response } from 'express';
+import { createRateLimit } from '../middleware/rateLimit';
 
 const router = Router();
+
+// Rate limiting for credit-status endpoint - allow 30 requests per minute per user
+const creditStatusLimiter = createRateLimit({
+  windowMs: 60 * 1000, // 1 minute window
+  maxRequests: 30, // 30 requests per minute (every 2 seconds)
+  keyGenerator: (req) => {
+    // Rate limit per user instead of IP
+    const authReq = req as AuthenticatedRequest;
+    return authReq.userId || req.ip || 'unknown';
+  }
+});
 
 // User initialization (for first-time login)
 router.post('/initialize', UserController.initializeUser);
@@ -24,7 +36,7 @@ router.post('/estimate-credits', authenticateToken, (req, res) => UserController
 // router.get('/credit-notifications', authenticateToken, (req, res) => UserController.getCreditNotificationStatus(req as AuthenticatedRequest, res));
 
 // Credit warning and status endpoints for frontend
-router.get('/credit-status', authenticateToken, (req, res) => UserController.getCreditStatus(req as AuthenticatedRequest, res));
+router.get('/credit-status', authenticateToken, creditStatusLimiter, (req, res) => UserController.getCreditStatus(req as AuthenticatedRequest, res));
 router.post('/campaign-credit-check', authenticateToken, (req, res) => UserController.campaignCreditCheck(req as AuthenticatedRequest, res));
 router.get('/login-status', authenticateToken, (req, res) => UserController.getLoginStatus(req as AuthenticatedRequest, res));
 router.get('/credit-alerts', authenticateToken, (req, res) => UserController.getCreditAlerts(req as AuthenticatedRequest, res));

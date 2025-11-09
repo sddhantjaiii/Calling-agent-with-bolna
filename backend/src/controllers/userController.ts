@@ -872,6 +872,10 @@ export class UserController {
     }
   }
 
+  // Cache for credit status to prevent excessive database queries
+  private static creditStatusCache: Map<string, { data: any; timestamp: number }> = new Map();
+  private static readonly CACHE_TTL = 30000; // 30 seconds cache
+
   /**
    * Get comprehensive credit status for dashboard and warnings
    * GET /api/user/credit-status
@@ -883,6 +887,19 @@ export class UserController {
         return;
       }
       const userId = req.user.id;
+
+      // Check cache first
+      const cached = UserController.creditStatusCache.get(userId);
+      const now = Date.now();
+      if (cached && (now - cached.timestamp) < UserController.CACHE_TTL) {
+        // Return cached response with updated timestamp
+        res.json({
+          ...cached.data,
+          cached: true,
+          timestamp: new Date()
+        });
+        return;
+      }
       
       // Get current credits
       const currentCredits = await userService.getUserCredits(userId);
@@ -945,7 +962,7 @@ export class UserController {
         }
       }
 
-      res.json({
+      const responseData = {
         success: true,
         credits: {
           current: currentCredits,
@@ -968,8 +985,17 @@ export class UserController {
           suggestedTopUp: currentCredits <= 5 ? Math.max(50 - currentCredits, 20) : 0,
           urgency: warningLevel >= 2 ? 'high' : warningLevel === 1 ? 'medium' : 'low'
         },
+        cached: false,
         timestamp: new Date()
+      };
+
+      // Store in cache
+      UserController.creditStatusCache.set(userId, {
+        data: responseData,
+        timestamp: Date.now()
       });
+
+      res.json(responseData);
     } catch (error) {
       console.error('Get credit status error:', error);
       res.status(500).json({
