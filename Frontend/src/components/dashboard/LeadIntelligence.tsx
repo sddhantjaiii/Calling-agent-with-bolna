@@ -39,6 +39,7 @@ import {
   Building2,
   ArrowLeft,
   Loader2,
+  X,
 } from "lucide-react";
 import { useTheme } from "@/components/theme/ThemeProvider";
 import { useNavigation } from "@/contexts/NavigationContext";
@@ -46,6 +47,7 @@ import { ContactDisplay } from "@/components/contacts/ContactDisplay";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { apiService } from "@/services/apiService";
+import { useToast } from "@/hooks/use-toast";
 import type { Lead, LeadAnalyticsData } from "@/pages/Dashboard";
 
 // API interfaces
@@ -69,6 +71,11 @@ interface LeadGroup {
   followUpScheduled?: string;
   followUpStatus?: string;
   demoScheduled: string | null; // Now a datetime string
+  meetingId?: string; // UUID of calendar_meetings record for rescheduling
+  meetingLink?: string; // Google Meet link
+  meetingAttendeeEmail?: string; // Email from existing meeting
+  meetingTitle?: string; // Title from existing meeting
+  meetingDescription?: string; // Description from existing meeting
   groupType: 'phone' | 'email' | 'individual';
 }
 
@@ -127,6 +134,7 @@ interface LeadIntelligenceProps {
 const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
   const { theme } = useTheme();
   const { targetLeadIdentifier, clearTargetLeadId } = useNavigation();
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
   const [leadTypeFilter, setLeadTypeFilter] = useState("all");
   const [tagFilter, setTagFilter] = useState("all");
@@ -156,6 +164,18 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
   const [showConversionModal, setShowConversionModal] = useState(false);
   const [currentConversionContact, setCurrentConversionContact] = useState<LeadGroup | null>(null);
   const [conversionLoading, setConversionLoading] = useState(false);
+
+  // Meeting scheduling modal state
+  const [showMeetingModal, setShowMeetingModal] = useState(false);
+  const [currentMeetingContact, setCurrentMeetingContact] = useState<LeadGroup | null>(null);
+  const [meetingDateTime, setMeetingDateTime] = useState<Date | undefined>();
+  const [meetingLoading, setMeetingLoading] = useState(false);
+  const [isReschedule, setIsReschedule] = useState(false);
+  const [meetingAttendeeEmail, setMeetingAttendeeEmail] = useState("");
+  const [additionalInvites, setAdditionalInvites] = useState<string[]>([]);
+  const [inviteInputValue, setInviteInputValue] = useState("");
+  const [meetingTitle, setMeetingTitle] = useState("");
+  const [meetingDescription, setMeetingDescription] = useState("");
 
   // API functions
   const fetchLeadIntelligence = async () => {
@@ -353,6 +373,270 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
         console.error('Failed to schedule follow-up:', error);
         // You might want to show a toast notification here
       }
+    }
+  };
+
+  // Meeting scheduling functions
+  const handleScheduleMeeting = (contact: LeadGroup, isRescheduling: boolean = false) => {
+    console.log('🎯 handleScheduleMeeting called:', { 
+      contact, 
+      isRescheduling,
+      contactFields: {
+        id: contact.id,
+        name: contact.name,
+        email: contact.email,
+        phone: contact.phone,
+        company: contact.company,
+        groupType: contact.groupType,
+        hasPhone: !!contact.phone,
+        phoneValue: contact.phone,
+        hasMeetingData: !!contact.meetingId
+      }
+    });
+    setCurrentMeetingContact(contact);
+    setIsReschedule(isRescheduling);
+    setMeetingDateTime(contact.demoScheduled ? new Date(contact.demoScheduled) : undefined);
+    
+    // When rescheduling, use existing meeting data; otherwise use contact info
+    if (isRescheduling && contact.meetingAttendeeEmail) {
+      setMeetingAttendeeEmail(contact.meetingAttendeeEmail);
+      setMeetingTitle(contact.meetingTitle || '');
+      setMeetingDescription(contact.meetingDescription || '');
+      console.log('📋 Pre-filled with existing meeting data:', {
+        attendeeEmail: contact.meetingAttendeeEmail,
+        title: contact.meetingTitle,
+        description: contact.meetingDescription
+      });
+    } else {
+      // New meeting - use contact email or empty
+      setMeetingAttendeeEmail(contact.email || "");
+      
+      // Set default title
+      const titleParts = [contact.name, contact.company, 'Demo'].filter(Boolean);
+      setMeetingTitle(titleParts.join(' + '));
+      
+      // Set default description - will be replaced with "See you at [time]" in backend if not changed
+      setMeetingDescription('');
+      
+      console.log('📝 Set default values for new meeting');
+    }
+    
+    setAdditionalInvites([]);
+    setInviteInputValue("");
+    
+    setShowMeetingModal(true);
+    console.log('Modal state set to true');
+  };
+
+  // Email tag management functions
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const handleAddInvite = () => {
+    const email = inviteInputValue.trim();
+    if (!email) return;
+
+    if (!validateEmail(email)) {
+      toast({
+        title: "Invalid Email",
+        description: "Please enter a valid email address",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (additionalInvites.includes(email)) {
+      toast({
+        title: "Duplicate Email",
+        description: "This email has already been added",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setAdditionalInvites([...additionalInvites, email]);
+    setInviteInputValue("");
+  };
+
+  const handleRemoveInvite = (emailToRemove: string) => {
+    setAdditionalInvites(additionalInvites.filter(email => email !== emailToRemove));
+  };
+
+  const handleInviteKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleAddInvite();
+    } else if (e.key === ',' && inviteInputValue.trim()) {
+      e.preventDefault();
+      handleAddInvite();
+    }
+  };
+
+  const handleSaveMeeting = async () => {
+    if (!meetingDateTime || !currentMeetingContact) {
+      toast({
+        title: "Error",
+        description: "Please select a date and time for the meeting",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setMeetingLoading(true);
+
+    try {
+      const token = localStorage.getItem("auth_token");
+      if (!token) {
+        toast({
+          title: "Error",
+          description: "Authentication required. Please log in again.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (isReschedule && currentMeetingContact.meetingId) {
+        // Reschedule existing meeting
+        const response = await fetch(
+          `http://localhost:3000/api/integrations/calendar/meetings/${currentMeetingContact.meetingId}/reschedule`,
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              newDateTime: meetingDateTime.toISOString(),
+            }),
+          }
+        );
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.message || "Failed to reschedule meeting");
+        }
+
+        toast({
+          title: "Success",
+          description: "Meeting rescheduled successfully",
+        });
+      } else {
+        // Schedule new meeting
+        // Validate email
+        if (!meetingAttendeeEmail) {
+          toast({
+            title: "Error",
+            description: "Please enter an email address",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        // Only include leadAnalyticsId if it's a valid UUID (not a grouped ID like 'phone_xxx')
+        const isValidUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(currentMeetingContact.id);
+        
+        console.log('🔍 Lead Analytics ID Validation:', {
+          contactId: currentMeetingContact.id,
+          isValidUUID,
+          uuidPattern: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
+          willSendToBackend: isValidUUID
+        });
+
+        const requestBody: any = {
+          attendeeEmail: meetingAttendeeEmail,
+          attendeeName: currentMeetingContact.name,
+          meetingDateTime: meetingDateTime.toISOString(),
+          phoneNumber: currentMeetingContact.phone,
+          leadName: currentMeetingContact.name,
+          companyName: currentMeetingContact.company,
+        };
+        
+        // Add custom title and description if provided
+        if (meetingTitle.trim()) {
+          requestBody.meetingTitle = meetingTitle.trim();
+        }
+        if (meetingDescription.trim()) {
+          requestBody.meetingDescription = meetingDescription.trim();
+        }
+        
+        // Add additional invites if provided
+        if (additionalInvites.length > 0) {
+          requestBody.additionalAttendees = additionalInvites;
+        }
+        
+        // Only add leadAnalyticsId if it's a valid UUID
+        if (isValidUUID) {
+          requestBody.leadAnalyticsId = currentMeetingContact.id;
+          console.log('✅ leadAnalyticsId included in request:', currentMeetingContact.id);
+        } else {
+          console.warn('⚠️ leadAnalyticsId NOT included - invalid UUID format (grouped record):', currentMeetingContact.id);
+          if (requestBody.phoneNumber) {
+            console.log('✅ phoneNumber included - backend will use phone-based lookup:', requestBody.phoneNumber);
+            console.log('   Backend will find the most recent lead_analytics for this phone and update it');
+          } else {
+            console.error('❌ No phoneNumber either - demo_book_datetime will NOT be updated');
+            console.error('   Meeting will be created but will NOT appear with scheduled date in Lead Intelligence');
+          }
+        }
+        
+        console.log('📤 Full request body being sent to backend:', requestBody);
+        
+        const response = await fetch("http://localhost:3000/api/integrations/calendar/meetings", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(requestBody),
+        });
+
+        console.log('📥 Response status:', response.status);
+        
+        if (!response.ok) {
+          const error = await response.json();
+          console.error('❌ API Error:', error);
+          throw new Error(error.message || "Failed to schedule meeting");
+        }
+
+        const responseData = await response.json();
+        console.log('✅ Meeting created successfully:', responseData);
+        console.log('📊 Check backend logs for demo_book_datetime update status');
+
+        toast({
+          title: "Success",
+          description: "Meeting scheduled successfully",
+        });
+      }
+
+      // Refetch timeline if we're viewing a contact's timeline
+      if (selectedContact) {
+        await fetchLeadTimeline(selectedContact.id);
+      }
+
+      // Refetch main lead intelligence data
+      await fetchLeadIntelligence();
+
+      // Close dialog and reset state
+      setShowMeetingModal(false);
+      setMeetingDateTime(undefined);
+      setCurrentMeetingContact(null);
+      setIsReschedule(false);
+      setMeetingAttendeeEmail("");
+      setAdditionalInvites([]);
+      setInviteInputValue("");
+      setMeetingTitle("");
+      setMeetingDescription("");
+    } catch (error) {
+      console.error("Failed to schedule/reschedule meeting:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to process meeting request",
+        variant: "destructive",
+      });
+    } finally {
+      setMeetingLoading(false);
     }
   };
 
@@ -1157,20 +1441,57 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                     <span className="text-muted-foreground">-</span>
                   )}
                 </TableCell>
-                <TableCell>
+                <TableCell onClick={(e) => e.stopPropagation()}>
                   {contact.demoScheduled ? (
-                    <div className="flex items-center gap-1 text-sm">
-                      <CalendarDays className="w-4 h-4 text-blue-600" />
-                      {new Date(contact.demoScheduled).toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleScheduleMeeting(contact, true)}
+                        className="flex items-center gap-2"
+                      >
+                        <CalendarDays className="w-4 h-4 text-blue-600" />
+                        <div className="text-left">
+                          <div className="text-xs font-medium">
+                            {new Date(contact.demoScheduled).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric'
+                            })}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {new Date(contact.demoScheduled).toLocaleTimeString('en-US', {
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </div>
+                        </div>
+                      </Button>
+                      {contact.meetingLink && (
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={() => window.open(contact.meetingLink, '_blank')}
+                          className="flex items-center gap-1 bg-green-600 hover:bg-green-700"
+                          title="Join Google Meet"
+                        >
+                          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M15 8v8H5V8h10m0-2H5c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2v-3.5l4 4v-11l-4 4V8c0-1.1-.9-2-2-2z"/>
+                          </svg>
+                          Join
+                        </Button>
+                      )}
                     </div>
                   ) : (
-                    <span className="text-muted-foreground">-</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleScheduleMeeting(contact, false)}
+                      className="flex items-center gap-1 text-muted-foreground hover:text-blue-600"
+                    >
+                      <Calendar className="w-4 h-4" />
+                      <span className="text-xs">Schedule</span>
+                    </Button>
                   )}
                 </TableCell>
                 <TableCell onClick={(e) => e.stopPropagation()}>
@@ -1214,6 +1535,242 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
         isLoading={isAnalyticsLoading}
         error={analyticsError}
       />
+
+      {/* Meeting Scheduling/Rescheduling Dialog */}
+      <Dialog open={showMeetingModal} onOpenChange={setShowMeetingModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {isReschedule ? "Reschedule Meeting" : "Schedule Meeting"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {currentMeetingContact && (
+              <div className="text-sm text-muted-foreground">
+                {isReschedule ? "Rescheduling" : "Scheduling"} meeting for:{" "}
+                <strong>{currentMeetingContact.name}</strong>
+              </div>
+            )}
+
+            {/* Meeting Title Field */}
+            <div className="space-y-2">
+              <Label htmlFor="meeting-title">Meeting Title *</Label>
+              <Input
+                id="meeting-title"
+                type="text"
+                placeholder="Enter meeting title"
+                value={meetingTitle}
+                onChange={(e) => setMeetingTitle(e.target.value)}
+                required
+              />
+            </div>
+
+            {/* Meeting Description Field */}
+            <div className="space-y-2">
+              <Label htmlFor="meeting-description">
+                Meeting Description (Optional)
+              </Label>
+              <Textarea
+                id="meeting-description"
+                placeholder="Enter meeting description (leave empty for default)"
+                value={meetingDescription}
+                onChange={(e) => setMeetingDescription(e.target.value)}
+                rows={3}
+              />
+              <p className="text-xs text-muted-foreground">
+                Leave empty to use default: "See you at [meeting time]"
+              </p>
+            </div>
+
+            {/* Attendee Email Field (Editable) */}
+            <div className="space-y-2">
+              <Label htmlFor="attendee-email">Attendee Email *</Label>
+              <Input
+                id="attendee-email"
+                type="email"
+                placeholder="Enter attendee email"
+                value={meetingAttendeeEmail}
+                onChange={(e) => setMeetingAttendeeEmail(e.target.value)}
+                required
+              />
+            </div>
+
+            {/* Additional Invites Field with Tag Input */}
+            <div className="space-y-2">
+              <Label htmlFor="additional-invites">
+                Additional Invites (Optional)
+              </Label>
+              
+              {/* Display added email tags */}
+              {additionalInvites.length > 0 && (
+                <div className="flex flex-wrap gap-2 p-2 border rounded-md bg-muted/20">
+                  {additionalInvites.map((email, index) => (
+                    <Badge
+                      key={index}
+                      variant="secondary"
+                      className="px-2 py-1 text-sm flex items-center gap-1 group hover:bg-secondary/80 transition-colors"
+                    >
+                      <span className="max-w-[200px] truncate">{email}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveInvite(email)}
+                        className="ml-1 hover:text-destructive transition-colors"
+                        aria-label={`Remove ${email}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+
+              {/* Input for adding new emails */}
+              <div className="flex gap-2">
+                <Input
+                  id="additional-invites"
+                  type="email"
+                  placeholder="Enter email and press Enter or comma"
+                  value={inviteInputValue}
+                  onChange={(e) => setInviteInputValue(e.target.value)}
+                  onKeyDown={handleInviteKeyDown}
+                  className="flex-1"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAddInvite}
+                  disabled={!inviteInputValue.trim()}
+                >
+                  Add
+                </Button>
+              </div>
+              
+              <p className="text-xs text-muted-foreground">
+                Press Enter or comma to add multiple emails. Click X to remove.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="meeting-date">Meeting Date & Time</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !meetingDateTime && "text-muted-foreground"
+                    )}
+                  >
+                    <Calendar className="mr-2 h-4 w-4" />
+                    {meetingDateTime
+                      ? format(meetingDateTime, "PPP 'at' p")
+                      : "Pick a date and time"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent
+                    mode="single"
+                    selected={meetingDateTime}
+                    onSelect={(date) => {
+                      if (date) {
+                        // Set default time to 10:00 AM if no time is set
+                        const newDate = meetingDateTime
+                          ? new Date(date)
+                          : new Date(date.setHours(10, 0, 0, 0));
+                        if (meetingDateTime) {
+                          newDate.setHours(
+                            meetingDateTime.getHours(),
+                            meetingDateTime.getMinutes()
+                          );
+                        }
+                        setMeetingDateTime(newDate);
+                      }
+                    }}
+                    disabled={(date) => {
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
+                      return date < today;
+                    }}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {/* Time Picker */}
+            {meetingDateTime && (
+              <div className="space-y-2">
+                <Label>Meeting Time</Label>
+                <div className="flex gap-2">
+                  <Select
+                    value={meetingDateTime.getHours().toString()}
+                    onValueChange={(value) => {
+                      const newDate = new Date(meetingDateTime);
+                      newDate.setHours(parseInt(value));
+                      setMeetingDateTime(newDate);
+                    }}
+                  >
+                    <SelectTrigger className="w-[100px]">
+                      <SelectValue placeholder="Hour" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 24 }, (_, i) => (
+                        <SelectItem key={i} value={i.toString()}>
+                          {i.toString().padStart(2, "0")}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <span className="flex items-center">:</span>
+                  <Select
+                    value={meetingDateTime.getMinutes().toString()}
+                    onValueChange={(value) => {
+                      const newDate = new Date(meetingDateTime);
+                      newDate.setMinutes(parseInt(value));
+                      setMeetingDateTime(newDate);
+                    }}
+                  >
+                    <SelectTrigger className="w-[100px]">
+                      <SelectValue placeholder="Minute" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[0, 15, 30, 45].map((minute) => (
+                        <SelectItem key={minute} value={minute.toString()}>
+                          {minute.toString().padStart(2, "0")}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowMeetingModal(false)}
+                disabled={meetingLoading}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSaveMeeting}
+                disabled={!meetingDateTime || meetingLoading}
+              >
+                {meetingLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    {isReschedule ? "Rescheduling..." : "Scheduling..."}
+                  </>
+                ) : (
+                  <>{isReschedule ? "Reschedule Meeting" : "Schedule Meeting"}</>
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

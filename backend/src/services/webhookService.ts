@@ -869,6 +869,161 @@ class WebhookService {
                 created: contactResult.created,
                 updated: contactResult.updated
               });
+
+              // ============================================
+              // Google Calendar Meeting Auto-Scheduling
+              // ============================================
+              
+              // Wait 10 seconds to ensure all AI processing is complete
+              await new Promise(resolve => setTimeout(resolve, 10000));
+
+              // Determine attendee email (prioritize contact email over extracted email)
+              let attendeeEmail: string | null = null;
+              if (contactResult.contactId) {
+                // Query contact to get email
+                const contactQuery = await database.query(
+                  'SELECT email FROM contacts WHERE id = $1',
+                  [contactResult.contactId]
+                );
+                attendeeEmail = contactQuery.rows[0]?.email || null;
+              }
+              // Fallback to extracted email if contact email not available
+              if (!attendeeEmail) {
+                attendeeEmail = individualData?.extraction?.email_address || null;
+              }
+
+              // Validate email format before scheduling
+              if (attendeeEmail) {
+                const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+                if (!emailRegex.test(attendeeEmail)) {
+                  logger.warn('❌ Invalid email format detected, skipping meeting schedule', {
+                    execution_id: executionId,
+                    invalid_email: attendeeEmail,
+                    call_id: updatedCall.id,
+                    source: contactResult.contactId ? 'contact' : 'AI extraction'
+                  });
+                  attendeeEmail = null;  // Reset to skip scheduling
+                }
+              }
+
+              // Validate meeting datetime is not in the past
+              let isValidMeetingTime = true;
+              if (individualData?.demo_book_datetime) {
+                const meetingTime = new Date(individualData.demo_book_datetime);
+                const now = new Date();
+                if (meetingTime < now) {
+                  logger.warn('⚠️ Meeting time is in the past, skipping auto-schedule', {
+                    execution_id: executionId,
+                    meeting_datetime: individualData.demo_book_datetime,
+                    current_time: now.toISOString(),
+                    call_id: updatedCall.id
+                  });
+                  isValidMeetingTime = false;
+                }
+              }
+
+              // Check if we should schedule a calendar meeting
+              if (individualData?.demo_book_datetime && attendeeEmail && isValidMeetingTime) {
+                
+                try {
+                  logger.info('📅 Checking Google Calendar meeting scheduling', {
+                    execution_id: executionId,
+                    demo_datetime: individualData.demo_book_datetime,
+                    attendee_email: attendeeEmail,
+                    user_id: updatedCall.user_id,
+                    has_demo_datetime: !!individualData.demo_book_datetime,
+                    has_email: !!attendeeEmail,
+                    email_source: contactResult.contactId ? 'contact' : 'extracted'
+                  });
+
+                  // Dynamically import meeting scheduler service (default export)
+                  const meetingSchedulerModule = await import('./meetingSchedulerService');
+                  const MeetingSchedulerService = meetingSchedulerModule.default;
+                  
+                  // Query lead_analytics to get the ID for this call
+                  let leadAnalyticsId: string | undefined;
+                  try {
+                    const leadAnalyticsResult = await database.query(
+                      'SELECT id FROM lead_analytics WHERE call_id = $1 AND analysis_type = $2 ORDER BY created_at DESC LIMIT 1',
+                      [updatedCall.id, 'individual']
+                    );
+                    leadAnalyticsId = leadAnalyticsResult.rows[0]?.id;
+                  } catch (err) {
+                    logger.warn('Could not fetch lead_analytics ID for meeting', {
+                      execution_id: executionId,
+                      call_id: updatedCall.id
+                    });
+                  }
+                  
+                  // Attempt to schedule the meeting
+                  const meeting = await MeetingSchedulerService.scheduleCalendarMeeting({
+                    userId: updatedCall.user_id,
+                    leadAnalyticsId,
+                    callId: updatedCall.id,
+                    contactId: contactResult.contactId || undefined,
+                    phoneNumber: updatedCall.phone_number,  // ✅ Added for phone-based lookup fallback
+                    meetingDateTime: individualData.demo_book_datetime,
+                    attendeeEmail,
+                    leadName: individualData.extraction?.name || undefined,
+                    companyName: individualData.extraction?.company_name || undefined,
+                    callDetails: {
+                      transcript: transcript.content,
+                      recording_url: updatedCall.recording_url,
+                      tags: individualData.lead_status_tag || undefined,
+                      reasoning: individualData.reasoning,
+                      smart_notification: individualData.extraction?.smartnotification || undefined
+                    }
+                  });
+
+                  logger.info('✅ Google Calendar meeting scheduled successfully', {
+                    execution_id: executionId,
+                    meeting_id: meeting.id,
+                    google_event_id: meeting.google_event_id,
+                    meeting_time: meeting.meeting_start_time,
+                    attendee_email: meeting.attendee_email
+                  });
+
+                  // Send meeting invite email
+                  const { meetingEmailService } = await import('./meetingEmailService');
+                  await meetingEmailService.sendMeetingInviteEmail(meeting);
+
+                  logger.info('✅ Meeting invite email sent', {
+                    execution_id: executionId,
+                    meeting_id: meeting.id
+                  });
+
+                } catch (meetingError) {
+                  logger.error('❌ Failed to schedule Google Calendar meeting', {
+                    execution_id: executionId,
+                    user_id: updatedCall.user_id,
+                    demo_datetime: individualData.demo_book_datetime,
+                    error: meetingError instanceof Error ? meetingError.message : 'Unknown error',
+                    error_code: (meetingError as any)?.code,
+                    stack: meetingError instanceof Error ? meetingError.stack : undefined
+                  });
+                  // Don't fail webhook - meeting scheduling is optional
+                  // User might not have Google Calendar connected, or other issues
+                }
+              } else {
+                // Determine skip reason
+                let skipReason = 'Unknown';
+                if (!individualData?.demo_book_datetime) {
+                  skipReason = 'No demo_book_datetime in AI analysis';
+                } else if (!attendeeEmail) {
+                  skipReason = 'No email address available (extracted or contact)';
+                } else if (!isValidMeetingTime) {
+                  skipReason = 'Meeting time is in the past';
+                }
+                
+                logger.debug('⏭️ Skipping calendar meeting scheduling', {
+                  execution_id: executionId,
+                  has_demo_datetime: !!individualData?.demo_book_datetime,
+                  has_email: !!attendeeEmail,
+                  is_valid_time: isValidMeetingTime,
+                  reason: skipReason
+                });
+              }
+
             } catch (contactError) {
               logger.error('❌ Failed to update contact with AI data', {
                 execution_id: executionId,

@@ -26,6 +26,13 @@ export interface UserInterface extends BaseModelInterface {
   // OpenAI prompt configuration (user-specific)
   openai_individual_prompt_id?: string | null;
   openai_complete_prompt_id?: string | null;
+  // Google Calendar integration
+  google_access_token?: string | null;
+  google_refresh_token?: string | null;
+  google_token_expiry?: Date | null;
+  google_calendar_connected?: boolean;
+  google_calendar_id?: string | null;
+  google_email?: string | null;
 }
 
 export class UserModel extends BaseModel<UserInterface> {

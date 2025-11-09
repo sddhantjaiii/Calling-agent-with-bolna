@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Plus, Upload, FileText, Link, Download } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Plus, Upload, FileText, Link, Download, Calendar, CheckCircle, XCircle, AlertCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -32,6 +32,16 @@ const Integrations = () => {
   const [selectedAgent, setSelectedAgent] = useState("");
   const [dataUploadType, setDataUploadType] = useState("");
 
+  // Google Calendar integration state
+  const [calendarStatus, setCalendarStatus] = useState<{
+    connected: boolean;
+    loading: boolean;
+    email?: string;
+  }>({
+    connected: false,
+    loading: true,
+  });
+
   // New state for enhanced Add Lead form
   const [newLeadData, setNewLeadData] = useState({
     name: "",
@@ -57,6 +67,113 @@ const Integrations = () => {
       },
     ],
   });
+
+  // Check Google Calendar connection status on mount
+  useEffect(() => {
+    checkCalendarStatus();
+    
+    // Handle OAuth callback query parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    const googleCalendarStatus = urlParams.get('google_calendar');
+    
+    if (googleCalendarStatus === 'connected') {
+      toast.success('Google Calendar connected successfully!');
+      // Clean up URL - keep the dashboard tab parameter
+      const cleanUrl = window.location.pathname + '?tab=integrations';
+      window.history.replaceState({}, '', cleanUrl);
+      // Refresh status
+      setTimeout(() => checkCalendarStatus(), 1000);
+    } else if (googleCalendarStatus === 'error') {
+      const errorMessage = urlParams.get('message') || 'Failed to connect Google Calendar';
+      toast.error(errorMessage);
+      // Clean up URL - keep the dashboard tab parameter
+      const cleanUrl = window.location.pathname + '?tab=integrations';
+      window.history.replaceState({}, '', cleanUrl);
+    }
+  }, []);
+
+  const checkCalendarStatus = async () => {
+    try {
+      setCalendarStatus(prev => ({ ...prev, loading: true }));
+      const token = localStorage.getItem("auth_token");
+      
+      const response = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL}/api/integrations/google/status`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        setCalendarStatus({
+          connected: data.connected,
+          loading: false,
+          email: data.google_email,
+        });
+      } else {
+        setCalendarStatus({ connected: false, loading: false });
+      }
+    } catch (error) {
+      console.error("Failed to check calendar status:", error);
+      setCalendarStatus({ connected: false, loading: false });
+    }
+  };
+
+  const handleConnectCalendar = async () => {
+    try {
+      const token = localStorage.getItem("auth_token");
+      
+      const response = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL}/api/integrations/google/auth`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        // Redirect to Google OAuth
+        window.location.href = data.authUrl;
+      } else {
+        toast.error("Failed to initiate Google Calendar connection");
+      }
+    } catch (error) {
+      console.error("Failed to connect calendar:", error);
+      toast.error("Failed to connect Google Calendar");
+    }
+  };
+
+  const handleDisconnectCalendar = async () => {
+    try {
+      const token = localStorage.getItem("auth_token");
+      
+      const response = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL}/api/integrations/google/disconnect`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.ok) {
+        toast.success("Google Calendar disconnected successfully");
+        setCalendarStatus({ connected: false, loading: false });
+      } else {
+        toast.error("Failed to disconnect Google Calendar");
+      }
+    } catch (error) {
+      console.error("Failed to disconnect calendar:", error);
+      toast.error("Failed to disconnect Google Calendar");
+    }
+  };
+
   const handleDataUpload = () => {
     if (!selectedAgent || !dataUploadType) {
       toast.error("Please select agent and upload type");
@@ -640,6 +757,189 @@ const Integrations = () => {
               <Link className="w-4 h-4 mr-2" />
               Link Form
             </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Google Calendar Integration Section */}
+      <div>
+        <h2
+          className={`text-lg font-semibold mb-4 ${
+            theme === "dark" ? "text-white" : "text-gray-900"
+          }`}
+        >
+          Calendar & Meeting Integrations
+        </h2>
+        <div className="grid grid-cols-1 gap-4">
+          <div
+            className={`p-6 rounded-lg border ${
+              theme === "dark"
+                ? "bg-gray-800 border-gray-700"
+                : "bg-white border-gray-200"
+            }`}
+          >
+            <div className="flex items-start justify-between">
+              <div className="flex items-center space-x-4">
+                <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                  <Calendar className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div>
+                  <h3
+                    className={`font-semibold text-lg mb-1 ${
+                      theme === "dark" ? "text-white" : "text-gray-900"
+                    }`}
+                  >
+                    Google Calendar
+                  </h3>
+                  <p
+                    className={`text-sm mb-2 ${
+                      theme === "dark" ? "text-slate-400" : "text-gray-600"
+                    }`}
+                  >
+                    Automatically schedule demo meetings from AI call analysis
+                  </p>
+                  
+                  {/* Connection Status */}
+                  {calendarStatus.loading ? (
+                    <div className="flex items-center space-x-2 text-sm">
+                      <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                      <span className={theme === "dark" ? "text-slate-400" : "text-gray-600"}>
+                        Checking connection...
+                      </span>
+                    </div>
+                  ) : calendarStatus.connected ? (
+                    <div className="flex items-center space-x-2">
+                      <CheckCircle className="w-4 h-4 text-green-500" />
+                      <span className="text-sm text-green-600 dark:text-green-400 font-medium">
+                        Connected
+                      </span>
+                      {calendarStatus.email && (
+                        <span className={`text-sm ${theme === "dark" ? "text-slate-400" : "text-gray-600"}`}>
+                          • {calendarStatus.email}
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex items-center space-x-2">
+                      <XCircle className="w-4 h-4 text-gray-400" />
+                      <span className={`text-sm ${theme === "dark" ? "text-slate-400" : "text-gray-600"}`}>
+                        Not connected
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex flex-col space-y-2">
+                {calendarStatus.loading ? (
+                  <Button
+                    size="sm"
+                    disabled
+                    className="bg-gray-400 cursor-not-allowed"
+                  >
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Loading...
+                  </Button>
+                ) : calendarStatus.connected ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleDisconnectCalendar}
+                    className={`${
+                      theme === "dark"
+                        ? "bg-gray-700 border-gray-600 text-slate-300 hover:bg-red-900/20 hover:border-red-500 hover:text-red-400"
+                        : "hover:bg-red-50 hover:border-red-300 hover:text-red-600"
+                    }`}
+                  >
+                    Disconnect
+                  </Button>
+                ) : (
+                  <Button
+                    size="sm"
+                    onClick={handleConnectCalendar}
+                    style={{
+                      backgroundColor: "#1A6262",
+                    }}
+                    className="hover:opacity-90 text-white"
+                  >
+                    <Calendar className="w-4 h-4 mr-2" />
+                    Connect Calendar
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Features List */}
+            {calendarStatus.connected && (
+              <div className={`mt-6 pt-6 border-t ${theme === "dark" ? "border-gray-700" : "border-gray-200"}`}>
+                <h4 className={`text-sm font-medium mb-3 ${theme === "dark" ? "text-white" : "text-gray-900"}`}>
+                  Active Features:
+                </h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex items-start space-x-2">
+                    <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className={`text-sm font-medium ${theme === "dark" ? "text-slate-300" : "text-gray-700"}`}>
+                        Auto-Schedule Meetings
+                      </p>
+                      <p className={`text-xs ${theme === "dark" ? "text-slate-500" : "text-gray-500"}`}>
+                        From AI analysis
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start space-x-2">
+                    <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className={`text-sm font-medium ${theme === "dark" ? "text-slate-300" : "text-gray-700"}`}>
+                        Email Notifications
+                      </p>
+                      <p className={`text-xs ${theme === "dark" ? "text-slate-500" : "text-gray-500"}`}>
+                        Automated invites
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start space-x-2">
+                    <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className={`text-sm font-medium ${theme === "dark" ? "text-slate-300" : "text-gray-700"}`}>
+                        Reschedule/Cancel
+                      </p>
+                      <p className={`text-xs ${theme === "dark" ? "text-slate-500" : "text-gray-500"}`}>
+                        From Lead Intelligence
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start space-x-2">
+                    <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className={`text-sm font-medium ${theme === "dark" ? "text-slate-300" : "text-gray-700"}`}>
+                        Lead Context
+                      </p>
+                      <p className={`text-xs ${theme === "dark" ? "text-slate-500" : "text-gray-500"}`}>
+                        In meeting details
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Info Banner for disconnected state */}
+            {!calendarStatus.connected && !calendarStatus.loading && (
+              <div className={`mt-4 p-4 rounded-lg flex items-start space-x-3 ${
+                theme === "dark" ? "bg-blue-900/20 border border-blue-800" : "bg-blue-50 border border-blue-200"
+              }`}>
+                <AlertCircle className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className={`text-sm font-medium ${theme === "dark" ? "text-blue-300" : "text-blue-800"}`}>
+                    Connect your Google Calendar to enable automatic meeting scheduling
+                  </p>
+                  <p className={`text-xs mt-1 ${theme === "dark" ? "text-blue-400" : "text-blue-600"}`}>
+                    When AI detects a demo booking request with email and date/time, a meeting will be automatically scheduled in your calendar.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

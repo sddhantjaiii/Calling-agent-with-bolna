@@ -116,6 +116,18 @@ function App() {
                         element={<OAuthCallback />}
                       />
 
+                      {/* Google Calendar OAuth Callback Route */}
+                      <Route
+                        path="/integrations/google/callback"
+                        element={
+                          <ProtectedRoute>
+                            <Suspense fallback={<div>Loading...</div>}>
+                              {React.createElement(lazy(() => import('./components/dashboard/GoogleCalendarCallback')))}
+                            </Suspense>
+                          </ProtectedRoute>
+                        }
+                      />
+
                       {/* Admin Routes */}
                       <Route
                         path="/admin/*"

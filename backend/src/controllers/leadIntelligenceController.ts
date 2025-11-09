@@ -105,7 +105,7 @@ export class LeadIntelligenceController {
             FIRST_VALUE(la.fit_alignment) OVER (PARTITION BY c.phone_number ORDER BY c.created_at DESC)::text as recent_fit_alignment,
             FIRST_VALUE(COALESCE(la.cta_escalated_to_human, false)) OVER (PARTITION BY c.phone_number ORDER BY c.created_at DESC) as escalated_to_human,
             FIRST_VALUE(c.created_at) OVER (PARTITION BY c.phone_number ORDER BY c.created_at DESC) as last_contact,
-            FIRST_VALUE(COALESCE(la.demo_book_datetime, la.demo_scheduled_at)) OVER (PARTITION BY c.phone_number ORDER BY c.created_at DESC) as demo_book_datetime,
+            FIRST_VALUE(la.demo_book_datetime) OVER (PARTITION BY c.phone_number ORDER BY c.created_at DESC) as demo_book_datetime,
             COUNT(*) FILTER (WHERE la.analysis_type = 'individual' OR la.analysis_type IS NULL) OVER (PARTITION BY c.phone_number)::bigint as interactions,
             ROW_NUMBER() OVER (PARTITION BY c.phone_number ORDER BY c.created_at DESC)::bigint as rn
           FROM calls c
@@ -149,7 +149,7 @@ export class LeadIntelligenceController {
             FIRST_VALUE(la.fit_alignment) OVER (PARTITION BY la.extracted_email ORDER BY c.created_at DESC)::text as recent_fit_alignment,
             FIRST_VALUE(COALESCE(la.cta_escalated_to_human, false)) OVER (PARTITION BY la.extracted_email ORDER BY c.created_at DESC) as escalated_to_human,
             FIRST_VALUE(c.created_at) OVER (PARTITION BY la.extracted_email ORDER BY c.created_at DESC) as last_contact,
-            FIRST_VALUE(COALESCE(la.demo_book_datetime, la.demo_scheduled_at)) OVER (PARTITION BY la.extracted_email ORDER BY c.created_at DESC) as demo_book_datetime,
+            FIRST_VALUE(la.demo_book_datetime) OVER (PARTITION BY la.extracted_email ORDER BY c.created_at DESC) as demo_book_datetime,
             COUNT(*) FILTER (WHERE la.analysis_type = 'individual' OR la.analysis_type IS NULL) OVER (PARTITION BY la.extracted_email)::bigint as interactions,
             ROW_NUMBER() OVER (PARTITION BY la.extracted_email ORDER BY c.created_at DESC)::bigint as rn
           FROM calls c
@@ -199,7 +199,7 @@ export class LeadIntelligenceController {
             la.fit_alignment::text as recent_fit_alignment,
             COALESCE(la.cta_escalated_to_human, false) as escalated_to_human,
             c.created_at as last_contact,
-            COALESCE(la.demo_book_datetime, la.demo_scheduled_at) as demo_book_datetime,
+            la.demo_book_datetime as demo_book_datetime,
             1::bigint as interactions,
             COALESCE(a.name, '')::text as interacted_agents,
             1::bigint as rn
@@ -240,7 +240,14 @@ export class LeadIntelligenceController {
         SELECT 
           al.*,
           fu.follow_up_date as follow_up_scheduled,
-          fu.follow_up_status
+          fu.follow_up_status,
+          cm.id as meeting_id,
+          cm.meeting_link,
+          cm.meeting_start_time,
+          cm.attendee_email as meeting_attendee_email,
+          cm.meeting_title,
+          cm.meeting_description,
+          cm.google_event_id
         FROM all_leads al
         LEFT JOIN (
           SELECT DISTINCT ON (lead_phone, lead_email)
@@ -254,6 +261,21 @@ export class LeadIntelligenceController {
           (al.group_type = 'phone' AND fu.lead_identifier = al.phone) OR
           (al.group_type = 'email' AND fu.lead_identifier = al.email)
         )
+        LEFT JOIN LATERAL (
+          SELECT cm.id, cm.meeting_link, cm.meeting_start_time, cm.google_event_id, cm.attendee_email, cm.meeting_title, cm.meeting_description
+          FROM calendar_meetings cm
+          JOIN lead_analytics la ON cm.lead_analytics_id = la.id
+          JOIN calls c ON la.call_id = c.id
+          WHERE cm.user_id = $1
+            AND cm.status = 'scheduled'
+            AND (
+              (al.group_type = 'phone' AND c.phone_number = al.phone) OR
+              (al.group_type = 'email' AND la.extracted_email = al.email) OR
+              (al.group_type = 'individual' AND la.id::text = al.group_key)
+            )
+          ORDER BY cm.meeting_start_time DESC
+          LIMIT 1
+        ) cm ON true
         ORDER BY al.last_contact DESC;
       `;
 
@@ -278,7 +300,12 @@ export class LeadIntelligenceController {
         lastContact: row.last_contact,
         followUpScheduled: row.follow_up_scheduled,
         followUpStatus: row.follow_up_status,
-        demoScheduled: row.demo_book_datetime,
+        demoScheduled: row.meeting_start_time || row.demo_book_datetime, // Use meeting_start_time from calendar_meetings, fallback to demo_book_datetime
+        meetingId: row.meeting_id, // UUID of calendar_meetings record for rescheduling
+        meetingLink: row.meeting_link, // Google Meet link
+        meetingAttendeeEmail: row.meeting_attendee_email, // Email from existing meeting
+        meetingTitle: row.meeting_title, // Title from existing meeting
+        meetingDescription: row.meeting_description, // Description from existing meeting
         groupType: row.group_type
       }));
 
