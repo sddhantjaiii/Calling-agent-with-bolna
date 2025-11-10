@@ -560,19 +560,21 @@ Campaign Summary: ${campaignName}\n\nContacts: ${stats.totalContacts}\nCompleted
           : callContext.transcript)
       : 'No transcript available';
 
+    const isRescheduled = meetingDetails.meetingTitle.includes('RESCHEDULED');
+
     const html = `
       <!DOCTYPE html>
       <html>
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>New Meeting Booked by AI Agent</title>
+        <title>${isRescheduled ? 'Meeting Rescheduled' : 'New Meeting Booked by AI Agent'}</title>
         <style>
           body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
           .container { max-width: 700px; margin: 0 auto; padding: 20px; }
-          .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+          .header { background: linear-gradient(135deg, ${isRescheduled ? '#f59e0b 0%, #dc2626 100%' : '#667eea 0%, #764ba2 100%'}); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
           .content { padding: 30px; background: #f9f9f9; }
-          .meeting-box { background: white; border-left: 4px solid #10b981; padding: 20px; border-radius: 8px; margin: 20px 0; }
+          .meeting-box { background: white; border-left: 4px solid ${isRescheduled ? '#f59e0b' : '#10b981'}; padding: 20px; border-radius: 8px; margin: 20px 0; }
           .lead-info { background: #ecfdf5; border: 1px solid #10b981; padding: 20px; border-radius: 8px; margin: 20px 0; }
           .call-context { background: #f0f4ff; border: 1px solid #667eea; padding: 20px; border-radius: 8px; margin: 20px 0; }
           .transcript-box { background: white; padding: 15px; border-radius: 5px; margin-top: 15px; max-height: 400px; overflow-y: auto; border: 1px solid #e5e7eb; }
@@ -590,23 +592,29 @@ Campaign Summary: ${campaignName}\n\nContacts: ${stats.totalContacts}\nCompleted
       <body>
         <div class="container">
           <div class="header">
-            <h1>🎯 New Meeting Booked!</h1>
-            <p>Your AI Agent successfully scheduled a demo</p>
+            <h1>${isRescheduled ? '⏰ Meeting Rescheduled!' : '🎯 New Meeting Booked!'}</h1>
+            <p>${isRescheduled ? 'Meeting time has been updated' : 'Your AI Agent successfully scheduled a demo'}</p>
           </div>
           
           <div class="content">
             <p>Hi ${userName},</p>
-            <p>Great news! Your AI calling agent just booked a new meeting. Here's everything you need to know:</p>
+            <p>${isRescheduled ? 'A meeting has been rescheduled. Here are the updated details:' : 'Great news! Your AI calling agent just booked a new meeting. Here\'s everything you need to know:'}</p>
             
             <!-- Meeting Details -->
             <div class="meeting-box">
               <h2>📅 ${meetingDetails.meetingTitle}</h2>
               <p><strong>When:</strong> ${meetingTimeFormatted}</p>
               <p><strong>Duration:</strong> ${meetingDetails.meetingDuration} minutes</p>
-              ${meetingDetails.googleCalendarLink ? `
-              <a href="${meetingDetails.googleCalendarLink}" class="button">📅 View in Google Calendar</a>
-              ` : ''}
-              <a href="${appBaseUrl}/meetings" class="button button-secondary">📊 View in Dashboard</a>
+              <div style="margin-top: 15px;">
+                ${meetingDetails.googleCalendarLink ? `
+                <a href="${meetingDetails.googleCalendarLink}" class="button">📅 ${meetingDetails.meetingTitle.includes('RESCHEDULED') ? 'Join Meeting' : 'Add to Calendar'}</a>
+                ` : ''}
+                ${meetingDetails.leadEmail ? `
+                <a href="${appBaseUrl}/customers?search=${encodeURIComponent(meetingDetails.leadEmail)}" class="button button-secondary">👤 View Customer Timeline</a>
+                ` : `
+                <a href="${appBaseUrl}/meetings" class="button button-secondary">📊 View in Dashboard</a>
+                `}
+              </div>
             </div>
             
             <!-- Lead Information -->

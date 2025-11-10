@@ -4,7 +4,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
-import { Loader2, Mail, Bell, TrendingUp, Shield, Megaphone } from 'lucide-react';
+import { Loader2, Mail, Bell, TrendingUp, Shield, Megaphone, Calendar } from 'lucide-react';
 import { apiService } from '@/services/apiService';
 
 interface NotificationPreference {
@@ -13,6 +13,7 @@ interface NotificationPreference {
   low_credit_alerts: boolean;
   credits_added_emails: boolean;
   campaign_summary_emails: boolean;
+  meeting_booked_notifications: boolean;
   email_verification_reminders: boolean;
   marketing_emails: boolean;
   created_at: string;
@@ -70,6 +71,7 @@ export const NotificationPreferences: React.FC = () => {
     low_credit_alerts: true,
     credits_added_emails: true,
     campaign_summary_emails: true,
+    meeting_booked_notifications: true,
     email_verification_reminders: true,
     marketing_emails: true,
   });
@@ -91,6 +93,7 @@ export const NotificationPreferences: React.FC = () => {
           low_credit_alerts: response.preferences.low_credit_alerts,
           credits_added_emails: response.preferences.credits_added_emails,
           campaign_summary_emails: response.preferences.campaign_summary_emails,
+          meeting_booked_notifications: response.preferences.meeting_booked_notifications,
           email_verification_reminders: response.preferences.email_verification_reminders,
           marketing_emails: response.preferences.marketing_emails,
         });
@@ -144,6 +147,7 @@ export const NotificationPreferences: React.FC = () => {
         low_credit_alerts: preferences.low_credit_alerts,
         credits_added_emails: preferences.credits_added_emails,
         campaign_summary_emails: preferences.campaign_summary_emails,
+        meeting_booked_notifications: preferences.meeting_booked_notifications,
         email_verification_reminders: preferences.email_verification_reminders,
         marketing_emails: preferences.marketing_emails,
       });
@@ -197,6 +201,14 @@ export const NotificationPreferences: React.FC = () => {
             description="Get detailed summaries with hot leads and statistics when campaigns complete"
             enabled={localPrefs.campaign_summary_emails}
             onChange={(value) => handlePreferenceChange('campaign_summary_emails', value)}
+          />
+
+          <PreferenceItem
+            icon={<Calendar className="h-5 w-5" />}
+            title="Meeting Booked Notifications"
+            description="Get notified with full call details when AI agents schedule meetings with leads"
+            enabled={localPrefs.meeting_booked_notifications}
+            onChange={(value) => handlePreferenceChange('meeting_booked_notifications', value)}
           />
 
           <PreferenceItem

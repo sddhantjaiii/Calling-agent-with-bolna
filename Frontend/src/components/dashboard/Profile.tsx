@@ -39,6 +39,7 @@ const Profile = () => {
   const [notificationPrefs, setNotificationPrefs] = useState({
     lowCreditAlerts: true,
     campaignSummaryEmails: true,
+    meetingBookedNotifications: true,
   });
   const [savingPrefs, setSavingPrefs] = useState(false);
 
@@ -100,6 +101,7 @@ const Profile = () => {
           setNotificationPrefs({
             lowCreditAlerts: prefsResponse.preferences.low_credit_alerts,
             campaignSummaryEmails: prefsResponse.preferences.campaign_summary_emails,
+            meetingBookedNotifications: prefsResponse.preferences.meeting_booked_notifications,
           });
         }
       } catch (error) {
@@ -151,6 +153,7 @@ const Profile = () => {
       const backendPrefs = {
         low_credit_alerts: updatedPrefs.lowCreditAlerts,
         campaign_summary_emails: updatedPrefs.campaignSummaryEmails,
+        meeting_booked_notifications: updatedPrefs.meetingBookedNotifications,
       };
 
       // Send to backend
@@ -454,6 +457,20 @@ const Profile = () => {
                 <Switch
                   checked={notificationPrefs.campaignSummaryEmails}
                   onCheckedChange={(checked) => handleNotificationPrefsUpdate('campaignSummaryEmails', checked)}
+                  disabled={savingPrefs}
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">Meeting Booked Notifications</p>
+                  <p className="text-sm text-muted-foreground">
+                    Get notified with full call details when AI agents schedule meetings
+                  </p>
+                </div>
+                <Switch
+                  checked={notificationPrefs.meetingBookedNotifications}
+                  onCheckedChange={(checked) => handleNotificationPrefsUpdate('meetingBookedNotifications', checked)}
                   disabled={savingPrefs}
                 />
               </div>

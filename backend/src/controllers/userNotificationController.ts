@@ -97,6 +97,7 @@ export class UserNotificationController {
         'low_credit_alerts',
         'credits_added_emails',
         'campaign_summary_emails',
+        'meeting_booked_notifications',
         'email_verification_reminders',
         'marketing_emails',
       ];

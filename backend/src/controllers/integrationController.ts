@@ -477,8 +477,137 @@ export class IntegrationController {
         reason
       });
 
-      // Send reschedule email
-      await meetingEmailService.sendMeetingRescheduleEmail(oldMeeting, newMeeting);
+      // Send reschedule email to lead (async, don't block)
+      meetingEmailService.sendMeetingRescheduleEmail(oldMeeting, newMeeting).catch(emailError => {
+        logger.error('Background reschedule email to lead failed', {
+          meetingId: newMeeting.id,
+          error: emailError instanceof Error ? emailError.message : 'Unknown error'
+        });
+      });
+
+      // Send reschedule notification to dashboard user asynchronously
+      (async () => {
+        try {
+          const { notificationService } = await import('../services/notificationService');
+          const { pool } = await import('../config/database');
+          
+          // Fetch user email and call details
+          const userResult = await pool.query(
+            'SELECT email, name FROM users WHERE id = $1',
+            [userId]
+          );
+          
+          if (userResult.rows.length === 0) return;
+          
+          const user = userResult.rows[0];
+          
+          // Fetch call details if meeting has a call_id
+          let callContext: any = undefined;
+          if (newMeeting.call_id) {
+            try {
+              const callResult = await pool.query(
+                `SELECT c.recording_url, c.phone_number, t.content,
+                        la.lead_status_tag, la.reasoning, la.extraction
+                 FROM calls c
+                 LEFT JOIN transcripts t ON t.call_id = c.id
+                 LEFT JOIN lead_analytics la ON la.call_id = c.id AND la.analysis_type = 'individual'
+                 WHERE c.id = $1
+                 ORDER BY la.created_at DESC
+                 LIMIT 1`,
+                [newMeeting.call_id]
+              );
+              
+              if (callResult.rows.length > 0) {
+                const callData = callResult.rows[0];
+                callContext = {
+                  transcript: callData.content,
+                  recordingUrl: callData.recording_url,
+                  leadStatusTag: callData.lead_status_tag,
+                  aiReasoning: reason 
+                    ? `Meeting rescheduled. Previous time: ${new Date(oldMeeting.meeting_start_time).toLocaleString('en-US', { 
+                        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', 
+                        hour: 'numeric', minute: '2-digit', timeZoneName: 'short' 
+                      })}. New time: ${new Date(newMeeting.meeting_start_time).toLocaleString('en-US', { 
+                        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', 
+                        hour: 'numeric', minute: '2-digit', timeZoneName: 'short' 
+                      })}. Reason: ${reason}`
+                    : `Meeting rescheduled from ${new Date(oldMeeting.meeting_start_time).toLocaleString('en-US', { 
+                        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', 
+                        hour: 'numeric', minute: '2-digit', timeZoneName: 'short' 
+                      })} to ${new Date(newMeeting.meeting_start_time).toLocaleString('en-US', { 
+                        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', 
+                        hour: 'numeric', minute: '2-digit', timeZoneName: 'short' 
+                      })}`,
+                  smartNotification: '⏰ Meeting time has been changed - Updated in your calendar'
+                };
+              }
+            } catch (callError) {
+              logger.warn('Failed to fetch call details for reschedule notification', {
+                callId: newMeeting.call_id,
+                error: callError instanceof Error ? callError.message : 'Unknown error'
+              });
+            }
+          }
+          
+          // Get contact details for company/phone
+          let contactDetails: any = {};
+          if (newMeeting.contact_id) {
+            const contactResult = await pool.query(
+              'SELECT company_name, phone FROM contacts WHERE id = $1',
+              [newMeeting.contact_id]
+            );
+            if (contactResult.rows.length > 0) {
+              contactDetails = contactResult.rows[0];
+            }
+          }
+          
+          await notificationService.sendNotification({
+            userId,
+            email: user.email,
+            notificationType: 'meeting_booked',
+            notificationData: {
+              userName: user.name || 'User',
+              meetingDetails: {
+                leadName: newMeeting.attendee_name || undefined,
+                leadEmail: newMeeting.attendee_email,
+                company: contactDetails.company_name || undefined,
+                phone: contactDetails.phone || undefined,
+                meetingTime: new Date(newMeeting.meeting_start_time),
+                meetingDuration: newMeeting.meeting_duration_minutes,
+                meetingTitle: `RESCHEDULED: ${newMeeting.meeting_title}`,
+                googleCalendarLink: newMeeting.google_event_id 
+                  ? `https://calendar.google.com/calendar/event?eid=${newMeeting.google_event_id}`
+                  : undefined
+              },
+              callContext: callContext || {
+                aiReasoning: reason 
+                  ? `Meeting rescheduled. Previous time: ${new Date(oldMeeting.meeting_start_time).toLocaleString('en-US', { 
+                      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', 
+                      hour: 'numeric', minute: '2-digit', timeZoneName: 'short' 
+                    })}. New time: ${new Date(newMeeting.meeting_start_time).toLocaleString('en-US', { 
+                      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', 
+                      hour: 'numeric', minute: '2-digit', timeZoneName: 'short' 
+                    })}. Reason: ${reason}`
+                  : `Meeting rescheduled from ${new Date(oldMeeting.meeting_start_time).toLocaleString('en-US', { 
+                      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', 
+                      hour: 'numeric', minute: '2-digit', timeZoneName: 'short' 
+                    })} to ${new Date(newMeeting.meeting_start_time).toLocaleString('en-US', { 
+                      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', 
+                      hour: 'numeric', minute: '2-digit', timeZoneName: 'short' 
+                    })}`,
+                smartNotification: '⏰ Meeting time has been changed - Updated in your calendar'
+              }
+            },
+            idempotencyKey: `meeting-rescheduled-${newMeeting.id}-${Date.now()}`
+          });
+        } catch (notifError) {
+          logger.error('Background reschedule notification failed', {
+            meetingId: newMeeting.id,
+            userId,
+            error: notifError instanceof Error ? notifError.message : 'Unknown error'
+          });
+        }
+      })();
 
       res.json({
         success: true,
