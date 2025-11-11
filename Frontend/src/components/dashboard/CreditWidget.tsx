@@ -70,9 +70,9 @@ export const CreditWidget: React.FC = () => {
   useEffect(() => {
     fetchCreditStatus();
     
-    // Auto-refresh every 30 seconds
-    const interval = setInterval(fetchCreditStatus, 30000);
-    return () => clearInterval(interval);
+    // DISABLED: Auto-refresh every 30 seconds
+    // const interval = setInterval(fetchCreditStatus, 30000);
+    // return () => clearInterval(interval);
   }, []);
 
   const handleRefresh = () => {
