@@ -59,9 +59,10 @@ export class BillingService {
 
       const user = userResult.rows[0];
       
-      if (user.credits < amount) {
-        throw new Error(`Insufficient credits. Required: ${amount}, Available: ${user.credits}`);
-      }
+      // Allow credits to go negative - removed validation check
+      // if (user.credits < amount) {
+      //   throw new Error(`Insufficient credits. Required: ${amount}, Available: ${user.credits}`);
+      // }
 
       const newBalance = user.credits - amount;
 

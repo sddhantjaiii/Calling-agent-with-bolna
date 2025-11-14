@@ -136,9 +136,10 @@ export class UserModel extends BaseModel<UserInterface> {
       throw new Error('User not found');
     }
 
-    if (user.credits < amount) {
-      throw new Error('Insufficient credits');
-    }
+    // Allow credits to go negative - removed validation check
+    // if (user.credits < amount) {
+    //   throw new Error('Insufficient credits');
+    // }
 
     const newCredits = user.credits - amount;
     return await this.updateCredits(userId, newCredits);
