@@ -5,6 +5,7 @@ import AdminAuditLogModel from '../models/AdminAuditLog';
 import { adminService } from '../services/adminService';
 import { logAdminActionManual } from '../middleware/adminAuth';
 import { logger } from '../utils/logger';
+import { AgentModel } from '../models/Agent';
 
 // Admin controller - handles admin panel functionality
 export class AdminController {
@@ -831,6 +832,30 @@ export class AdminController {
   }
 
   /**
+   * Get webhook URL configuration from environment
+   */
+  static async getWebhookUrl(req: Request, res: Response): Promise<void> {
+    try {
+      const webhookUrl = process.env.BOLNA_WEBHOOK_URL || '';
+      
+      res.json({
+        success: true,
+        webhookUrl,
+        timestamp: new Date()
+      });
+    } catch (error: any) {
+      console.error('Get webhook URL error:', error);
+      res.status(500).json({
+        error: {
+          code: 'GET_WEBHOOK_URL_ERROR',
+          message: 'Failed to retrieve webhook URL',
+          timestamp: new Date(),
+        },
+      });
+    }
+  }
+
+  /**
    * Get admin profile information
    */
   static async getAdminProfile(req: Request, res: Response): Promise<void> {
@@ -1353,6 +1378,174 @@ export class AdminController {
         error: {
           code: 'CREATE_AGENT_ERROR',
           message: error.message || 'Failed to create agent',
+          timestamp: new Date(),
+        },
+      });
+    }
+  }
+
+  /**
+   * Fetch Bolna agent details by ID (Step 1 of registration)
+   */
+  static async fetchBolnaAgent(req: Request, res: Response): Promise<void> {
+    try {
+      const { bolnaAgentId } = req.params;
+
+      logger.info(`Fetching Bolna agent details for ID: ${bolnaAgentId}`);
+
+      const { bolnaService } = await import('../services/bolnaService');
+      const bolnaAgent = await bolnaService.getAgent(bolnaAgentId);
+
+      if (!bolnaAgent) {
+        res.status(404).json({
+          error: {
+            code: 'AGENT_NOT_FOUND',
+            message: 'Agent not found in Bolna',
+            timestamp: new Date(),
+          },
+        });
+        return;
+      }
+
+      // Extract relevant details
+      const agentDetails = {
+        bolna_agent_id: bolnaAgent.agent_id,
+        name: bolnaAgent.agent_name || '',
+        system_prompt: bolnaAgent.agent_prompts?.task_1?.system_prompt || '',
+        status: bolnaAgent.status,
+      };
+
+      res.json({
+        success: true,
+        data: agentDetails,
+        timestamp: new Date()
+      });
+    } catch (error: any) {
+      logger.error('Fetch Bolna agent error:', error);
+      res.status(500).json({
+        error: {
+          code: 'FETCH_BOLNA_AGENT_ERROR',
+          message: error.message || 'Failed to fetch Bolna agent',
+          timestamp: new Date(),
+        },
+      });
+    }
+  }
+
+  /**
+   * Update agent details (system prompt, dynamic info) - for Manage Agents
+   */
+  static async updateAgentDetails(req: Request, res: Response): Promise<void> {
+    try {
+      const { agentId } = req.params;
+      const { name, description, system_prompt, dynamic_information, user_id } = req.body;
+
+      logger.info(`Updating agent ${agentId}`, { hasSystemPrompt: !!system_prompt, hasDynamicInfo: !!dynamic_information });
+
+      const agentModel = new AgentModel();
+      const agent = await agentModel.findById(agentId);
+      if (!agent) {
+        res.status(404).json({
+          error: {
+            code: 'AGENT_NOT_FOUND',
+            message: 'Agent not found',
+            timestamp: new Date(),
+          },
+        });
+        return;
+      }
+
+      // Update database
+      const updateData: any = {};
+      if (name !== undefined) updateData.name = name;
+      if (description !== undefined) updateData.description = description;
+      if (system_prompt !== undefined) updateData.system_prompt = system_prompt;
+      if (dynamic_information !== undefined) updateData.dynamic_information = dynamic_information;
+      if (user_id !== undefined) updateData.user_id = user_id;
+
+      await agentModel.update(agentId, updateData);
+
+      // If agent has Bolna ID, update Bolna as well
+      if (agent.bolna_agent_id) {
+        const { bolnaService } = await import('../services/bolnaService');
+        
+        // Combine system_prompt with dynamic_information for Bolna
+        const finalSystemPrompt = dynamic_information
+          ? `${system_prompt || agent.system_prompt}\n\n${dynamic_information}`
+          : (system_prompt || agent.system_prompt);
+
+        if (finalSystemPrompt) {
+          await bolnaService.patchAgentSystemPrompt(agent.bolna_agent_id, finalSystemPrompt);
+          logger.info(`Updated Bolna agent ${agent.bolna_agent_id} system prompt`);
+        }
+      }
+
+      res.json({
+        success: true,
+        message: 'Agent updated successfully',
+        timestamp: new Date()
+      });
+    } catch (error: any) {
+      logger.error('Update agent details error:', error);
+      res.status(500).json({
+        error: {
+          code: 'UPDATE_AGENT_ERROR',
+          message: error.message || 'Failed to update agent',
+          timestamp: new Date(),
+        },
+      });
+    }
+  }
+
+  /**
+   * Delete agent - removes from database only, not from Bolna
+   * DELETE /api/admin/agents/:agentId
+   */
+  static async deleteAgent(req: Request, res: Response): Promise<void> {
+    try {
+      const { agentId } = req.params;
+
+      if (!agentId) {
+        res.status(400).json({
+          error: {
+            code: 'INVALID_REQUEST',
+            message: 'Agent ID is required',
+            timestamp: new Date(),
+          },
+        });
+        return;
+      }
+
+      const agentModel = new AgentModel();
+      const agent = await agentModel.findById(agentId);
+
+      if (!agent) {
+        res.status(404).json({
+          error: {
+            code: 'AGENT_NOT_FOUND',
+            message: 'Agent not found',
+            timestamp: new Date(),
+          },
+        });
+        return;
+      }
+
+      // Delete from database
+      await agentModel.deleteAgent(agentId);
+
+      logger.info(`Agent ${agentId} (${agent.name}) deleted from database. Bolna agent ${agent.bolna_agent_id} remains in Bolna.`);
+
+      res.json({
+        success: true,
+        message: 'Agent deleted successfully',
+        timestamp: new Date()
+      });
+    } catch (error: any) {
+      logger.error('Delete agent error:', error);
+      res.status(500).json({
+        error: {
+          code: 'DELETE_AGENT_ERROR',
+          message: error.message || 'Failed to delete agent',
           timestamp: new Date(),
         },
       });

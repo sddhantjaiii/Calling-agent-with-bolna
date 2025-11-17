@@ -106,6 +106,13 @@ router.put(
   AdminController.updateSystemConfig
 );
 
+// Get webhook URL configuration (admin access required)
+router.get(
+  '/config/webhook-url',
+  requireAdmin,
+  AdminController.getWebhookUrl
+);
+
 // Admin validation and profile routes
 router.get(
   '/validate',
@@ -132,6 +139,30 @@ router.post(
   requireAdmin,
   logAdminAction('CREATE_AGENT', 'agent'),
   AdminController.createAgent
+);
+
+// Fetch Bolna agent details by ID (for step 1 of registration)
+router.get(
+  '/agents/bolna/:bolnaAgentId',
+  requireAdmin,
+  logAdminAction('FETCH_BOLNA_AGENT', 'agent'),
+  AdminController.fetchBolnaAgent
+);
+
+// Update agent (system prompt, dynamic info) - for Manage Agents
+router.put(
+  '/agents/:agentId',
+  requireAdmin,
+  logAdminAction('UPDATE_AGENT', 'agent'),
+  AdminController.updateAgentDetails
+);
+
+// Delete agent - for Manage Agents
+router.delete(
+  '/agents/:agentId',
+  requireAdmin,
+  logAdminAction('DELETE_AGENT', 'agent'),
+  AdminController.deleteAgent
 );
 
 router.post(

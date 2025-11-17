@@ -425,6 +425,52 @@ class BolnaService {
   }
 
   /**
+   * Patch agent system prompt (partial update)
+   * PATCH /v2/agent/:agent_id
+   * Used to update only the system prompt without affecting other agent config
+   */
+  async patchAgentSystemPrompt(agentId: string, systemPrompt: string): Promise<BolnaAgent> {
+    logger.info(`[Bolna] Patching agent ${agentId} system prompt`);
+    
+    const patchData = {
+      agent_prompts: {
+        task_1: {
+          system_prompt: systemPrompt
+        }
+      }
+    };
+    
+    const result = await this.executeWithRetry(
+      () => this.client.patch(`/v2/agent/${agentId}`, patchData),
+      `patchAgentSystemPrompt(${agentId})`
+    );
+    
+    return result;
+  }
+
+  /**
+   * Patch agent webhook URL (partial update)
+   * PATCH /v2/agent/:agent_id
+   * Used to update only the webhook URL without affecting other agent config
+   */
+  async patchAgentWebhookUrl(agentId: string, webhookUrl: string): Promise<BolnaAgent> {
+    logger.info(`[Bolna] Patching agent ${agentId} webhook URL`);
+    
+    const patchData = {
+      agent_config: {
+        webhook_url: webhookUrl
+      }
+    };
+    
+    const result = await this.executeWithRetry(
+      () => this.client.patch(`/v2/agent/${agentId}`, patchData),
+      `patchAgentWebhookUrl(${agentId})`
+    );
+    
+    return result;
+  }
+
+  /**
    * Delete an agent
    * DELETE /v2/agent/:agent_id
    */

@@ -42,6 +42,13 @@ const Integrations = () => {
     loading: true,
   });
 
+  // Dynamic Information state
+  const [dynamicInfoAgents, setDynamicInfoAgents] = useState<Array<{ id: string; name: string; agent_type: string }>>([]);
+  const [selectedDynamicAgent, setSelectedDynamicAgent] = useState("");
+  const [dynamicInformation, setDynamicInformation] = useState("");
+  const [loadingDynamicInfo, setLoadingDynamicInfo] = useState(false);
+  const [savingDynamicInfo, setSavingDynamicInfo] = useState(false);
+
   // New state for enhanced Add Lead form
   const [newLeadData, setNewLeadData] = useState({
     name: "",
@@ -173,6 +180,108 @@ const Integrations = () => {
       toast.error("Failed to disconnect Google Calendar");
     }
   };
+
+  // Fetch user agents for dynamic information management
+  const fetchDynamicInfoAgents = async () => {
+    try {
+      const token = localStorage.getItem("auth_token");
+      const response = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL}/api/integrations/agents`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        setDynamicInfoAgents(data.agents || []);
+      }
+    } catch (error) {
+      console.error("Failed to fetch agents:", error);
+    }
+  };
+
+  // Fetch dynamic information for selected agent
+  const fetchDynamicInfo = async (agentId: string) => {
+    if (!agentId) return;
+    
+    try {
+      setLoadingDynamicInfo(true);
+      const token = localStorage.getItem("auth_token");
+      const response = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL}/api/integrations/agents/${agentId}/dynamic-info`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        setDynamicInformation(data.dynamicInformation || "");
+      } else {
+        toast.error("Failed to load dynamic information");
+      }
+    } catch (error) {
+      console.error("Failed to fetch dynamic info:", error);
+      toast.error("Failed to load dynamic information");
+    } finally {
+      setLoadingDynamicInfo(false);
+    }
+  };
+
+  // Save dynamic information
+  const saveDynamicInfo = async () => {
+    if (!selectedDynamicAgent) {
+      toast.error("Please select an agent");
+      return;
+    }
+
+    try {
+      setSavingDynamicInfo(true);
+      const token = localStorage.getItem("auth_token");
+      const response = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL}/api/integrations/agents/${selectedDynamicAgent}/dynamic-info`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ dynamicInformation }),
+        }
+      );
+
+      if (response.ok) {
+        toast.success("Dynamic information updated successfully");
+      } else {
+        const error = await response.json();
+        toast.error(error.message || "Failed to update dynamic information");
+      }
+    } catch (error) {
+      console.error("Failed to save dynamic info:", error);
+      toast.error("Failed to update dynamic information");
+    } finally {
+      setSavingDynamicInfo(false);
+    }
+  };
+
+  // Load agents when component mounts
+  useEffect(() => {
+    fetchDynamicInfoAgents();
+  }, []);
+
+  // Load dynamic info when agent selection changes
+  useEffect(() => {
+    if (selectedDynamicAgent) {
+      fetchDynamicInfo(selectedDynamicAgent);
+    } else {
+      setDynamicInformation("");
+    }
+  }, [selectedDynamicAgent]);
 
   const handleDataUpload = () => {
     if (!selectedAgent || !dataUploadType) {
@@ -637,126 +746,121 @@ const Integrations = () => {
         </Dialog>
       </div>
 
-      {/* Data Collection Section */}
+      {/* Dynamic Information Management Section */}
       <div>
         <h2
           className={`text-lg font-semibold mb-4 ${
             theme === "dark" ? "text-white" : "text-gray-900"
           }`}
         >
-          Data Collection & Forms
+          Agent Dynamic Information
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div
-            className={`p-4 rounded-lg border ${
-              theme === "dark"
-                ? "bg-gray-800 border-gray-700"
-                : "bg-white border-gray-200"
+        <div
+          className={`p-6 rounded-lg border ${
+            theme === "dark"
+              ? "bg-gray-800 border-gray-700"
+              : "bg-white border-gray-200"
+          }`}
+        >
+          <p
+            className={`text-sm mb-4 ${
+              theme === "dark" ? "text-slate-400" : "text-gray-600"
             }`}
           >
-            <div className="flex items-center space-x-3 mb-3">
-              <Upload className="w-6 h-6 text-blue-500" />
-              <div>
-                <h3
-                  className={`font-medium ${
-                    theme === "dark" ? "text-white" : "text-gray-900"
-                  }`}
-                >
-                  Add Lead/Customer
-                </h3>
-                <p
-                  className={`text-sm ${
-                    theme === "dark" ? "text-slate-400" : "text-gray-600"
-                  }`}
-                >
-                  Individual or bulk data upload
-                </p>
-              </div>
-            </div>
-            <Button
-              size="sm"
-              onClick={() => setShowDataModal(true)}
-              className="w-full bg-[#374151] hover:bg-[#4B5563] text-[#CBD5E1]"
-            >
-              <Upload className="w-4 h-4 mr-2" />
-              Upload Data
-            </Button>
-          </div>
+            Add dynamic information to your agent's system prompt. This allows you to customize agent behavior without changing the core system prompt.
+          </p>
 
-          <div
-            className={`p-4 rounded-lg border ${
-              theme === "dark"
-                ? "bg-gray-800 border-gray-700"
-                : "bg-white border-gray-200"
-            }`}
-          >
-            <div className="flex items-center space-x-3 mb-3">
-              <FileText className="w-6 h-6 text-green-500" />
-              <div>
-                <h3
-                  className={`font-medium ${
-                    theme === "dark" ? "text-white" : "text-gray-900"
+          {/* Agent Selection */}
+          <div className="space-y-4">
+            <div>
+              <label
+                className={`block text-sm font-medium mb-2 ${
+                  theme === "dark" ? "text-slate-300" : "text-gray-700"
+                }`}
+              >
+                Select Agent
+              </label>
+              <Select
+                value={selectedDynamicAgent}
+                onValueChange={setSelectedDynamicAgent}
+              >
+                <SelectTrigger
+                  className={`w-full ${
+                    theme === "dark"
+                      ? "bg-gray-700 border-gray-600 text-white"
+                      : "bg-white border-gray-300 text-gray-900"
                   }`}
                 >
-                  Create Form
-                </h3>
-                <p
-                  className={`text-sm ${
-                    theme === "dark" ? "text-slate-400" : "text-gray-600"
-                  }`}
-                >
-                  Build custom data collection forms
-                </p>
-              </div>
+                  <SelectValue placeholder="Choose an agent..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {dynamicInfoAgents.map((agent) => (
+                    <SelectItem key={agent.id} value={agent.id}>
+                      {agent.name} ({agent.agent_type})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <Button
-              size="sm"
-              onClick={() => setShowFormModal(true)}
-              className="w-full bg-[#374151] hover:bg-[#4B5563] text-[#CBD5E1]"
-            >
-              <FileText className="w-4 h-4 mr-2" />
-              Create Form
-            </Button>
-          </div>
 
-          <div
-            className={`p-4 rounded-lg border ${
-              theme === "dark"
-                ? "bg-gray-800 border-gray-700"
-                : "bg-white border-gray-200"
-            }`}
-          >
-            <div className="flex items-center space-x-3 mb-3">
-              <Link className="w-6 h-6 text-purple-500" />
+            {/* Dynamic Information Textarea */}
+            {selectedDynamicAgent && (
               <div>
-                <h3
-                  className={`font-medium ${
-                    theme === "dark" ? "text-white" : "text-gray-900"
+                <label
+                  className={`block text-sm font-medium mb-2 ${
+                    theme === "dark" ? "text-slate-300" : "text-gray-700"
                   }`}
                 >
-                  Integrate Form
-                </h3>
-                <p
-                  className={`text-sm ${
-                    theme === "dark" ? "text-slate-400" : "text-gray-600"
-                  }`}
-                >
-                  Connect existing Google Forms
-                </p>
+                  Dynamic Information
+                </label>
+                {loadingDynamicInfo ? (
+                  <div className="flex items-center justify-center p-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+                  </div>
+                ) : (
+                  <>
+                    <textarea
+                      value={dynamicInformation}
+                      onChange={(e) => setDynamicInformation(e.target.value)}
+                      placeholder="Enter dynamic information to append to your agent's system prompt..."
+                      rows={8}
+                      className={`w-full px-3 py-2 rounded-lg border resize-none ${
+                        theme === "dark"
+                          ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400"
+                          : "bg-white border-gray-300 text-gray-900 placeholder-gray-500"
+                      }`}
+                    />
+                    <p
+                      className={`text-xs mt-2 ${
+                        theme === "dark" ? "text-slate-500" : "text-gray-500"
+                      }`}
+                    >
+                      This information will be appended to the agent's main system prompt when making calls.
+                    </p>
+                  </>
+                )}
               </div>
-            </div>
-            <Button
-              size="sm"
-              variant="outline"
-              className={`w-full ${
-                theme === "dark"
-                  ? "bg-gray-700 border-gray-600 text-slate-300 hover:bg-gray-600"
-                  : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50"
-              }`}
-            >
-              <Link className="w-4 h-4 mr-2" />
-              Link Form
-            </Button>
+            )}
+
+            {/* Save Button */}
+            {selectedDynamicAgent && !loadingDynamicInfo && (
+              <div className="flex justify-end">
+                <Button
+                  onClick={saveDynamicInfo}
+                  disabled={savingDynamicInfo}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  {savingDynamicInfo ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Dynamic Information"
+                  )}
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </div>

@@ -142,4 +142,42 @@ router.delete(
   integrationController.cancelMeeting.bind(integrationController)
 );
 
+// ============================================
+// Agent Dynamic Information Routes
+// ============================================
+
+/**
+ * GET /api/integrations/agents
+ * Get all user's agents for dynamic information management
+ * Requires authentication
+ */
+router.get(
+  '/agents',
+  authenticateToken,
+  integrationController.getUserAgents.bind(integrationController)
+);
+
+/**
+ * GET /api/integrations/agents/:agentId/dynamic-info
+ * Get dynamic information for a specific agent
+ * Requires authentication
+ */
+router.get(
+  '/agents/:agentId/dynamic-info',
+  authenticateToken,
+  integrationController.getAgentDynamicInfo.bind(integrationController)
+);
+
+/**
+ * PUT /api/integrations/agents/:agentId/dynamic-info
+ * Update dynamic information for a specific agent
+ * Body: { dynamicInformation: string }
+ * Requires authentication
+ */
+router.put(
+  '/agents/:agentId/dynamic-info',
+  authenticateToken,
+  integrationController.updateAgentDynamicInfo.bind(integrationController)
+);
+
 export default router;

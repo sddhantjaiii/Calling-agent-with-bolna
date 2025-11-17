@@ -3,12 +3,14 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '../../ui/card';
 import { Badge } from '../../ui/badge';
-import { Users, Activity, Shield, BarChart3, Plus, UserCheck } from 'lucide-react';
+import { Button } from '../../ui/button';
+import { Users, Activity, Shield, BarChart3, UserCheck, Settings, Link } from 'lucide-react';
 import { AgentList } from './AgentList';
 import { AgentMonitor } from './AgentMonitor';
 import { AgentHealthCheckDashboard } from './AgentHealthCheck';
-import AdminRegisterAgent from '../agents/AdminRegisterAgent';
 import AdminAssignAgent from '../agents/AdminAssignAgent';
+import { ManageAgents } from '../agents/ManageAgents';
+import { CreateAgentModal } from '../agents/CreateAgentModal';
 import type { AdminAgentListItem, AgentHealthCheck } from '../../../types/admin';
 
 interface AgentManagementProps {
@@ -22,11 +24,12 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({ className }) =
   const [selectedAgent, setSelectedAgent] = useState<AdminAgentListItem | null>(null);
   const [healthData, setHealthData] = useState<AgentHealthCheck | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [linkAgentModalOpen, setLinkAgentModalOpen] = useState(false);
+  const [users, setUsers] = useState<Array<{ id: string; email: string; name: string }>>([]);
 
   // Determine active tab from URL
   const getActiveTabFromPath = () => {
     const path = location.pathname;
-    if (path.includes('/create')) return 'create';
     if (path.includes('/assign')) return 'assign';
     if (path.includes('/manage')) return 'manage';
     if (path.includes('/monitor')) return 'monitor';
@@ -48,9 +51,6 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({ className }) =
     // Update URL based on tab
     const basePath = '/admin/agents';
     switch (tabValue) {
-      case 'create':
-        navigate(`${basePath}/create`);
-        break;
       case 'assign':
         navigate(`${basePath}/assign`);
         break;
@@ -78,6 +78,32 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({ className }) =
   const handleRefresh = () => {
     setRefreshTrigger(prev => prev + 1);
   };
+
+  // Fetch users for agent creation
+  const fetchUsers = async () => {
+    try {
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch('/api/admin/users', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch users');
+      }
+
+      const result = await response.json();
+      setUsers(result.data?.users || []);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    }
+  };
+
+  // Load users on mount
+  useEffect(() => {
+    fetchUsers();
+  }, []);
 
   // Handle health data change
   const handleHealthChange = (data: AgentHealthCheck) => {
@@ -165,28 +191,34 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({ className }) =
 
       {/* Main Content Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="agents" className="flex items-center gap-2">
-            <Users className="w-4 h-4" />
-            Agent List
-          </TabsTrigger>
-          <TabsTrigger value="create" className="flex items-center gap-2">
-            <Plus className="w-4 h-4" />
-            Create Agent
-          </TabsTrigger>
-          <TabsTrigger value="assign" className="flex items-center gap-2">
-            <UserCheck className="w-4 h-4" />
-            Assign Agent
-          </TabsTrigger>
-          <TabsTrigger value="monitor" className="flex items-center gap-2">
-            <Activity className="w-4 h-4" />
-            Performance Monitor
-          </TabsTrigger>
-          <TabsTrigger value="health" className="flex items-center gap-2">
-            <Shield className="w-4 h-4" />
-            Health Check
-          </TabsTrigger>
-        </TabsList>
+        <div className="flex items-center justify-between mb-4">
+          <TabsList className="grid w-auto grid-cols-5">
+            <TabsTrigger value="agents" className="flex items-center gap-2">
+              <Users className="w-4 h-4" />
+              Agent List
+            </TabsTrigger>
+            <TabsTrigger value="assign" className="flex items-center gap-2">
+              <UserCheck className="w-4 h-4" />
+              Assign Agent
+            </TabsTrigger>
+            <TabsTrigger value="manage" className="flex items-center gap-2">
+              <Settings className="w-4 h-4" />
+              Manage Agents
+            </TabsTrigger>
+            <TabsTrigger value="monitor" className="flex items-center gap-2">
+              <Activity className="w-4 h-4" />
+              Performance Monitor
+            </TabsTrigger>
+            <TabsTrigger value="health" className="flex items-center gap-2">
+              <Shield className="w-4 h-4" />
+              Health Check
+            </TabsTrigger>
+          </TabsList>
+          <Button onClick={() => setLinkAgentModalOpen(true)} className="flex items-center gap-2">
+            <Link className="w-4 h-4" />
+            Link Agent
+          </Button>
+        </div>
 
         <TabsContent value="agents" className="space-y-4">
           <AgentList 
@@ -196,12 +228,12 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({ className }) =
           />
         </TabsContent>
 
-        <TabsContent value="create" className="space-y-4">
-          <AdminRegisterAgent onAgentRegistered={handleRefresh} />
-        </TabsContent>
-
         <TabsContent value="assign" className="space-y-4">
           <AdminAssignAgent onAssignmentComplete={handleRefresh} />
+        </TabsContent>
+
+        <TabsContent value="manage" className="space-y-4">
+          <ManageAgents />
         </TabsContent>
 
         <TabsContent value="monitor" className="space-y-4">
@@ -214,6 +246,13 @@ export const AgentManagement: React.FC<AgentManagementProps> = ({ className }) =
           />
         </TabsContent>
       </Tabs>
+
+      <CreateAgentModal
+        open={linkAgentModalOpen}
+        onClose={() => setLinkAgentModalOpen(false)}
+        onSuccess={handleRefresh}
+        users={users}
+      />
     </div>
   );
 };

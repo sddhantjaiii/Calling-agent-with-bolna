@@ -491,19 +491,58 @@ class AdminService {
         // Registering an existing Bolna agent by ID
         logger.info(`Registering existing Bolna agent with ID: ${agentData.bolna_agent_id}`);
         
-        // Verify the agent exists in Bolna
+        // Fetch the agent from Bolna to get its system prompt
+        let systemPrompt: string | null = null;
         try {
           const bolnaAgent = await bolnaService.getAgent(agentData.bolna_agent_id);
           if (!bolnaAgent) {
             throw new Error(`Agent with ID ${agentData.bolna_agent_id} not found in Bolna`);
           }
           logger.info(`Verified Bolna agent exists with ID: ${bolnaAgent.agent_id}, status: ${bolnaAgent.status}`);
+          
+          // Extract system prompt from agent_prompts.task_1.system_prompt
+          if (bolnaAgent.agent_prompts && bolnaAgent.agent_prompts.task_1 && bolnaAgent.agent_prompts.task_1.system_prompt) {
+            systemPrompt = bolnaAgent.agent_prompts.task_1.system_prompt;
+            logger.info(`Extracted system prompt from Bolna agent (${systemPrompt.length} characters)`);
+          }
         } catch (error: any) {
           logger.error(`Failed to verify Bolna agent ${agentData.bolna_agent_id}:`, error);
           throw new Error(`Failed to verify Bolna agent: ${error.message}`);
         }
 
-        // Create agent record in our database
+        // Update webhook URL in Bolna
+        const webhookUrl = process.env.BOLNA_WEBHOOK_URL;
+        if (webhookUrl) {
+          try {
+            await bolnaService.patchAgentWebhookUrl(agentData.bolna_agent_id, webhookUrl);
+            logger.info(`Updated webhook URL for Bolna agent ${agentData.bolna_agent_id}`);
+          } catch (error: any) {
+            logger.warn(`Failed to update webhook URL for Bolna agent ${agentData.bolna_agent_id}:`, error.message);
+            // Don't fail the registration if webhook update fails
+          }
+        }
+
+        // If admin provided system_prompt, use that; otherwise use fetched one
+        const finalSystemPrompt = agentData.system_prompt || systemPrompt;
+
+        // If admin provided both system_prompt and dynamic_information, update Bolna
+        if (agentData.system_prompt || agentData.dynamic_information) {
+          try {
+            const combinedPrompt = agentData.dynamic_information
+              ? `${finalSystemPrompt}\n\n${agentData.dynamic_information}`
+              : finalSystemPrompt;
+            
+            if (combinedPrompt) {
+              await bolnaService.patchAgentSystemPrompt(agentData.bolna_agent_id, combinedPrompt);
+              logger.info(`Updated system prompt for Bolna agent ${agentData.bolna_agent_id}`);
+            }
+          } catch (error: any) {
+            logger.warn(`Failed to update system prompt for Bolna agent ${agentData.bolna_agent_id}:`, error.message);
+            // Don't fail the registration if system prompt update fails
+          }
+        }
+
+        // Create agent record in our database with system_prompt and dynamic_information
         const agentModel = new AgentModel();
         const userId = assignToUserId || adminUserId || process.env.SYSTEM_USER_ID || 'admin-default';
         
@@ -514,6 +553,8 @@ class AdminService {
           description: agentData.description || '',
           agent_type: agentData.agent_type || 'call',
           is_active: agentData.is_active !== undefined ? agentData.is_active : true,
+          system_prompt: finalSystemPrompt,
+          dynamic_information: agentData.dynamic_information || null,
         });
 
         logger.info(`Successfully registered Bolna agent ${agentData.bolna_agent_id} as agent ${newAgent.id} for user ${userId}`);

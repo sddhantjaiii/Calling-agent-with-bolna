@@ -8,6 +8,8 @@ export interface AgentInterface extends BaseModelInterface {
   agent_type: 'call' | 'chat';
   description?: string;
   is_active: boolean;
+  system_prompt?: string | null;
+  dynamic_information?: string | null;
   created_at: Date;
   updated_at: Date;
 }

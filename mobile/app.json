@@ -38,8 +38,9 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "2e68dc81-9086-4b46-8f70-0744d780c772"
+        "projectId": "90b0fd83-f2a4-4989-b84d-2eea970889b1"
       }
-    }
+    },
+    "owner": "siddhant.jaiswal"
   }
 }

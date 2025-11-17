@@ -680,6 +680,173 @@ export class IntegrationController {
       });
     }
   }
+
+  /**
+   * GET /api/integrations/agents
+   * Get all user's agents for dynamic information management
+   */
+  async getUserAgents(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+
+      logger.info('Getting user agents for dynamic info', { userId });
+
+      const { AgentModel } = await import('../models/Agent');
+      const agentModel = new AgentModel();
+      const agents = await agentModel.findByUserId(userId, true); // Active agents only
+
+      res.json({
+        success: true,
+        agents: agents.map(agent => ({
+          id: agent.id,
+          name: agent.name,
+          agent_type: agent.agent_type,
+          bolna_agent_id: agent.bolna_agent_id
+        }))
+      });
+    } catch (error) {
+      logger.error('Failed to get user agents', {
+        userId: req.user?.id,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      res.status(500).json({
+        error: 'Failed to get agents',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
+   * GET /api/integrations/agents/:agentId/dynamic-info
+   * Get dynamic information for a specific agent
+   */
+  async getAgentDynamicInfo(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = req.user?.id;
+      const { agentId } = req.params;
+
+      if (!userId) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+
+      logger.info('Getting agent dynamic info', { userId, agentId });
+
+      const { AgentModel } = await import('../models/Agent');
+      const agentModel = new AgentModel();
+      const agent = await agentModel.findById(agentId);
+
+      if (!agent) {
+        res.status(404).json({ error: 'Agent not found' });
+        return;
+      }
+
+      // Verify agent belongs to user
+      if (agent.user_id !== userId) {
+        res.status(403).json({ error: 'Access denied' });
+        return;
+      }
+
+      res.json({
+        success: true,
+        dynamicInformation: agent.dynamic_information || ''
+      });
+    } catch (error) {
+      logger.error('Failed to get agent dynamic info', {
+        userId: req.user?.id,
+        agentId: req.params.agentId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      res.status(500).json({
+        error: 'Failed to get dynamic information',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
+   * PUT /api/integrations/agents/:agentId/dynamic-info
+   * Update dynamic information for a specific agent
+   */
+  async updateAgentDynamicInfo(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = req.user?.id;
+      const { agentId } = req.params;
+      const { dynamicInformation } = req.body;
+
+      if (!userId) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+
+      logger.info('Updating agent dynamic info', { userId, agentId });
+
+      const { AgentModel } = await import('../models/Agent');
+      const agentModel = new AgentModel();
+      const agent = await agentModel.findById(agentId);
+
+      if (!agent) {
+        res.status(404).json({ error: 'Agent not found' });
+        return;
+      }
+
+      // Verify agent belongs to user
+      if (agent.user_id !== userId) {
+        res.status(403).json({ error: 'Access denied' });
+        return;
+      }
+
+      // Validate agent has Bolna ID and system prompt
+      if (!agent.bolna_agent_id) {
+        res.status(400).json({ error: 'Agent is not linked to Bolna' });
+        return;
+      }
+
+      if (!agent.system_prompt) {
+        res.status(400).json({ error: 'Agent does not have a system prompt configured' });
+        return;
+      }
+
+      // Update dynamic_information in database
+      await agentModel.update(agentId, {
+        dynamic_information: dynamicInformation || null
+      });
+
+      // Combine system_prompt with dynamic_information
+      const finalSystemPrompt = dynamicInformation
+        ? `${agent.system_prompt}\n\n${dynamicInformation}`
+        : agent.system_prompt;
+
+      // Update Bolna agent system prompt via PATCH
+      const { bolnaService } = await import('../services/bolnaService');
+      await bolnaService.patchAgentSystemPrompt(agent.bolna_agent_id, finalSystemPrompt);
+
+      logger.info('Successfully updated agent dynamic info and Bolna system prompt', {
+        userId,
+        agentId,
+        bolnaAgentId: agent.bolna_agent_id
+      });
+
+      res.json({
+        success: true,
+        message: 'Dynamic information updated successfully'
+      });
+    } catch (error) {
+      logger.error('Failed to update agent dynamic info', {
+        userId: req.user?.id,
+        agentId: req.params.agentId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      res.status(500).json({
+        error: 'Failed to update dynamic information',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
 }
 
 // Export controller instance
