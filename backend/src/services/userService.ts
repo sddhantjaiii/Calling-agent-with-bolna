@@ -560,15 +560,16 @@ class UserService {
   }
 
   /**
-   * Delete user account (soft delete by deactivating)
+   * Delete user account (hard delete from database)
    */
   async deleteUser(userId: string): Promise<boolean> {
     try {
-      // Soft delete by deactivating the user
-      const result = await this.setUserStatus(userId, false);
-      
-      // Remove session
+      // Remove session first
       sessionService.removeSession(userId);
+      
+      // Hard delete: Remove user from database completely
+      // This allows the email to be used for a new signup
+      const result = await UserModel.delete(userId);
       
       return result;
     } catch (error) {

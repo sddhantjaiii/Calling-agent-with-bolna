@@ -1,7 +1,8 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Mail, CheckCircle, AlertCircle, RefreshCw } from "lucide-react";
+import { Mail, CheckCircle, AlertCircle, RefreshCw, ArrowLeft } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { apiService } from "@/services/apiService";
 
@@ -11,9 +12,11 @@ interface EmailVerificationProps {
 }
 
 const EmailVerification = ({ userEmail, onVerificationComplete }: EmailVerificationProps) => {
+  const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [lastSentTime, setLastSentTime] = useState<Date | null>(null);
-  const { refreshUser } = useAuth();
+  const { refreshUser, logout } = useAuth();
 
   const handleResendVerification = async () => {
     setIsLoading(true);
@@ -44,6 +47,29 @@ const EmailVerification = ({ userEmail, onVerificationComplete }: EmailVerificat
       toast.error("Failed to check verification status. Please try again.");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleDeleteAccountAndGoBack = async () => {
+    if (!confirm("Are you sure? This will delete your account and you'll need to register again.")) {
+      return;
+    }
+
+    setIsDeletingAccount(true);
+
+    try {
+      await apiService.deleteUserAccount();
+      toast.success("Account deleted successfully. Redirecting to registration...");
+      
+      // Logout and redirect to register page
+      await logout();
+      setTimeout(() => {
+        navigate('/register');
+      }, 1000);
+    } catch (error) {
+      console.error("Failed to delete account:", error);
+      toast.error("Failed to delete account. Please try again or contact support.");
+      setIsDeletingAccount(false);
     }
   };
 
@@ -108,7 +134,7 @@ const EmailVerification = ({ userEmail, onVerificationComplete }: EmailVerificat
               onClick={handleResendVerification}
               variant="outline"
               className="w-full"
-              disabled={isLoading || !canResend}
+              disabled={isLoading || !canResend || isDeletingAccount}
             >
               {isLoading ? (
                 <div className="flex items-center justify-center">
@@ -121,6 +147,25 @@ const EmailVerification = ({ userEmail, onVerificationComplete }: EmailVerificat
                 <div className="flex items-center justify-center">
                   <Mail className="h-4 w-4 mr-2" />
                   Resend Verification Email
+                </div>
+              )}
+            </Button>
+
+            <Button
+              onClick={handleDeleteAccountAndGoBack}
+              variant="ghost"
+              className="w-full text-gray-600 hover:text-gray-900"
+              disabled={isLoading || isDeletingAccount}
+            >
+              {isDeletingAccount ? (
+                <div className="flex items-center justify-center">
+                  <RefreshCw className="animate-spin h-4 w-4 mr-2" />
+                  Deleting Account...
+                </div>
+              ) : (
+                <div className="flex items-center justify-center">
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Not You? Go Back to Register
                 </div>
               )}
             </Button>

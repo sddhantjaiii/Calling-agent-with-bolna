@@ -128,17 +128,14 @@ class AuthService {
     // Hash password
     const passwordHash = await this.hashPassword(password);
 
-    // Generate email verification token
-    const emailVerificationToken = this.generateSecureToken();
-
-    // Create user
+    // Create user without email_verification_token (will be handled by verification service)
     const query = `
-      INSERT INTO users (email, name, password_hash, email_verification_token, credits, is_active, email_verified, auth_provider, role)
-      VALUES ($1, $2, $3, $4, 15, true, false, 'email', 'user')
+      INSERT INTO users (email, name, password_hash, credits, is_active, email_verified, auth_provider, role)
+      VALUES ($1, $2, $3, 15, true, false, 'email', 'user')
       RETURNING id, email, name, credits, is_active, email_verified, role, auth_provider, created_at, updated_at
     `;
 
-    const result = await databaseService.query(query, [email, name, passwordHash, emailVerificationToken]);
+    const result = await databaseService.query(query, [email, name, passwordHash]);
     
     if (result.rows.length === 0) {
       throw new Error('Failed to create user');
@@ -167,7 +164,7 @@ class AuthService {
 
     // Send email verification for new users (async, don't wait)
     if (emailService.isEmailConfigured()) {
-      this.sendEmailVerificationToNewUser(user, emailVerificationToken).catch(error => {
+      this.sendEmailVerificationToNewUser(user).catch(error => {
         console.error('Failed to send verification email to new user:', error);
       });
     }
@@ -822,19 +819,16 @@ class AuthService {
   /**
    * Send email verification to newly registered user
    */
-  private async sendEmailVerificationToNewUser(user: User, verificationToken: string): Promise<void> {
+  private async sendEmailVerificationToNewUser(user: User): Promise<void> {
     try {
       if (!emailService.isEmailConfigured()) {
         console.log('Email service not configured, skipping verification email');
         return;
       }
 
-      if (!process.env.FRONTEND_URL) {
-        throw new Error('FRONTEND_URL is not configured');
-      }
-      const base = process.env.FRONTEND_URL.split(',')[0].trim();
-      const frontendUrl = base.endsWith('/') ? base.slice(0, -1) : base;
-      const verificationUrl = `${frontendUrl}/verify-email?token=${verificationToken}`;
+      // Use verification service to generate JWT-based verification URL
+      const { verificationService } = await import('./verificationService');
+      const verificationUrl = verificationService.generateVerificationUrl(user.id, user.email);
 
       const sent = await emailService.sendVerificationEmail({
         userEmail: user.email,
