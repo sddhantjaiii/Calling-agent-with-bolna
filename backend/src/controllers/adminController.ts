@@ -1934,16 +1934,16 @@ export class AdminController {
       res.json({
         success: true,
         data: {
-          totalUsers: parseInt(metrics.total_users) || 0,
-          totalAgents: parseInt(metrics.total_agents) || 0,
-          totalCalls: parseInt(metrics.total_calls) || 0,
-          totalContacts: parseInt(metrics.total_contacts) || 0,
-          totalCampaigns: parseInt(metrics.total_campaigns) || 0,
-          totalCustomers: parseInt(metrics.total_customers) || 0,
-          totalCallMinutes: parseInt(metrics.total_call_minutes) || 0,
-          totalCreditsUsed: parseInt(metrics.total_credits_used) || 0,
-          completedCalls: parseInt(metrics.completed_calls) || 0,
-          failedCalls: parseInt(metrics.failed_calls) || 0,
+          totalUsers: metrics.total_users || 0,
+          totalAgents: metrics.total_agents || 0,
+          totalCalls: metrics.total_calls || 0,
+          totalContacts: metrics.total_contacts || 0,
+          totalCampaigns: metrics.total_campaigns || 0,
+          totalCustomers: metrics.total_customers || 0,
+          totalCallMinutes: metrics.total_call_minutes || 0,
+          totalCreditsUsed: metrics.total_credits_used || 0,
+          completedCalls: metrics.completed_calls || 0,
+          failedCalls: metrics.failed_calls || 0,
           successRate: metrics.total_calls > 0 
             ? Math.round((metrics.completed_calls / metrics.total_calls) * 100) 
             : 0
