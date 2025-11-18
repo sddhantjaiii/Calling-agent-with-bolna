@@ -251,31 +251,39 @@ export class CallQueueModel {
   }
 
   /**
-   * Mark queue item as completed
+   * Mark queue item as completed and delete it immediately
    */
   static async markAsCompleted(
     id: string, 
     userId: string, 
-    callId: string
+    callId?: string
   ): Promise<CallQueueItem | null> {
-    return this.updateStatus(id, userId, 'completed', {
-      completed_at: new Date(),
-      call_id: callId
-    });
+    // Delete completed items immediately - call data already in calls table
+    const result = await pool.query(
+      `DELETE FROM call_queue 
+       WHERE id = $1 AND user_id = $2
+       RETURNING *`,
+      [id, userId]
+    );
+    return result.rows[0] || null;
   }
 
   /**
-   * Mark queue item as failed
+   * Mark queue item as failed and delete it immediately
    */
   static async markAsFailed(
     id: string, 
     userId: string, 
     reason: string
   ): Promise<CallQueueItem | null> {
-    return this.updateStatus(id, userId, 'failed', {
-      completed_at: new Date(),
-      failure_reason: reason
-    });
+    // Delete failed items immediately - no need to keep in queue
+    const result = await pool.query(
+      `DELETE FROM call_queue 
+       WHERE id = $1 AND user_id = $2
+       RETURNING *`,
+      [id, userId]
+    );
+    return result.rows[0] || null;
   }
 
   /**

@@ -380,51 +380,73 @@ class WebhookService {
         if (queueItemResult.rows.length > 0) {
           const queueItem = queueItemResult.rows[0];
           
+          // Delete completed queue item immediately (call data already in calls table)
           await client.query(`
-            UPDATE call_queue
-            SET 
-              status = 'completed',
-              completed_at = NOW(),
-              updated_at = NOW()
+            DELETE FROM call_queue
             WHERE id = $1 AND user_id = $2
           `, [queueItem.id, queueItem.user_id]);
 
-          logger.info('📋 Queue item marked as completed (transactional)', {
+          logger.info('📋 Queue item completed and deleted (transactional)', {
             queue_item_id: queueItem.id,
             call_id: call.id,
             campaign_id: queueItem.campaign_id
           });
 
-          // Best-effort: send campaign summary email if feature enabled (outside transaction)
-          if (process.env.EMAIL_CAMPAIGN_SUMMARY_ENABLED === 'true' && queueItem.campaign_id) {
-            // Use setImmediate to run after transaction commits
-            setImmediate(() => {
-              this.maybeSendCampaignSummary(queueItem.campaign_id, queueItem.user_id).catch((e: any) => {
-                logger.error('Failed to send campaign summary email', { 
-                  campaign_id: queueItem.campaign_id,
-                  user_id: queueItem.user_id,
-                  error: e?.message || String(e),
-                  stack: e?.stack
-                });
-                
-                // Capture in Sentry with warning level (non-critical background task)
-                Sentry.captureException(e, {
-                  level: 'warning',
-                  tags: {
-                    error_type: 'campaign_summary_email_failed',
-                    campaign_id: queueItem.campaign_id,
-                    severity: 'low'
-                  },
-                  contexts: {
-                    campaign_summary: {
+          // Check if campaign is now complete (no more queued items)
+          if (queueItem.campaign_id) {
+            const remainingResult = await client.query(`
+              SELECT COUNT(*) as remaining
+              FROM call_queue
+              WHERE campaign_id = $1 AND status IN ('queued', 'processing')
+            `, [queueItem.campaign_id]);
+
+            const remaining = parseInt(remainingResult.rows[0]?.remaining || '0');
+
+            // If no more queued/processing items, mark campaign as completed
+            if (remaining === 0) {
+              await client.query(`
+                UPDATE call_campaigns
+                SET status = 'completed', completed_at = NOW(), updated_at = NOW()
+                WHERE id = $1 AND user_id = $2 AND status = 'active'
+              `, [queueItem.campaign_id, queueItem.user_id]);
+
+              logger.info('✅ Campaign marked as completed', {
+                campaign_id: queueItem.campaign_id,
+                user_id: queueItem.user_id
+              });
+
+              // Send campaign summary email if feature enabled (outside transaction)
+              if (process.env.EMAIL_CAMPAIGN_SUMMARY_ENABLED === 'true') {
+                // Use setImmediate to run after transaction commits
+                setImmediate(() => {
+                  this.sendCampaignCompletionEmail(queueItem.campaign_id, queueItem.user_id).catch((e: any) => {
+                    logger.error('Failed to send campaign summary email', { 
                       campaign_id: queueItem.campaign_id,
                       user_id: queueItem.user_id,
-                      operation: 'maybeSendCampaignSummary'
-                    }
-                  }
+                      error: e?.message || String(e),
+                      stack: e?.stack
+                    });
+                    
+                    // Capture in Sentry with warning level (non-critical background task)
+                    Sentry.captureException(e, {
+                      level: 'warning',
+                      tags: {
+                        error_type: 'campaign_summary_email_failed',
+                        campaign_id: queueItem.campaign_id,
+                        severity: 'low'
+                      },
+                      contexts: {
+                        campaign_summary: {
+                          campaign_id: queueItem.campaign_id,
+                          user_id: queueItem.user_id,
+                          operation: 'sendCampaignCompletionEmail'
+                        }
+                      }
+                    });
+                  });
                 });
-              });
-            });
+              }
+            }
           }
         }
       });
@@ -1206,7 +1228,7 @@ class WebhookService {
 
         // Best-effort: if campaign has fully completed, send a summary email (feature-gated)
         if (process.env.EMAIL_CAMPAIGN_SUMMARY_ENABLED === 'true' && queueItem.campaign_id) {
-          this.maybeSendCampaignSummary(queueItem.campaign_id, queueItem.user_id).catch((e: any) => {
+          this.sendCampaignCompletionEmail(queueItem.campaign_id, queueItem.user_id).catch((e: any) => {
             logger.error('Failed to send campaign summary email', { 
               campaign_id: queueItem.campaign_id,
               user_id: queueItem.user_id,
@@ -1255,7 +1277,10 @@ class WebhookService {
   }
 
   // Fire-and-forget best-effort summary sender when a campaign completes
-  private async maybeSendCampaignSummary(campaignId: string, userId: string): Promise<void> {
+  /**
+   * Send campaign completion email with summary and hot leads
+   */
+  private async sendCampaignCompletionEmail(campaignId: string, userId: string): Promise<void> {
     try {
       // Check if system-level feature is enabled
       if (process.env.EMAIL_CAMPAIGN_SUMMARY_ENABLED !== 'true') {
@@ -1265,24 +1290,21 @@ class WebhookService {
 
       const { CallCampaignModel } = await import('../models/CallCampaign');
       const analytics = await CallCampaignModel.getAnalytics(campaignId, userId);
-      if (!analytics) return;
-
-      // Check completion heuristics
-      const total = parseInt(String((analytics as any).total_contacts || 0));
-      const completed = parseInt(String((analytics as any).completed_calls || 0));
-      const inProgress = parseInt(String((analytics as any).processing_calls || (analytics as any).in_progress || 0));
-      const queued = parseInt(String((analytics as any).queued_calls || (analytics as any).queued || 0));
-      if (!total || completed < total || inProgress > 0 || queued > 0) return;
+      if (!analytics) {
+        logger.warn('No analytics found for campaign', { campaign_id: campaignId });
+        return;
+      }
 
       // Gather top hot leads for this campaign - use database.query() for proper connection management
       const topLeadsResult = await database.query(
         `SELECT 
-           COALESCE(q.contact_name, q.phone_number) AS name,
-           q.phone_number as phone,
+           COALESCE(ct.name, c.phone_number) AS name,
+           c.phone_number as phone,
            la.total_score as score
          FROM lead_analytics la
-         JOIN call_queue q ON q.call_id = la.call_id
-         WHERE q.campaign_id = $1 
+         JOIN calls c ON c.id = la.call_id
+         LEFT JOIN contacts ct ON ct.id = c.contact_id
+         WHERE c.campaign_id = $1 
            AND la.total_score IS NOT NULL
            AND (la.lead_status_tag ILIKE 'hot%' OR la.lead_status_tag = 'Hot' OR la.lead_status_tag = 'Hot Lead')
          ORDER BY la.total_score DESC
@@ -1298,12 +1320,13 @@ class WebhookService {
       // Optional CSV of all hot leads (score >= 80)
       const csvResult = await database.query(
         `SELECT 
-           COALESCE(q.contact_name, q.phone_number) AS name,
-           q.phone_number as phone,
+           COALESCE(ct.name, c.phone_number) AS name,
+           c.phone_number as phone,
            la.total_score as score
          FROM lead_analytics la
-         JOIN call_queue q ON q.call_id = la.call_id
-         WHERE q.campaign_id = $1 
+         JOIN calls c ON c.id = la.call_id
+         LEFT JOIN contacts ct ON ct.id = c.contact_id
+         WHERE c.campaign_id = $1 
            AND la.total_score IS NOT NULL
            AND (la.lead_status_tag ILIKE 'hot%' OR la.lead_status_tag = 'Hot' OR la.lead_status_tag = 'Hot Lead')
          ORDER BY la.total_score DESC`,
@@ -1326,8 +1349,14 @@ class WebhookService {
       const User = (await import('../models/User')).UserModel;
       const userModel = new User();
       const user = await userModel.findById(userId);
-      if (!user || !user.email) return;
+      if (!user || !user.email) {
+        logger.warn('User not found or no email', { user_id: userId });
+        return;
+      }
 
+      // Extract campaign statistics
+      const total = parseInt(String((analytics as any).total_contacts || 0));
+      const completed = parseInt(String((analytics as any).completed_calls || 0));
       const avgSeconds = Number((analytics as any).average_call_duration || (analytics as any).avg_call_duration_seconds || 0);
       const avgMinutes = avgSeconds > 0 ? avgSeconds / 60.0 : 0;
       const successRate = Number((analytics as any).success_rate || 0);
