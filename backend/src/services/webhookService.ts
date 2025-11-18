@@ -392,61 +392,17 @@ class WebhookService {
             campaign_id: queueItem.campaign_id
           });
 
-          // Check if campaign is now complete (no more queued items)
+          // Check if campaign is now complete (after transaction commits)
           if (queueItem.campaign_id) {
-            const remainingResult = await client.query(`
-              SELECT COUNT(*) as remaining
-              FROM call_queue
-              WHERE campaign_id = $1 AND status IN ('queued', 'processing')
-            `, [queueItem.campaign_id]);
-
-            const remaining = parseInt(remainingResult.rows[0]?.remaining || '0');
-
-            // If no more queued/processing items, mark campaign as completed
-            if (remaining === 0) {
-              await client.query(`
-                UPDATE call_campaigns
-                SET status = 'completed', completed_at = NOW(), updated_at = NOW()
-                WHERE id = $1 AND user_id = $2 AND status = 'active'
-              `, [queueItem.campaign_id, queueItem.user_id]);
-
-              logger.info('✅ Campaign marked as completed', {
-                campaign_id: queueItem.campaign_id,
-                user_id: queueItem.user_id
-              });
-
-              // Send campaign summary email if feature enabled (outside transaction)
-              if (process.env.EMAIL_CAMPAIGN_SUMMARY_ENABLED === 'true') {
-                // Use setImmediate to run after transaction commits
-                setImmediate(() => {
-                  this.sendCampaignCompletionEmail(queueItem.campaign_id, queueItem.user_id).catch((e: any) => {
-                    logger.error('Failed to send campaign summary email', { 
-                      campaign_id: queueItem.campaign_id,
-                      user_id: queueItem.user_id,
-                      error: e?.message || String(e),
-                      stack: e?.stack
-                    });
-                    
-                    // Capture in Sentry with warning level (non-critical background task)
-                    Sentry.captureException(e, {
-                      level: 'warning',
-                      tags: {
-                        error_type: 'campaign_summary_email_failed',
-                        campaign_id: queueItem.campaign_id,
-                        severity: 'low'
-                      },
-                      contexts: {
-                        campaign_summary: {
-                          campaign_id: queueItem.campaign_id,
-                          user_id: queueItem.user_id,
-                          operation: 'sendCampaignCompletionEmail'
-                        }
-                      }
-                    });
-                  });
+            setImmediate(() => {
+              this.checkAndCompleteCampaign(queueItem.campaign_id, queueItem.user_id).catch((e: any) => {
+                logger.error('Failed to check campaign completion', {
+                  campaign_id: queueItem.campaign_id,
+                  user_id: queueItem.user_id,
+                  error: e?.message || String(e)
                 });
-              }
-            }
+              });
+            });
           }
         }
       });
@@ -1266,6 +1222,11 @@ class WebhookService {
           campaign_id: queueItem.campaign_id,
           reason: failureReason
         });
+
+        // Check if campaign is now complete (even if this call failed)
+        if (queueItem.campaign_id) {
+          await this.checkAndCompleteCampaign(queueItem.campaign_id, queueItem.user_id);
+        }
       }
     } catch (error) {
       logger.error('❌ Failed to update queue item', {
@@ -1273,6 +1234,58 @@ class WebhookService {
         error: error instanceof Error ? error.message : String(error)
       });
       // Don't throw - queue update failure shouldn't block webhook processing
+    }
+  }
+
+  /**
+   * Check if campaign is complete and mark it as completed, then send email
+   */
+  private async checkAndCompleteCampaign(campaignId: string, userId: string): Promise<void> {
+    try {
+      // Check if any remaining queue items exist for this campaign
+      const remainingResult = await database.query(`
+        SELECT COUNT(*) as remaining
+        FROM call_queue
+        WHERE campaign_id = $1 AND status IN ('queued', 'processing')
+      `, [campaignId]);
+
+      const remaining = parseInt(remainingResult.rows[0]?.remaining || '0');
+
+      // If no more queued/processing items, mark campaign as completed
+      if (remaining === 0) {
+        const updateResult = await database.query(`
+          UPDATE call_campaigns
+          SET status = 'completed', completed_at = NOW(), updated_at = NOW()
+          WHERE id = $1 AND user_id = $2 AND status = 'active'
+          RETURNING id
+        `, [campaignId, userId]);
+
+        if (updateResult.rows.length > 0) {
+          logger.info('✅ Campaign marked as completed', {
+            campaign_id: campaignId,
+            user_id: userId
+          });
+
+          // Send campaign summary email if feature enabled
+          if (process.env.EMAIL_CAMPAIGN_SUMMARY_ENABLED === 'true') {
+            // Run async without blocking
+            this.sendCampaignCompletionEmail(campaignId, userId).catch((e: any) => {
+              logger.error('Failed to send campaign completion email', {
+                campaign_id: campaignId,
+                user_id: userId,
+                error: e?.message || String(e)
+              });
+            });
+          }
+        }
+      }
+    } catch (error) {
+      logger.error('❌ Failed to check/complete campaign', {
+        campaign_id: campaignId,
+        user_id: userId,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      // Don't throw - this is best-effort
     }
   }
 
