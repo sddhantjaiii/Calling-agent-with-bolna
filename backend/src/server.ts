@@ -170,6 +170,10 @@ app.use((req, res, next) => {
     express.json({
       limit: '10mb',
       verify: (req, res, buf) => {
+        // Allow empty bodies for POST requests
+        if (buf.length === 0) {
+          return;
+        }
         try {
           JSON.parse(buf.toString());
         } catch (e) {

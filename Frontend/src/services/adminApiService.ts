@@ -918,6 +918,7 @@ class AdminApiService {
     return adminRequest<PhoneNumber>(ADMIN_ENDPOINTS.PHONE_NUMBERS.UNASSIGN(id), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
     });
   }
 
@@ -925,6 +926,7 @@ class AdminApiService {
     return adminRequest<PhoneNumber>(ADMIN_ENDPOINTS.PHONE_NUMBERS.ACTIVATE(id), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
     });
   }
 

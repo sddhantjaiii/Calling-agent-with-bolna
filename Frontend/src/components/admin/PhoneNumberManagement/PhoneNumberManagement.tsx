@@ -251,6 +251,10 @@ const PhoneNumberManagement: React.FC<PhoneNumberManagementProps> = ({ className
 
   const handleAssign = (phoneNumber: PhoneNumber) => {
     setSelectedPhoneNumber(phoneNumber);
+    setFormData({
+      ...formData,
+      user_id: phoneNumber.user_id,
+    });
     setIsAssignDialogOpen(true);
   };
 
