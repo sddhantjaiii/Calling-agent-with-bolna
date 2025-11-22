@@ -196,7 +196,7 @@ export class QueueProcessorService {
     // Get next queued call using the database function
     const queueItem = await CallQueueModel.getNextQueued(userId);
     
-    if (!queueItem) {
+    if (!queueItem || !queueItem.id) {
       console.log(`[QueueProcessor] No queued calls for user ${userId}`);
       return false;
     }

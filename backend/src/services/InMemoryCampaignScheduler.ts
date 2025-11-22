@@ -497,12 +497,21 @@ export class InMemoryCampaignScheduler {
         if (currentTimeString >= window.firstCallTime && currentTimeString <= window.lastCallTime) {
           // Campaign window is active NOW - check if already processing
           if (this.isProcessing) {
-            logger.info('⚠️ Campaign active but already processing - will catch on next cycle');
+            logger.info('⚠️ Campaign active but already processing - will catch on next cycle', {
+              campaignId: id,
+              timezone: window.timezone
+            });
             return;
           }
           
           // Wake immediately
-          logger.info('⚡ New campaign is active NOW - triggering immediate processing');
+          logger.info('⚡ New/updated campaign is active NOW - triggering immediate processing', {
+            campaignId: id,
+            timezone: window.timezone,
+            timeWindow: `${window.firstCallTime}-${window.lastCallTime}`,
+            currentTime: currentTimeString,
+            queuedCount: window.queuedCount
+          });
           await this.wakeAndProcessQueue();
           return;
         }
