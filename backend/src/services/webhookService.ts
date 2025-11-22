@@ -197,27 +197,39 @@ class WebhookService {
       throw new Error(`Phone number not found in ${callType} call payload`);
     }
 
-    // Create call record
-    await Call.create({
-      agent_id: agent.id,
-      user_id: agent.user_id,
-      bolna_conversation_id: executionId,
-      bolna_execution_id: executionId,
-      phone_number: normalizePhoneNumber(phoneNumber),
-      call_source: 'phone',
-      status: 'in_progress',
-      call_lifecycle_status: 'initiated',
-      lead_type: callType,
-      duration_seconds: 0,
-      duration_minutes: 0,
-      credits_used: 0,
-      metadata: {
-        initiated_at: new Date().toISOString(),
-        provider: payload.telephony_data?.provider || payload.provider
-      }
-    });
+    try {
+      // Create call record
+      await Call.create({
+        agent_id: agent.id,
+        user_id: agent.user_id,
+        bolna_conversation_id: executionId,
+        bolna_execution_id: executionId,
+        phone_number: normalizePhoneNumber(phoneNumber),
+        call_source: 'phone',
+        status: 'in_progress',
+        call_lifecycle_status: 'initiated',
+        lead_type: callType,
+        duration_seconds: 0,
+        duration_minutes: 0,
+        credits_used: 0,
+        metadata: {
+          initiated_at: new Date().toISOString(),
+          provider: payload.telephony_data?.provider || payload.provider
+        }
+      });
 
-    logger.info('✅ Call record created', { execution_id: executionId });
+      logger.info('✅ Call record created', { execution_id: executionId });
+    } catch (error: any) {
+      // If duplicate key error, the call was created concurrently - just update it
+      if (error?.message?.includes('duplicate key') || error?.code === '23505') {
+        logger.info('Call created concurrently, updating status instead', { execution_id: executionId });
+        await Call.updateByExecutionId(executionId, {
+          call_lifecycle_status: 'initiated'
+        });
+      } else {
+        throw error;
+      }
+    }
   }
 
   /**
