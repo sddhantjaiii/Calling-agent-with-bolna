@@ -74,8 +74,8 @@ export const ContactList: React.FC<ContactListProps> = ({
   
   // State
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortBy, setSortBy] = useState<'name' | 'phone_number' | 'created_at'>('name');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [sortBy, setSortBy] = useState<'name' | 'phone_number' | 'created_at'>('created_at');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [currentOffset, setCurrentOffset] = useState(0);
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [contactToDelete, setContactToDelete] = useState<Contact | null>(null);
