@@ -87,6 +87,12 @@ export const ContactList: React.FC<ContactListProps> = ({
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   
+  // New filters
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [selectedLastStatus, setSelectedLastStatus] = useState<string>('all');
+  const [selectedSource, setSelectedSource] = useState<string>('all');
+  const [selectedOriginalStatus, setSelectedOriginalStatus] = useState<string>('all');
+  
   // Bulk selection state
   const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(new Set());
   const [isCampaignModalOpen, setIsCampaignModalOpen] = useState(false);
@@ -147,9 +153,34 @@ export const ContactList: React.FC<ContactListProps> = ({
 
   // Apply filter
   const filteredContacts = displayContacts.filter(contact => {
-    if (filterType === 'auto_created') return contact.isAutoCreated;
-    if (filterType === 'linked_to_calls') return contact.linkedCallId != null;
-    return true; // 'all'
+    if (filterType === 'auto_created' && !contact.isAutoCreated) return false;
+    if (filterType === 'linked_to_calls' && contact.linkedCallId == null) return false;
+    
+    // Tag filter
+    if (selectedTags.length > 0) {
+      const contactTags = contact.tags || [];
+      const hasMatchingTag = selectedTags.some(tag => contactTags.includes(tag));
+      if (!hasMatchingTag) return false;
+    }
+    
+    // Last Status filter
+    if (selectedLastStatus !== 'all' && contact.lastCallStatus !== selectedLastStatus) {
+      return false;
+    }
+    
+    // Source filter
+    if (selectedSource !== 'all') {
+      if (selectedSource === 'webhook' && contact.autoCreationSource !== 'webhook') return false;
+      if (selectedSource === 'manual' && contact.autoCreationSource !== 'manual') return false;
+      if (selectedSource === 'bulk_upload' && contact.autoCreationSource !== 'bulk_upload') return false;
+    }
+    
+    // Original Status filter
+    if (selectedOriginalStatus !== 'all' && contact.originalStatus !== selectedOriginalStatus) {
+      return false;
+    }
+    
+    return true;
   });
 
   // Update accumulated contacts when new batch arrives
@@ -327,6 +358,32 @@ export const ContactList: React.FC<ContactListProps> = ({
     }
   };
 
+  // Helper: Map source to display name
+  const getSourceLabel = (source?: string) => {
+    if (source === 'webhook') return 'Inbound Call';
+    if (source === 'manual') return 'Manual Entry';
+    if (source === 'bulk_upload') return 'Excel Upload';
+    return '-';
+  };
+
+  // Helper: Get all unique tags from contacts
+  const allUniqueTags = React.useMemo(() => {
+    const tagSet = new Set<string>();
+    displayContacts.forEach(contact => {
+      (contact.tags || []).forEach(tag => tagSet.add(tag));
+    });
+    return Array.from(tagSet).sort();
+  }, [displayContacts]);
+
+  // Helper: Get all unique statuses
+  const allUniqueStatuses = React.useMemo(() => {
+    const statusSet = new Set<string>();
+    displayContacts.forEach(contact => {
+      if (contact.lastCallStatus) statusSet.add(contact.lastCallStatus);
+    });
+    return Array.from(statusSet).sort();
+  }, [displayContacts]);
+
   // Calculate trigger position (10 items before end)
   const triggerPosition = Math.max(0, filteredContacts.length - LOAD_TRIGGER_OFFSET);
 
@@ -366,30 +423,132 @@ export const ContactList: React.FC<ContactListProps> = ({
           </div>
 
           {/* Search and Filters */}
-          <div className="flex gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <Input
-                placeholder="Search contacts..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
+          <div className="space-y-3">
+            <div className="flex gap-4">
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Input
+                  placeholder="Search contacts..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <Select
+                value={filterType}
+                onValueChange={(value: any) => setFilterType(value)}
+              >
+                <SelectTrigger className="w-48">
+                  <Filter className="w-4 h-4 mr-2" />
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Contacts</SelectItem>
+                  <SelectItem value="auto_created">Auto Created</SelectItem>
+                  <SelectItem value="linked_to_calls">Linked to Calls</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <Select
-              value={filterType}
-              onValueChange={(value: any) => setFilterType(value)}
-            >
-              <SelectTrigger className="w-48">
-                <Filter className="w-4 h-4 mr-2" />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Contacts</SelectItem>
-                <SelectItem value="auto_created">Auto Created</SelectItem>
-                <SelectItem value="linked_to_calls">Linked to Calls</SelectItem>
-              </SelectContent>
-            </Select>
+
+            {/* Additional Filters Row */}
+            <div className="flex gap-2 flex-wrap">
+              {/* Tags Filter */}
+              <Select
+                value={selectedTags.length > 0 ? 'custom' : 'all'}
+                onValueChange={(value) => {
+                  if (value === 'all') setSelectedTags([]);
+                }}
+              >
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="All Tags" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Tags</SelectItem>
+                  {allUniqueTags.map((tag) => (
+                    <div key={tag} className="px-2 py-1.5 hover:bg-gray-100 cursor-pointer flex items-center gap-2">
+                      <Checkbox
+                        checked={selectedTags.includes(tag)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedTags([...selectedTags, tag]);
+                          } else {
+                            setSelectedTags(selectedTags.filter(t => t !== tag));
+                          }
+                        }}
+                      />
+                      <span className="text-sm">#{tag}</span>
+                    </div>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Last Status Filter */}
+              <Select
+                value={selectedLastStatus}
+                onValueChange={setSelectedLastStatus}
+              >
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="All Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  {allUniqueStatuses.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {status}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Source Filter */}
+              <Select
+                value={selectedSource}
+                onValueChange={setSelectedSource}
+              >
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="All Sources" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Sources</SelectItem>
+                  <SelectItem value="webhook">Inbound Call</SelectItem>
+                  <SelectItem value="manual">Manual Entry</SelectItem>
+                  <SelectItem value="bulk_upload">Excel Upload</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Original Status Filter */}
+              <Select
+                value={selectedOriginalStatus}
+                onValueChange={setSelectedOriginalStatus}
+              >
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Original Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Original Status</SelectItem>
+                  <SelectItem value="outbound">Outbound</SelectItem>
+                  <SelectItem value="inbound">Inbound</SelectItem>
+                  <SelectItem value="callback_received">Callback Received</SelectItem>
+                  <SelectItem value="not_contacted">Not Contacted</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Clear Filters Button */}
+              {(selectedTags.length > 0 || selectedLastStatus !== 'all' || selectedSource !== 'all' || selectedOriginalStatus !== 'all') && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setSelectedTags([]);
+                    setSelectedLastStatus('all');
+                    setSelectedSource('all');
+                    setSelectedOriginalStatus('all');
+                  }}
+                >
+                  Clear Filters
+                </Button>
+              )}
+            </div>
           </div>
         </CardHeader>
 
@@ -438,7 +597,12 @@ export const ContactList: React.FC<ContactListProps> = ({
                   </th>
                   <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground" style={{ position: 'sticky', top: 0, backgroundColor: 'hsl(var(--background))' }}>Email</th>
                   <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground" style={{ position: 'sticky', top: 0, backgroundColor: 'hsl(var(--background))' }}>Company</th>
+                  <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground" style={{ position: 'sticky', top: 0, backgroundColor: 'hsl(var(--background))' }}>Source</th>
+                  <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground" style={{ position: 'sticky', top: 0, backgroundColor: 'hsl(var(--background))' }}>Tags</th>
+                  <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground" style={{ position: 'sticky', top: 0, backgroundColor: 'hsl(var(--background))' }}>Last Contact</th>
+                  <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground" style={{ position: 'sticky', top: 0, backgroundColor: 'hsl(var(--background))' }}>Call Attempted</th>
                   <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground" style={{ position: 'sticky', top: 0, backgroundColor: 'hsl(var(--background))' }}>Last Status</th>
+                  <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground" style={{ position: 'sticky', top: 0, backgroundColor: 'hsl(var(--background))' }}>Original Status</th>
                   <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground" style={{ position: 'sticky', top: 0, backgroundColor: 'hsl(var(--background))' }}>
                     Created
                   </th>
@@ -474,6 +638,45 @@ export const ContactList: React.FC<ContactListProps> = ({
                         <td className="p-4 align-middle">{contact.email || '-'}</td>
                         <td className="p-4 align-middle">{contact.company || '-'}</td>
                         <td className="p-4 align-middle">
+                          <span className="text-sm">{getSourceLabel(contact.autoCreationSource)}</span>
+                        </td>
+                        <td className="p-4 align-middle">
+                          {contact.tags && contact.tags.length > 0 ? (
+                            <div className="flex flex-wrap gap-1" title={contact.tags.map(t => `#${t}`).join(', ')}>
+                              {contact.tags.slice(0, 2).map((tag, idx) => (
+                                <Badge key={idx} variant="secondary" className="text-xs bg-blue-50 text-blue-700">
+                                  #{tag}
+                                </Badge>
+                              ))}
+                              {contact.tags.length > 2 && (
+                                <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-600">
+                                  +{contact.tags.length - 2} more
+                                </Badge>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-gray-400">-</span>
+                          )}
+                        </td>
+                        <td className="p-4 align-middle">
+                          {contact.lastContactAt ? (
+                            <span className="text-sm">
+                              {new Date(contact.lastContactAt).toLocaleDateString()}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400">-</span>
+                          )}
+                        </td>
+                        <td className="p-4 align-middle">
+                          {(contact.callAttemptedBusy || 0) > 0 || (contact.callAttemptedNoAnswer || 0) > 0 ? (
+                            <span className="text-sm">
+                              Busy: {contact.callAttemptedBusy || 0}, No Answer: {contact.callAttemptedNoAnswer || 0}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400">-</span>
+                          )}
+                        </td>
+                        <td className="p-4 align-middle">
                           {contact.lastCallStatus ? (
                             <Badge 
                               variant="outline" 
@@ -490,6 +693,15 @@ export const ContactList: React.FC<ContactListProps> = ({
                             >
                               {contact.lastCallStatus}
                             </Badge>
+                          ) : (
+                            <Badge variant="outline" className="bg-slate-50 text-slate-400 border-slate-200">
+                              Not contacted
+                            </Badge>
+                          )}
+                        </td>
+                        <td className="p-4 align-middle">
+                          {contact.originalStatus ? (
+                            <span className="text-sm capitalize">{contact.originalStatus}</span>
                           ) : (
                             <span className="text-gray-400">-</span>
                           )}
@@ -535,7 +747,7 @@ export const ContactList: React.FC<ContactListProps> = ({
                       {/* Trigger element for loading more */}
                       {isTriggerPosition && enableInfiniteScroll && (
                         <tr>
-                          <td colSpan={8}>
+                          <td colSpan={13}>
                             <div ref={triggerElementRef} className="h-1" />
                           </td>
                         </tr>

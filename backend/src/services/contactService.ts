@@ -20,7 +20,7 @@ export class ContactService {
     } = {}
   ): Promise<{ contacts: ContactInterface[]; total: number }> {
     try {
-      const { search, limit = 50, offset = 0, sortBy = 'name', sortOrder = 'asc' } = options;
+      const { search, limit = 50, offset = 0, sortBy = 'created_at', sortOrder = 'desc' } = options;
 
       let contacts: ContactInterface[];
       let total: number;
@@ -35,7 +35,16 @@ export class ContactService {
               WHEN EXISTS(SELECT 1 FROM calls WHERE contact_id = c.id) THEN 'manually_linked'
               ELSE 'not_linked'
             END as call_link_type,
-            last_call.call_lifecycle_status as last_call_status
+            COALESCE(last_call.call_lifecycle_status, 'Not contacted') as last_call_status,
+            CASE 
+              WHEN (SELECT COUNT(*) FROM calls WHERE contact_id = c.id) = 0 THEN 'Not Contacted'
+              WHEN (SELECT lead_type FROM calls WHERE contact_id = c.id ORDER BY created_at DESC LIMIT 1) = 'inbound'
+                AND (c.call_attempted_busy > 0 OR c.call_attempted_no_answer > 0)
+                THEN 'Callback Received'
+              WHEN (SELECT lead_type FROM calls WHERE contact_id = c.id ORDER BY created_at DESC LIMIT 1) = 'inbound'
+                THEN 'Inbound'
+              ELSE 'Outbound'
+            END as original_status
           FROM contacts c
           LEFT JOIN calls ON c.auto_created_from_call_id = calls.id
           LEFT JOIN LATERAL (
@@ -47,7 +56,7 @@ export class ContactService {
           ) last_call ON true
           WHERE c.user_id = $1 
           AND (c.name ILIKE $2 OR c.phone_number LIKE $3 OR c.email ILIKE $2 OR c.company ILIKE $2)
-          ORDER BY c.name
+          ORDER BY c.created_at DESC
         `;
         const result = await ContactModel.query(query, [userId, `%${search}%`, `%${search}%`]);
         contacts = result.rows;
@@ -74,7 +83,16 @@ export class ContactService {
               WHEN EXISTS(SELECT 1 FROM calls WHERE contact_id = c.id) THEN 'manually_linked'
               ELSE 'not_linked'
             END as call_link_type,
-            last_call.call_lifecycle_status as last_call_status
+            COALESCE(last_call.call_lifecycle_status, 'Not contacted') as last_call_status,
+            CASE 
+              WHEN (SELECT COUNT(*) FROM calls WHERE contact_id = c.id) = 0 THEN 'Not Contacted'
+              WHEN (SELECT lead_type FROM calls WHERE contact_id = c.id ORDER BY created_at DESC LIMIT 1) = 'inbound'
+                AND (c.call_attempted_busy > 0 OR c.call_attempted_no_answer > 0)
+                THEN 'Callback Received'
+              WHEN (SELECT lead_type FROM calls WHERE contact_id = c.id ORDER BY created_at DESC LIMIT 1) = 'inbound'
+                THEN 'Inbound'
+              ELSE 'Outbound'
+            END as original_status
           FROM contacts c
           LEFT JOIN calls ON c.auto_created_from_call_id = calls.id
           LEFT JOIN LATERAL (
@@ -440,6 +458,15 @@ export class ContactService {
           // Auto-generate name if not provided
           const contactName = contact.name?.trim() || `Anonymous ${normalizedPhone}`;
 
+          // Parse tags if provided (comma-separated string to array)
+          let tagsArray: string[] = [];
+          if (contact.tags && typeof contact.tags === 'string') {
+            tagsArray = contact.tags
+              .split(',')
+              .map(tag => tag.trim())
+              .filter(tag => tag.length > 0);
+          }
+
           // Add to valid contacts for bulk insert
           validContacts.push({
             data: {
@@ -449,7 +476,11 @@ export class ContactService {
               email: contact.email?.trim() || undefined,
               company: contact.company?.trim() || undefined,
               notes: contact.notes?.trim() || undefined,
-              is_auto_created: false
+              is_auto_created: false,
+              auto_creation_source: 'bulk_upload' as const,
+              tags: tagsArray,
+              call_attempted_busy: 0,
+              call_attempted_no_answer: 0
             },
             rowNumber
           });
@@ -511,6 +542,7 @@ export class ContactService {
     email?: string;
     company?: string;
     notes?: string;
+    tags?: string;
   }> {
     try {
       // Validate buffer
@@ -582,6 +614,7 @@ export class ContactService {
       const emailIndex = this.findColumnIndex(headers, ['email', 'email_address']);
       const companyIndex = this.findColumnIndex(headers, ['company', 'organization', 'business']);
       const notesIndex = this.findColumnIndex(headers, ['notes', 'comments', 'description']);
+      const tagsIndex = this.findColumnIndex(headers, ['tags', 'tag', 'labels', 'categories']);
 
       // Process data rows
       const contacts = [];
@@ -628,13 +661,15 @@ export class ContactService {
           phone_number: cleanPhone,
           email: emailIndex !== -1 ? row[emailIndex]?.toString().trim() : undefined,
           company: companyIndex !== -1 ? row[companyIndex]?.toString().trim() : undefined,
-          notes: notesIndex !== -1 ? row[notesIndex]?.toString().trim() : undefined
+          notes: notesIndex !== -1 ? row[notesIndex]?.toString().trim() : undefined,
+          tags: tagsIndex !== -1 ? row[tagsIndex]?.toString().trim() : undefined
         };
 
         // Remove empty optional fields
         if (!contact.email) delete contact.email;
         if (!contact.company) delete contact.company;
         if (!contact.notes) delete contact.notes;
+        if (!contact.tags) delete contact.tags;
 
         contacts.push(contact);
       }
@@ -707,7 +742,8 @@ export class ContactService {
         { header: 'phone_number', key: 'phone_number', width: 20, style: { numFmt: '@' } }, // TEXT format
         { header: 'email', key: 'email', width: 25 },
         { header: 'company', key: 'company', width: 20 },
-        { header: 'notes', key: 'notes', width: 30 }
+        { header: 'notes', key: 'notes', width: 30 },
+        { header: 'tags', key: 'tags', width: 25 }
       ];
 
       // Format the phone_number column (column B) as TEXT to prevent Excel auto-conversion
@@ -719,7 +755,8 @@ export class ContactService {
         phone_number: '+919876543210',
         email: 'john@example.com',
         company: 'Example Corp',
-        notes: 'Sample contact'
+        notes: 'Sample contact',
+        tags: 'potential,hot-lead'
       });
 
       worksheet.addRow({
@@ -727,7 +764,8 @@ export class ContactService {
         phone_number: '+12025551234',
         email: 'jane@company.com',
         company: 'Tech Solutions',
-        notes: 'Important client'
+        notes: 'Important client',
+        tags: 'enterprise,qualified'
       });
       
       worksheet.addRow({
@@ -735,7 +773,8 @@ export class ContactService {
         phone_number: '+971501234567',
         email: 'ali@business.ae',
         company: 'Dubai Trading Co',
-        notes: 'Priority customer'
+        notes: 'Priority customer',
+        tags: 'vip,callback'
       });
 
       // Add empty row for separation
@@ -743,11 +782,12 @@ export class ContactService {
 
       // Add simple instruction rows without colors
       worksheet.addRow({
-        name: 'DELETE ROWS 2-11 BEFORE UPLOADING',
+        name: 'DELETE ROWS 2-12 BEFORE UPLOADING',
         phone_number: 'INSTRUCTIONS BELOW',
         email: '',
         company: '',
-        notes: ''
+        notes: '',
+        tags: ''
       });
 
       worksheet.addRow({
@@ -755,7 +795,8 @@ export class ContactService {
         phone_number: 'Example: +919876543210',
         email: '(with country code)',
         company: '',
-        notes: ''
+        notes: '',
+        tags: ''
       });
 
       worksheet.addRow({
@@ -763,23 +804,35 @@ export class ContactService {
         phone_number: 'Name auto-generated if empty',
         email: 'Email optional',
         company: 'Company optional',
-        notes: 'Notes optional'
+        notes: 'Notes optional',
+        tags: 'Tags optional'
       });
 
       worksheet.addRow({
-        name: '3. Delete sample data',
-        phone_number: 'Delete rows 2-11',
+        name: '3. Tags format',
+        phone_number: 'comma-separated, no spaces',
+        email: 'Example: hot,vip,callback',
+        company: '',
+        notes: '',
+        tags: 'potential,qualified'
+      });
+
+      worksheet.addRow({
+        name: '4. Delete sample data',
+        phone_number: 'Delete rows 2-12',
         email: 'Keep only header (row 1)',
         company: 'Add your contacts',
-        notes: ''
+        notes: '',
+        tags: ''
       });
 
       worksheet.addRow({
-        name: '4. Supported formats',
+        name: '5. Supported formats',
         phone_number: '+91 (India)',
         email: '+1 (USA)',
         company: '+971 (UAE)',
-        notes: '+44 (UK)'
+        notes: '+44 (UK)',
+        tags: ''
       });
 
       worksheet.addRow({
@@ -787,7 +840,8 @@ export class ContactService {
         phone_number: 'Keep only header + your data',
         email: '',
         company: '',
-        notes: ''
+        notes: '',
+        tags: ''
       });
 
       // Write workbook to buffer

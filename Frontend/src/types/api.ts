@@ -241,11 +241,16 @@ export interface Contact {
   notes?: string;
   autoCreatedFromCallId?: string;
   isAutoCreated: boolean;
-  autoCreationSource?: 'webhook' | 'manual';
+  autoCreationSource?: 'webhook' | 'manual' | 'bulk_upload';
   linkedCallId?: string;
   callLinkType?: 'auto_created' | 'manually_linked' | 'not_linked';
   callCreatedAt?: string;
   lastCallStatus?: string;
+  tags: string[];
+  lastContactAt?: string;
+  callAttemptedBusy: number;
+  callAttemptedNoAnswer: number;
+  originalStatus?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -256,6 +261,7 @@ export interface CreateContactRequest {
   email?: string;
   company?: string;
   notes?: string;
+  tags?: string[];
 }
 
 export interface UpdateContactRequest {
@@ -264,6 +270,7 @@ export interface UpdateContactRequest {
   email?: string;
   company?: string;
   notes?: string;
+  tags?: string[];
 }
 
 export interface ContactsListOptions {

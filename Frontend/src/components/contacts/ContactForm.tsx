@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { ValidatedInput, ValidatedTextarea } from '@/components/ui/ValidatedInput';
 import { PhoneNumberInput } from '@/components/ui/PhoneNumberInput';
+import { TagChipInput } from './TagChipInput';
 import {
   Dialog,
   DialogContent,
@@ -43,6 +44,7 @@ export const ContactForm: React.FC<ContactFormProps> = ({
     email: '',
     company: '',
     notes: '',
+    tags: [] as string[],
   });
   
   const [clientErrors, setClientErrors] = useState<Record<string, string>>({});
@@ -75,6 +77,7 @@ export const ContactForm: React.FC<ContactFormProps> = ({
           email: contact.email || '',
           company: contact.company || '',
           notes: contact.notes || '',
+          tags: contact.tags || [],
         });
       } else {
         // Creating new contact - set default country code to India (+91)
@@ -84,6 +87,7 @@ export const ContactForm: React.FC<ContactFormProps> = ({
           email: '',
           company: '',
           notes: '',
+          tags: [],
         });
       }
       setClientErrors({});
@@ -163,6 +167,7 @@ export const ContactForm: React.FC<ContactFormProps> = ({
           email: formData.email.trim() || undefined,
           company: formData.company.trim() || undefined,
           notes: formData.notes.trim() || undefined,
+          tags: formData.tags.length > 0 ? formData.tags : undefined,
         };
         
         result = await updateContact(contact.id, updateData);
@@ -174,6 +179,7 @@ export const ContactForm: React.FC<ContactFormProps> = ({
           email: formData.email.trim() || undefined,
           company: formData.company.trim() || undefined,
           notes: formData.notes.trim() || undefined,
+          tags: formData.tags.length > 0 ? formData.tags : undefined,
         };
         
         result = await createContact(createData);
@@ -203,6 +209,7 @@ export const ContactForm: React.FC<ContactFormProps> = ({
                   email: '',
                   company: '',
                   notes: '',
+                  tags: [],
                 });
                 setClientErrors({});
                 setServerErrors({});
@@ -265,14 +272,14 @@ export const ContactForm: React.FC<ContactFormProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>
             {isEditing ? 'Edit Contact' : 'Add New Contact'}
           </DialogTitle>
         </DialogHeader>
         
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 overflow-y-auto flex-1 px-1 invisible-scrollbar">
           <ValidatedInput
             label="Name"
             value={formData.name}
@@ -329,6 +336,20 @@ export const ContactForm: React.FC<ContactFormProps> = ({
             description="Company or organization name"
           />
 
+          <div className="space-y-2">
+            <label className="text-sm font-medium">
+              Tags
+            </label>
+            <TagChipInput
+              tags={formData.tags}
+              onChange={(tags) => setFormData(prev => ({ ...prev, tags }))}
+              placeholder="Add tags (press Enter or comma)..."
+            />
+            <p className="text-xs text-gray-500">
+              Add tags to categorize and filter contacts easily
+            </p>
+          </div>
+
           <ValidatedTextarea
             label="Notes"
             value={formData.notes}
@@ -344,7 +365,7 @@ export const ContactForm: React.FC<ContactFormProps> = ({
             description="Additional information about this contact"
           />
 
-          <DialogFooter className="gap-2">
+          <DialogFooter className="gap-2 flex-shrink-0 pt-4 sticky bottom-0 bg-background border-t mt-4">
             <Button
               type="button"
               variant="outline"

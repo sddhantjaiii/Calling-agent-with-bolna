@@ -831,6 +831,49 @@ class WebhookService {
                   contactResult.contactId
                 );
                 
+                // Update contact's last_contact_at and call attempt counters
+                const callLifecycleStatus = updatedCall.call_lifecycle_status;
+                
+                if (callLifecycleStatus === 'busy') {
+                  // Increment busy counter and update last contact time
+                  await database.query(`
+                    UPDATE contacts 
+                    SET call_attempted_busy = call_attempted_busy + 1,
+                        last_contact_at = $1
+                    WHERE id = $2
+                  `, [new Date(), contactResult.contactId]);
+                  
+                  logger.info('Updated contact - incremented busy counter', {
+                    contact_id: contactResult.contactId,
+                    call_lifecycle_status: callLifecycleStatus
+                  });
+                } else if (callLifecycleStatus === 'no-answer') {
+                  // Increment no-answer counter and update last contact time
+                  await database.query(`
+                    UPDATE contacts 
+                    SET call_attempted_no_answer = call_attempted_no_answer + 1,
+                        last_contact_at = $1
+                    WHERE id = $2
+                  `, [new Date(), contactResult.contactId]);
+                  
+                  logger.info('Updated contact - incremented no-answer counter', {
+                    contact_id: contactResult.contactId,
+                    call_lifecycle_status: callLifecycleStatus
+                  });
+                } else {
+                  // For other statuses (completed, failed, etc.), just update last contact time
+                  await database.query(`
+                    UPDATE contacts 
+                    SET last_contact_at = $1
+                    WHERE id = $2
+                  `, [new Date(), contactResult.contactId]);
+                  
+                  logger.info('Updated contact - last contact time', {
+                    contact_id: contactResult.contactId,
+                    call_lifecycle_status: callLifecycleStatus
+                  });
+                }
+                
                 logger.info('✅ Contact linked to call', {
                   execution_id: executionId,
                   phone_number: updatedCall.phone_number,

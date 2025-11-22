@@ -11,7 +11,11 @@ export interface ContactInterface extends BaseModelInterface {
   notes?: string;
   auto_created_from_call_id?: string;
   is_auto_created: boolean;
-  auto_creation_source?: 'webhook' | 'manual';
+  auto_creation_source?: 'webhook' | 'manual' | 'bulk_upload';
+  tags: string[];
+  last_contact_at?: Date;
+  call_attempted_busy: number;
+  call_attempted_no_answer: number;
   created_at: Date;
   updated_at: Date;
 }
@@ -25,7 +29,11 @@ export interface CreateContactData {
   notes?: string;
   auto_created_from_call_id?: string;
   is_auto_created?: boolean;
-  auto_creation_source?: 'webhook' | 'manual';
+  auto_creation_source?: 'webhook' | 'manual' | 'bulk_upload';
+  tags?: string[];
+  last_contact_at?: Date;
+  call_attempted_busy?: number;
+  call_attempted_no_answer?: number;
 }
 
 export interface UpdateContactData {
@@ -34,6 +42,11 @@ export interface UpdateContactData {
   email?: string;
   company?: string;
   notes?: string;
+  tags?: string[];
+  auto_creation_source?: 'webhook' | 'manual' | 'bulk_upload';
+  last_contact_at?: Date;
+  call_attempted_busy?: number;
+  call_attempted_no_answer?: number;
 }
 
 export class ContactModel extends BaseModel<ContactInterface> {
@@ -59,10 +72,13 @@ export class ContactModel extends BaseModel<ContactInterface> {
    * Create a new contact
    */
   async createContact(contactData: CreateContactData): Promise<ContactInterface> {
-    // Ensure is_auto_created has a default value
+    // Ensure required fields have default values
     const normalizedData = {
       ...contactData,
-      is_auto_created: contactData.is_auto_created ?? false
+      is_auto_created: contactData.is_auto_created ?? false,
+      tags: contactData.tags ?? [],
+      call_attempted_busy: contactData.call_attempted_busy ?? 0,
+      call_attempted_no_answer: contactData.call_attempted_no_answer ?? 0,
     };
     return await this.create(normalizedData);
   }
@@ -141,9 +157,9 @@ export class ContactModel extends BaseModel<ContactInterface> {
     const valuePlaceholders: string[] = [];
     
     contactsData.forEach((contact, index) => {
-      const baseIndex = index * 8;
+      const baseIndex = index * 12; // Updated from 8 to 12 for new fields
       valuePlaceholders.push(
-        `($${baseIndex + 1}, $${baseIndex + 2}, $${baseIndex + 3}, $${baseIndex + 4}, $${baseIndex + 5}, $${baseIndex + 6}, $${baseIndex + 7}, $${baseIndex + 8})`
+        `($${baseIndex + 1}, $${baseIndex + 2}, $${baseIndex + 3}, $${baseIndex + 4}, $${baseIndex + 5}, $${baseIndex + 6}, $${baseIndex + 7}, $${baseIndex + 8}, $${baseIndex + 9}, $${baseIndex + 10}, $${baseIndex + 11}, $${baseIndex + 12})`
       );
       values.push(
         contact.user_id,
@@ -153,13 +169,18 @@ export class ContactModel extends BaseModel<ContactInterface> {
         contact.company || null,
         contact.notes || null,
         contact.is_auto_created ?? false,
-        contact.auto_creation_source || null
+        contact.auto_creation_source || null,
+        contact.tags || [],
+        contact.last_contact_at || null,
+        contact.call_attempted_busy ?? 0,
+        contact.call_attempted_no_answer ?? 0
       );
     });
 
     const query = `
       INSERT INTO contacts (
-        user_id, name, phone_number, email, company, notes, is_auto_created, auto_creation_source
+        user_id, name, phone_number, email, company, notes, is_auto_created, auto_creation_source,
+        tags, last_contact_at, call_attempted_busy, call_attempted_no_answer
       ) VALUES ${valuePlaceholders.join(', ')}
       RETURNING id
     `;
