@@ -1176,6 +1176,44 @@ class WebhookService {
 
     logger.info('✅ Failed status updated', { execution_id: executionId, status });
 
+    // Update contact counters for busy/no-answer
+    if (call && call.contact_id) {
+      try {
+        if (status === 'busy') {
+          await database.query(
+            `UPDATE contacts 
+             SET call_attempted_busy = call_attempted_busy + 1,
+                 last_contact_at = NOW()
+             WHERE id = $1`,
+            [call.contact_id]
+          );
+          logger.info('Updated contact - incremented busy counter', {
+            contact_id: call.contact_id,
+            execution_id: executionId
+          });
+        } else if (status === 'no-answer') {
+          await database.query(
+            `UPDATE contacts 
+             SET call_attempted_no_answer = call_attempted_no_answer + 1,
+                 last_contact_at = NOW()
+             WHERE id = $1`,
+            [call.contact_id]
+          );
+          logger.info('Updated contact - incremented no-answer counter', {
+            contact_id: call.contact_id,
+            execution_id: executionId
+          });
+        }
+      } catch (error) {
+        logger.error('Failed to update contact counters', {
+          contact_id: call.contact_id,
+          status,
+          error: error instanceof Error ? error.message : String(error)
+        });
+        // Continue - this is not critical for webhook processing
+      }
+    }
+
     // Release concurrency slot for failed call
     if (call) {
       try {
