@@ -138,58 +138,8 @@ export class LeadAnalyticsModel extends BaseModel<LeadAnalyticsInterface> {
    * Used for aggregated historical analysis across all calls
    */
   async upsertCompleteAnalysis(analyticsData: CreateLeadAnalyticsData): Promise<LeadAnalyticsInterface> {
-    // First, check if a complete analysis already exists for this user+phone
-    const checkQuery = `
-      SELECT id FROM lead_analytics
-      WHERE user_id = $1 
-        AND phone_number = $2 
-        AND analysis_type = 'complete'
-      LIMIT 1
-    `;
-    
-    const existing = await this.query(checkQuery, [
-      analyticsData.user_id,
-      analyticsData.phone_number
-    ]);
-
-    const isUpdate = existing.rows.length > 0;
-    
-    // If exists, UPDATE; otherwise INSERT
-    const query = isUpdate ? `
-      UPDATE lead_analytics SET
-        call_id = $1,
-        previous_calls_analyzed = $2,
-        latest_call_id = $3,
-        intent_level = $4,
-        intent_score = $5,
-        urgency_level = $6,
-        urgency_score = $7,
-        budget_constraint = $8,
-        budget_score = $9,
-        fit_alignment = $10,
-        fit_score = $11,
-        engagement_health = $12,
-        engagement_score = $13,
-        total_score = $14,
-        lead_status_tag = $15,
-        reasoning = $16,
-        cta_interactions = $17,
-        company_name = $18,
-        extracted_name = $19,
-        extracted_email = $20,
-        cta_pricing_clicked = $21,
-        cta_demo_clicked = $22,
-        cta_followup_clicked = $23,
-        cta_sample_clicked = $24,
-        cta_escalated_to_human = $25,
-        smart_notification = $26,
-        demo_book_datetime = $27,
-        analysis_timestamp = CURRENT_TIMESTAMP
-      WHERE user_id = $28 
-        AND phone_number = $29 
-        AND analysis_type = 'complete'
-      RETURNING *
-    ` : `
+    // Use ON CONFLICT to handle upsert atomically
+    const query = `
       INSERT INTO lead_analytics (
         call_id, user_id, phone_number, analysis_type,
         previous_calls_analyzed, latest_call_id, analysis_timestamp,
@@ -220,44 +170,40 @@ export class LeadAnalyticsModel extends BaseModel<LeadAnalyticsInterface> {
         $27, $28,
         $29, $30
       )
+      ON CONFLICT (user_id, phone_number, analysis_type) WHERE (analysis_type = 'complete')
+      DO UPDATE SET
+        call_id = EXCLUDED.call_id,
+        previous_calls_analyzed = EXCLUDED.previous_calls_analyzed,
+        latest_call_id = EXCLUDED.latest_call_id,
+        intent_level = EXCLUDED.intent_level,
+        intent_score = EXCLUDED.intent_score,
+        urgency_level = EXCLUDED.urgency_level,
+        urgency_score = EXCLUDED.urgency_score,
+        budget_constraint = EXCLUDED.budget_constraint,
+        budget_score = EXCLUDED.budget_score,
+        fit_alignment = EXCLUDED.fit_alignment,
+        fit_score = EXCLUDED.fit_score,
+        engagement_health = EXCLUDED.engagement_health,
+        engagement_score = EXCLUDED.engagement_score,
+        total_score = EXCLUDED.total_score,
+        lead_status_tag = EXCLUDED.lead_status_tag,
+        reasoning = EXCLUDED.reasoning,
+        cta_interactions = EXCLUDED.cta_interactions,
+        company_name = EXCLUDED.company_name,
+        extracted_name = EXCLUDED.extracted_name,
+        extracted_email = EXCLUDED.extracted_email,
+        cta_pricing_clicked = EXCLUDED.cta_pricing_clicked,
+        cta_demo_clicked = EXCLUDED.cta_demo_clicked,
+        cta_followup_clicked = EXCLUDED.cta_followup_clicked,
+        cta_sample_clicked = EXCLUDED.cta_sample_clicked,
+        cta_escalated_to_human = EXCLUDED.cta_escalated_to_human,
+        smart_notification = EXCLUDED.smart_notification,
+        demo_book_datetime = EXCLUDED.demo_book_datetime,
+        analysis_timestamp = CURRENT_TIMESTAMP
       RETURNING *
     `;
 
-    // Build params based on whether we're updating or inserting
-    const params = isUpdate ? [
-      // UPDATE params (27 fields + 2 WHERE conditions)
-      analyticsData.call_id,
-      analyticsData.previous_calls_analyzed ?? null,
-      analyticsData.latest_call_id ?? null,
-      analyticsData.intent_level,
-      analyticsData.intent_score,
-      analyticsData.urgency_level,
-      analyticsData.urgency_score,
-      analyticsData.budget_constraint,
-      analyticsData.budget_score,
-      analyticsData.fit_alignment,
-      analyticsData.fit_score,
-      analyticsData.engagement_health,
-      analyticsData.engagement_score,
-      analyticsData.total_score,
-      analyticsData.lead_status_tag,
-      JSON.stringify(analyticsData.reasoning),
-      JSON.stringify(analyticsData.cta_interactions),
-      analyticsData.company_name ?? null,
-      analyticsData.extracted_name ?? null,
-      analyticsData.extracted_email ?? null,
-      analyticsData.cta_pricing_clicked ?? false,
-      analyticsData.cta_demo_clicked ?? false,
-      analyticsData.cta_followup_clicked ?? false,
-      analyticsData.cta_sample_clicked ?? false,
-      analyticsData.cta_escalated_to_human ?? false,
-      analyticsData.smart_notification ?? null,
-      analyticsData.demo_book_datetime ?? null,
-      // WHERE conditions
-      analyticsData.user_id,
-      analyticsData.phone_number,
-    ] : [
-      // INSERT params (30 fields, analysis_type is hardcoded in query)
+    const params = [
       analyticsData.call_id,
       analyticsData.user_id,
       analyticsData.phone_number,
