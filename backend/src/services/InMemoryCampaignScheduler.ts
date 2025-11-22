@@ -6,8 +6,9 @@ import { convertTimeWindowToTimezone } from '../utils/timezoneUtils';
 interface CampaignWindow {
   campaignId: string;
   userId: string;
-  firstCallTime: string; // HH:mm format
-  lastCallTime: string;   // HH:mm format
+  firstCallTime: string; // HH:mm:ss format in campaign's local timezone
+  lastCallTime: string;   // HH:mm:ss format in campaign's local timezone
+  timezone: string;       // The timezone this campaign operates in
   queuedCount: number;
   status: string;
 }
@@ -131,35 +132,17 @@ export class InMemoryCampaignScheduler {
           ? row.campaign_timezone 
           : (row.user_timezone || 'UTC');
 
-        // Convert time windows from effective timezone to UTC for internal scheduling
-        const firstCallTimeUTC = convertTimeWindowToTimezone(
-          row.first_call_time,
-          effectiveTimezone,
-          'UTC'
-        );
-
-        const lastCallTimeUTC = convertTimeWindowToTimezone(
-          row.last_call_time,
-          effectiveTimezone,
-          'UTC'
-        );
-
-        logger.debug('Campaign timezone conversion', {
-          campaignId: row.campaign_id,
-          effectiveTimezone,
-          originalFirst: row.first_call_time,
-          originalLast: row.last_call_time,
-          convertedFirst: firstCallTimeUTC,
-          convertedLast: lastCallTimeUTC
-        });
+        console.log(`[Scheduler] Campaign ${row.campaign_id.slice(0,8)}: ${effectiveTimezone} ${row.first_call_time}-${row.last_call_time} (${row.queued_count} queued)`);
         
-        // Always update/add campaigns with queued calls
+        // KEEP times in original timezone - don't convert to UTC
+        // We'll convert current time to campaign timezone when checking
         if (row.queued_count > 0) {
           this.campaignWindows.set(row.campaign_id, {
             campaignId: row.campaign_id,
             userId: row.user_id,
-            firstCallTime: firstCallTimeUTC,  // Now in UTC
-            lastCallTime: lastCallTimeUTC,    // Now in UTC
+            firstCallTime: row.first_call_time,  // Keep in campaign timezone
+            lastCallTime: row.last_call_time,    // Keep in campaign timezone
+            timezone: effectiveTimezone,         // Store the timezone
             queuedCount: row.queued_count,
             status: row.status
           });
@@ -199,16 +182,17 @@ export class InMemoryCampaignScheduler {
   /**
    * Calculate next database wake time based on campaign windows
    * All calculations in-memory, NO database queries
+   * 
+   * NEW LOGIC: Convert current time to each campaign's timezone
    */
   private scheduleNextWake(): void {
     const now = new Date();
-    const currentTimeString = this.getCurrentTimeString(now);
     let earliestWake: Date | null = null;
     let wakeReason: string = '';
+    const wakeSchedules: Array<{campaign: string, wakeTime: Date, reason: string}> = [];
 
     logger.info('⏰ Calculating next wake time', {
       currentTime: now.toISOString(),
-      currentTimeString,
       campaignCount: this.campaignWindows.size
     });
 
@@ -218,15 +202,31 @@ export class InMemoryCampaignScheduler {
       return;
     }
 
-    // Calculate next wake time for each campaign
+    // Calculate next wake time for each campaign in its own timezone
     for (const [id, window] of this.campaignWindows) {
-      const nextWake = this.calculateNextWakeTimeForCampaign(window, now, currentTimeString);
+      const nextWake = this.calculateNextWakeTimeForCampaign(window, now);
       
-      if (nextWake && (!earliestWake || nextWake < earliestWake)) {
-        earliestWake = nextWake;
-        wakeReason = `Campaign ${id} (${window.firstCallTime}-${window.lastCallTime})`;
+      if (nextWake) {
+        wakeSchedules.push({
+          campaign: id.slice(0, 8),
+          wakeTime: nextWake,
+          reason: `${window.timezone} ${window.firstCallTime}-${window.lastCallTime}`
+        });
+        
+        if (!earliestWake || nextWake < earliestWake) {
+          earliestWake = nextWake;
+          wakeReason = `Campaign ${id.slice(0,8)} (${window.timezone} ${window.firstCallTime}-${window.lastCallTime})`;
+        }
       }
     }
+
+    // Log all wake schedules for debugging
+    console.log('\n📋 Wake schedule for all campaigns:');
+    wakeSchedules.sort((a, b) => a.wakeTime.getTime() - b.wakeTime.getTime());
+    wakeSchedules.forEach(s => {
+      const delay = Math.round((s.wakeTime.getTime() - now.getTime()) / 60000);
+      console.log(`  ${s.campaign}: ${s.wakeTime.toLocaleString()} (${delay} min) - ${s.reason}`);
+    });
 
     if (earliestWake) {
       const delay = earliestWake.getTime() - now.getTime();
@@ -247,18 +247,15 @@ export class InMemoryCampaignScheduler {
 
       // Schedule wake at exact time
       this.wakeTimeout = setTimeout(() => {
-        // Call async function but don't await in setTimeout (can't await in setTimeout callback)
-        // Use void to explicitly ignore the promise
         void this.wakeAndProcessQueue().catch((error) => {
           logger.error('❌ Error in scheduled wake', { error });
-          // On error, try to reschedule
           this.loadCampaignSchedules()
             .then(() => this.scheduleNextWake())
             .catch(err => logger.error('Failed to recover from wake error', { error: err }));
         });
       }, delay);
 
-      console.log(`💤 Database sleeping until ${earliestWake.toLocaleTimeString()} (${delayMinutes} minutes)`);
+      console.log(`\n⏰ Next wake: ${earliestWake.toLocaleString()} (${delayMinutes} min) - ${wakeReason}\n`);
     } else {
       this.nextWakeTime = null;
       logger.info('💤 No wake time scheduled - all campaigns outside time windows');
@@ -267,28 +264,63 @@ export class InMemoryCampaignScheduler {
 
   /**
    * Calculate when to wake database for a specific campaign
+   * NEW: Works in campaign's timezone, not UTC
    */
   private calculateNextWakeTimeForCampaign(
     window: CampaignWindow,
-    now: Date,
-    currentTimeString: string
+    now: Date
   ): Date | null {
-    const { firstCallTime, lastCallTime } = window;
+    try {
+      // Get current time in campaign's timezone
+      const currentTimeInTZ = new Date(now.toLocaleString('en-US', { timeZone: window.timezone }));
+      const currentTimeString = currentTimeInTZ.toTimeString().slice(0, 8); // HH:MM:SS
+      
+      console.log(`[Scheduler] Campaign ${window.campaignId.slice(0,8)} (${window.timezone}): current=${currentTimeString}, window=${window.firstCallTime}-${window.lastCallTime}`);
 
-    // Check if currently within campaign window
-    if (currentTimeString >= firstCallTime && currentTimeString <= lastCallTime) {
-      // Wake NOW - campaign is active
-      return now;
+      // Check if currently within campaign window
+      if (currentTimeString >= window.firstCallTime && currentTimeString <= window.lastCallTime) {
+        console.log(`[Scheduler] ✅ Campaign ${window.campaignId.slice(0,8)} is ACTIVE NOW - wake immediately`);
+        return now; // Wake immediately
+      }
+
+      // Check if before campaign window today
+      if (currentTimeString < window.firstCallTime) {
+        console.log(`[Scheduler] Campaign ${window.campaignId.slice(0,8)} starts later today at ${window.firstCallTime}`);
+        // Calculate wake time: today at firstCallTime in campaign's timezone
+        return this.getTimeInTimezone(window.timezone, window.firstCallTime, now, false);
+      }
+
+      // After campaign window - wake at first_call_time tomorrow
+      console.log(`[Scheduler] Campaign ${window.campaignId.slice(0,8)} ended today, will start tomorrow at ${window.firstCallTime}`);
+      return this.getTimeInTimezone(window.timezone, window.firstCallTime, now, true);
+      
+    } catch (error) {
+      logger.error('Error calculating wake time for campaign', {
+        campaignId: window.campaignId,
+        timezone: window.timezone,
+        error
+      });
+      return null;
     }
+  }
 
-    // Check if before campaign window today
-    if (currentTimeString < firstCallTime) {
-      // Wake at first_call_time today
-      return this.getTimeToday(firstCallTime);
+  /**
+   * Get a specific time today or tomorrow in a given timezone
+   */
+  private getTimeInTimezone(timezone: string, timeString: string, referenceDate: Date, tomorrow: boolean): Date {
+    const [hours, minutes, seconds = '00'] = timeString.split(':').map(Number);
+    
+    // Create date in the target timezone
+    const dateInTZ = new Date(referenceDate.toLocaleString('en-US', { timeZone: timezone }));
+    if (tomorrow) {
+      dateInTZ.setDate(dateInTZ.getDate() + 1);
     }
-
-    // After campaign window - wake at first_call_time tomorrow
-    return this.getTimeTomorrow(firstCallTime);
+    dateInTZ.setHours(hours, minutes, parseInt(seconds.toString()), 0);
+    
+    // Convert back to UTC for scheduling
+    const utcTimestamp = Date.parse(dateInTZ.toLocaleString('en-US', { timeZone: 'UTC' }));
+    
+    return new Date(utcTimestamp);
   }
 
   /**
@@ -366,12 +398,20 @@ export class InMemoryCampaignScheduler {
         return;
       }
 
-      // Check if any campaigns are in active window NOW
+      // Check if any campaigns are in active window NOW (timezone-aware)
       const now = new Date();
-      const currentTimeString = this.getCurrentTimeString(now);
       let hasActiveCampaigns = false;
 
       for (const row of result.rows) {
+        // Get campaign's timezone
+        const campaignTZ = (row.use_custom_timezone && row.campaign_timezone) 
+          ? row.campaign_timezone 
+          : (row.user_timezone || 'UTC');
+        
+        // Get current time in campaign's timezone
+        const currentTimeInTZ = new Date(now.toLocaleString('en-US', { timeZone: campaignTZ }));
+        const currentTimeString = currentTimeInTZ.toTimeString().slice(0, 8);
+        
         if (currentTimeString >= row.first_call_time && currentTimeString <= row.last_call_time) {
           hasActiveCampaigns = true;
           break;
@@ -446,11 +486,14 @@ export class InMemoryCampaignScheduler {
       // Reload schedules from database
       await this.loadCampaignSchedules();
 
-      // Check if we should wake immediately
+      // Check if we should wake immediately (timezone-aware)
       const now = new Date();
-      const currentTimeString = this.getCurrentTimeString(now);
 
       for (const [id, window] of this.campaignWindows) {
+        // Get current time in campaign's timezone
+        const currentTimeInTZ = new Date(now.toLocaleString('en-US', { timeZone: window.timezone }));
+        const currentTimeString = currentTimeInTZ.toTimeString().slice(0, 8);
+        
         if (currentTimeString >= window.firstCallTime && currentTimeString <= window.lastCallTime) {
           // Campaign window is active NOW - check if already processing
           if (this.isProcessing) {

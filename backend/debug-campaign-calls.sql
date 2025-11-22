@@ -43,3 +43,51 @@ WHERE user_id = '789895c8-4bd6-43e9-bfea-a4171ec47197'
   AND status IN ('processing', 'calling')
 ORDER BY created_at DESC
 LIMIT 5;
+
+-- 6. Debug the exact function logic with all calculations
+SELECT 
+    q.id,
+    q.phone_number,
+    q.campaign_id,
+    c.name as campaign_name,
+    c.campaign_timezone,
+    c.use_custom_timezone,
+    u.timezone as user_timezone,
+    CASE 
+        WHEN c.use_custom_timezone = true AND c.campaign_timezone IS NOT NULL 
+            THEN c.campaign_timezone
+        WHEN u.timezone IS NOT NULL 
+            THEN u.timezone
+        ELSE 'UTC'
+    END as effective_timezone,
+    CASE 
+        WHEN c.use_custom_timezone = true AND c.campaign_timezone IS NOT NULL 
+            THEN (CURRENT_TIMESTAMP AT TIME ZONE c.campaign_timezone)::TIME
+        WHEN u.timezone IS NOT NULL 
+            THEN (CURRENT_TIMESTAMP AT TIME ZONE u.timezone)::TIME
+        ELSE CURRENT_TIME
+    END as current_time_in_effective_tz,
+    c.first_call_time,
+    c.last_call_time,
+    (CASE 
+        WHEN c.use_custom_timezone = true AND c.campaign_timezone IS NOT NULL 
+            THEN (CURRENT_TIMESTAMP AT TIME ZONE c.campaign_timezone)::TIME
+        WHEN u.timezone IS NOT NULL 
+            THEN (CURRENT_TIMESTAMP AT TIME ZONE u.timezone)::TIME
+        ELSE CURRENT_TIME
+    END) BETWEEN c.first_call_time AND c.last_call_time as is_within_time_window,
+    q.scheduled_for <= NOW() as is_scheduled,
+    c.status as campaign_status,
+    q.status as queue_status,
+    COALESCE(q.last_system_allocation_at, '1970-01-01'::timestamptz) as allocation_order
+FROM call_queue q
+INNER JOIN call_campaigns c ON q.campaign_id = c.id
+INNER JOIN users u ON q.user_id = u.id
+WHERE q.user_id = '789895c8-4bd6-43e9-bfea-a4171ec47197'
+    AND q.call_type = 'campaign'
+    AND q.status = 'queued'
+ORDER BY 
+    COALESCE(q.last_system_allocation_at, '1970-01-01'::timestamptz) ASC,
+    q.priority DESC,
+    q."position" ASC,
+    q.created_at ASC;
