@@ -89,7 +89,7 @@ export class PhoneNumberModel extends BaseModel<PhoneNumberInterface> {
         admin.email as created_by_admin_email
       FROM phone_numbers pn
       LEFT JOIN agents a ON pn.assigned_to_agent_id = a.id
-      LEFT JOIN users u ON a.user_id = u.id
+      LEFT JOIN users u ON pn.user_id = u.id
       LEFT JOIN users admin ON pn.created_by_admin_id = admin.id
       ORDER BY pn.created_at DESC
     `;
@@ -211,6 +211,25 @@ export class PhoneNumberModel extends BaseModel<PhoneNumberInterface> {
     }
 
     return await this.update(phoneNumberId, data);
+  }
+
+  /**
+   * Permanently delete a phone number from database
+   * Should only be used for inactive phone numbers
+   */
+  async permanentlyDeletePhoneNumber(phoneNumberId: string): Promise<void> {
+    await this.delete(phoneNumberId);
+  }
+
+  /**
+   * Reassign phone number to a different user
+   * This will unassign from any agent and assign to new user
+   */
+  async reassignToUser(phoneNumberId: string, userId: string): Promise<PhoneNumberInterface | null> {
+    return await this.update(phoneNumberId, {
+      user_id: userId,
+      assigned_to_agent_id: null // Unassign from agent when changing user
+    });
   }
 }
 

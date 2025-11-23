@@ -62,11 +62,25 @@ router.post(
   PhoneNumberController.activatePhoneNumber
 );
 
+// POST /api/admin/phone-numbers/:id/reassign-user - Reassign phone number to different user
+router.post(
+  '/:id/reassign-user',
+  logAdminAction('REASSIGN_PHONE_NUMBER_USER', 'phone_number'),
+  PhoneNumberController.reassignToUser
+);
+
 // DELETE /api/admin/phone-numbers/:id - Deactivate phone number (soft delete)
 router.delete(
   '/:id',
   logAdminAction('DELETE_PHONE_NUMBER', 'phone_number'),
   PhoneNumberController.deletePhoneNumber
+);
+
+// DELETE /api/admin/phone-numbers/:id/permanent - Permanently delete inactive phone number
+router.delete(
+  '/:id/permanent',
+  logAdminAction('PERMANENT_DELETE_PHONE_NUMBER', 'phone_number'),
+  PhoneNumberController.permanentlyDeletePhoneNumber
 );
 
 // GET /api/admin/agents/:agentId/phone-number - Get phone number assigned to agent

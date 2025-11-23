@@ -10,7 +10,9 @@ import {
   UserX,
   Power,
   Eye,
-  AlertCircle
+  AlertCircle,
+  Users,
+  RefreshCw
 } from 'lucide-react';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
@@ -64,6 +66,7 @@ const PhoneNumberManagement: React.FC<PhoneNumberManagementProps> = ({ className
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
+  const [isReassignUserDialogOpen, setIsReassignUserDialogOpen] = useState(false);
   const [selectedPhoneNumber, setSelectedPhoneNumber] = useState<PhoneNumber | null>(null);
   const [formData, setFormData] = useState<PhoneNumberFormData>({
     name: '',
@@ -107,7 +110,7 @@ const PhoneNumberManagement: React.FC<PhoneNumberManagementProps> = ({ className
   } = useQuery({
     queryKey: ['admin-users', userSearch],
     queryFn: () => adminApiService.getUsers({ search: userSearch || undefined, page: 1, limit: 100 }),
-    enabled: isCreateDialogOpen,
+    enabled: isCreateDialogOpen || isReassignUserDialogOpen,
     staleTime: 60000,
   });
 
@@ -183,6 +186,31 @@ const PhoneNumberManagement: React.FC<PhoneNumberManagementProps> = ({ className
     },
     onError: (error: any) => {
       toast.error(error.message || 'Failed to deactivate phone number');
+    },
+  });
+
+  const permanentDeleteMutation = useMutation({
+    mutationFn: (id: string) => adminApiService.permanentlyDeletePhoneNumber(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-phone-numbers'] });
+      toast.success('Phone number permanently deleted');
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to permanently delete phone number');
+    },
+  });
+
+  const reassignUserMutation = useMutation({
+    mutationFn: ({ id, userId }: { id: string; userId: string }) =>
+      adminApiService.reassignPhoneNumberToUser(id, userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-phone-numbers'] });
+      setIsReassignUserDialogOpen(false);
+      setSelectedPhoneNumber(null);
+      toast.success('Phone number reassigned to user successfully');
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to reassign phone number to user');
     },
   });
 
@@ -279,6 +307,26 @@ const PhoneNumberManagement: React.FC<PhoneNumberManagementProps> = ({ className
     if (confirm(`Deactivate phone number ${phoneNumber.phone_number}? This will prevent it from being used.`)) {
       deleteMutation.mutate(phoneNumber.id);
     }
+  };
+
+  const handlePermanentDelete = (phoneNumber: PhoneNumber) => {
+    if (confirm(`PERMANENTLY DELETE phone number ${phoneNumber.phone_number}? This action cannot be undone!`)) {
+      permanentDeleteMutation.mutate(phoneNumber.id);
+    }
+  };
+
+  const handleReassignUser = (phoneNumber: PhoneNumber) => {
+    setSelectedPhoneNumber(phoneNumber);
+    setFormData({
+      ...formData,
+      user_id: phoneNumber.user_id,
+    });
+    setIsReassignUserDialogOpen(true);
+  };
+
+  const confirmReassignUser = (userId: string) => {
+    if (!selectedPhoneNumber) return;
+    reassignUserMutation.mutate({ id: selectedPhoneNumber.id, userId });
   };
 
   // Extract data from API responses
@@ -528,6 +576,7 @@ const PhoneNumberManagement: React.FC<PhoneNumberManagementProps> = ({ className
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Phone Number</TableHead>
+                  <TableHead>Owner (User)</TableHead>
                   <TableHead>Assigned Agent</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Created</TableHead>
@@ -542,6 +591,14 @@ const PhoneNumberManagement: React.FC<PhoneNumberManagementProps> = ({ className
                       <div className="flex items-center gap-2">
                         <Phone className="h-4 w-4 text-muted-foreground" />
                         {phone.phone_number}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm">
+                          {(phone as any).user_name || (phone as any).user_email || 'Unknown User'}
+                        </span>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -571,9 +628,17 @@ const PhoneNumberManagement: React.FC<PhoneNumberManagementProps> = ({ className
                           variant="ghost"
                           size="sm"
                           onClick={() => handleEdit(phone)}
-                          title="Edit"
+                          title="Edit name and number"
                         >
                           <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleReassignUser(phone)}
+                          title="Reassign to different user"
+                        >
+                          <RefreshCw className="h-4 w-4" />
                         </Button>
                         {phone.assigned_to_agent_id ? (
                           <Button
@@ -594,25 +659,35 @@ const PhoneNumberManagement: React.FC<PhoneNumberManagementProps> = ({ className
                             <UserCheck className="h-4 w-4" />
                           </Button>
                         )}
-                        {!phone.is_active && (
+                        {!phone.is_active ? (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleActivate(phone)}
+                              title="Activate"
+                            >
+                              <Power className="h-4 w-4 text-green-600" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handlePermanentDelete(phone)}
+                              title="Permanently delete (cannot be undone)"
+                            >
+                              <Trash2 className="h-4 w-4 text-red-600" />
+                            </Button>
+                          </>
+                        ) : (
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleActivate(phone)}
-                            title="Activate"
+                            onClick={() => handleDelete(phone)}
+                            title="Deactivate"
                           >
-                            <Power className="h-4 w-4 text-green-600" />
+                            <Trash2 className="h-4 w-4 text-orange-600" />
                           </Button>
                         )}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDelete(phone)}
-                          title="Deactivate"
-                          disabled={!phone.is_active}
-                        >
-                          <Trash2 className="h-4 w-4 text-red-600" />
-                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -699,6 +774,71 @@ const PhoneNumberManagement: React.FC<PhoneNumberManagementProps> = ({ className
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsAssignDialogOpen(false)}>
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reassign User Dialog */}
+      <Dialog open={isReassignUserDialogOpen} onOpenChange={setIsReassignUserDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reassign to Different User</DialogTitle>
+            <DialogDescription>
+              Transfer ownership of this phone number to a different user. This will unassign it from any agent.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Phone Number</Label>
+              <div className="p-2 bg-muted rounded">
+                {selectedPhoneNumber?.phone_number}
+              </div>
+            </div>
+            <div>
+              <Label>Current User</Label>
+              <div className="p-2 bg-muted rounded text-sm">
+                {(selectedPhoneNumber as any)?.user_name || (selectedPhoneNumber as any)?.user_email || 'Unknown'}
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="reassign-user">Select New User *</Label>
+              <div className="space-y-2">
+                <Input
+                  placeholder="Search users by name or email..."
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  className="mb-2"
+                />
+                <Select
+                  onValueChange={(value) => confirmReassignUser(value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select new user..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {isLoadingUsers ? (
+                      <SelectItem value="loading" disabled>Loading users...</SelectItem>
+                    ) : (usersResponse?.data?.users || []).length > 0 ? (
+                      (usersResponse?.data?.users || []).map((user: any) => (
+                        <SelectItem key={user.id} value={user.id}>
+                          {user.name || user.email}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="no-users" disabled>No users found</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setIsReassignUserDialogOpen(false);
+              setSelectedPhoneNumber(null);
+            }}>
               Cancel
             </Button>
           </DialogFooter>

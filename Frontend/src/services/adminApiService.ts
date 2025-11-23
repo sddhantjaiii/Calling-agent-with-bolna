@@ -123,8 +123,10 @@ const ADMIN_ENDPOINTS = {
     GET: (id: string) => `${ADMIN_API_BASE}/phone-numbers/${id}`,
     UPDATE: (id: string) => `${ADMIN_API_BASE}/phone-numbers/${id}`,
     DELETE: (id: string) => `${ADMIN_API_BASE}/phone-numbers/${id}`,
+    PERMANENT_DELETE: (id: string) => `${ADMIN_API_BASE}/phone-numbers/${id}/permanent`,
     ASSIGN: (id: string) => `${ADMIN_API_BASE}/phone-numbers/${id}/assign`,
     UNASSIGN: (id: string) => `${ADMIN_API_BASE}/phone-numbers/${id}/unassign`,
+    REASSIGN_USER: (id: string) => `${ADMIN_API_BASE}/phone-numbers/${id}/reassign-user`,
     ACTIVATE: (id: string) => `${ADMIN_API_BASE}/phone-numbers/${id}/activate`,
     GET_AGENT_PHONE: (agentId: string) => `${ADMIN_API_BASE}/phone-numbers/agents/${agentId}/phone-number`,
   },
@@ -933,6 +935,20 @@ class AdminApiService {
   async deletePhoneNumber(id: string): Promise<ApiResponse<PhoneNumber>> {
     return adminRequest<PhoneNumber>(ADMIN_ENDPOINTS.PHONE_NUMBERS.DELETE(id), {
       method: 'DELETE',
+    });
+  }
+
+  async permanentlyDeletePhoneNumber(id: string): Promise<ApiResponse<void>> {
+    return adminRequest<void>(ADMIN_ENDPOINTS.PHONE_NUMBERS.PERMANENT_DELETE(id), {
+      method: 'DELETE',
+    });
+  }
+
+  async reassignPhoneNumberToUser(id: string, user_id: string): Promise<ApiResponse<PhoneNumber>> {
+    return adminRequest<PhoneNumber>(ADMIN_ENDPOINTS.PHONE_NUMBERS.REASSIGN_USER(id), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id }),
     });
   }
 

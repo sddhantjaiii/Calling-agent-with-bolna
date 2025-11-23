@@ -2434,8 +2434,8 @@ export class AdminController {
 
       let userFilter = userId ? `AND c.user_id = $1` : '';
       const params: any[] = userId ? [userId] : [];
-      const offsetParam = params.length + 1;
-      const limitParam = params.length + 2;
+      const limitParam = params.length + 1;
+      const offsetParam = params.length + 2;
 
       // Grouped leads query matching user dashboard structure
       const query = `
@@ -2512,13 +2512,16 @@ export class AdminController {
       params.push(parseInt(limit as string), offset);
 
       const countQuery = `
-        SELECT COUNT(DISTINCT c.phone_number, c.user_id) as total
-        FROM calls c
-        LEFT JOIN contacts co ON c.contact_id = co.id
-        WHERE c.phone_number IS NOT NULL 
-          AND c.phone_number != ''
-          AND (co.is_customer IS NULL OR co.is_customer = false)
-          ${userFilter}
+        SELECT COUNT(*) as total
+        FROM (
+          SELECT DISTINCT c.phone_number, c.user_id
+          FROM calls c
+          LEFT JOIN contacts co ON c.contact_id = co.id
+          WHERE c.phone_number IS NOT NULL 
+            AND c.phone_number != ''
+            AND (co.is_customer IS NULL OR co.is_customer = false)
+            ${userFilter}
+        ) as distinct_leads
       `;
 
       const countParams = userId ? [userId] : [];
@@ -2539,7 +2542,14 @@ export class AdminController {
         timestamp: new Date()
       });
     } catch (error: any) {
-      logger.error('Get client panel lead intelligence error:', error);
+      logger.error('Get client panel lead intelligence error:', {
+        error: error.message,
+        stack: error.stack,
+        query: error.query,
+        userId: req.query.userId,
+        page: req.query.page,
+        limit: req.query.limit
+      });
       res.status(500).json({
         error: {
           code: 'CLIENT_PANEL_LEAD_INTELLIGENCE_ERROR',
