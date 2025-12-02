@@ -1389,6 +1389,14 @@ class WebhookService {
             const newRetryCount = currentRetryCount + 1;
             
             try {
+              // CRITICAL: Mark original queue item as completed FIRST to avoid unique constraint violation
+              // The unique index (campaign_id, contact_id) only allows one entry where status IN ('queued', 'processing')
+              await CallQueue.markAsCompleted(queueItem.id, queueItem.user_id, callId);
+              logger.info('📋 Original queue item marked as completed before retry', {
+                queue_item_id: queueItem.id,
+                call_id: callId
+              });
+              
               const retryItem = await CallQueueModel.createRetryItem({
                 user_id: queueItem.user_id,
                 campaign_id: queueItem.campaign_id,
@@ -1417,9 +1425,6 @@ class WebhookService {
                 call_outcome: callOutcome,
                 scheduled_for: retryItem.scheduled_for
               });
-              
-              // Mark original queue item as completed (not failed) since we're retrying
-              await CallQueue.markAsCompleted(queueItem.id, queueItem.user_id, callId);
               
               return; // Don't mark as failed since retry is scheduled
             } catch (retryError) {

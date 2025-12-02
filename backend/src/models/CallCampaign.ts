@@ -103,7 +103,7 @@ export class CallCampaignModel {
         data.campaign_timezone || null,
         data.use_custom_timezone || false,
         data.max_retries || 0,
-        data.retry_interval_minutes || 60
+        data.retry_interval_minutes || 1 // Default 1 min for testing
       ]
     );
     return result.rows[0];

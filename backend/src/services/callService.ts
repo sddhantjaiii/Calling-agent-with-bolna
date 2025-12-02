@@ -813,8 +813,16 @@ export class CallService {
       try {
         bolnaResponse = await bolnaService.makeCall(bolnaCallData);
       } catch (bolnaError) {
-        // Bolna API failed - mark call record as failed
+        // Bolna API failed - mark call record as failed and release concurrency slot
         logger.error(`Bolna API call failed for call ${callRecord.id}:`, bolnaError);
+        
+        // CRITICAL: Release the pre-reserved concurrency slot
+        await concurrencyManager.releaseCallSlot(preReservedCallId);
+        logger.info(`Released concurrency slot for failed Bolna API call`, {
+          call_id: preReservedCallId,
+          user_id: callRequest.userId
+        });
+        
         await Call.updateCall(callRecord.id, {
           status: 'failed',
           metadata: {
