@@ -486,6 +486,9 @@ export class ContactService {
               email: contact.email?.trim() || undefined,
               company: contact.company?.trim() || undefined,
               notes: contact.notes?.trim() || undefined,
+              city: contact.city?.trim() || undefined,
+              country: contact.country?.trim() || undefined,
+              business_context: contact.business_context?.trim() || undefined,
               is_auto_created: false,
               auto_creation_source: 'bulk_upload' as const,
               tags: tagsArray,
@@ -553,6 +556,9 @@ export class ContactService {
     company?: string;
     notes?: string;
     tags?: string;
+    city?: string;
+    country?: string;
+    business_context?: string;
   }> {
     try {
       // Validate buffer
@@ -625,6 +631,9 @@ export class ContactService {
       const companyIndex = this.findColumnIndex(headers, ['company', 'organization', 'business']);
       const notesIndex = this.findColumnIndex(headers, ['notes', 'comments', 'description']);
       const tagsIndex = this.findColumnIndex(headers, ['tags', 'tag', 'labels', 'categories']);
+      const cityIndex = this.findColumnIndex(headers, ['city', 'town', 'location_city']);
+      const countryIndex = this.findColumnIndex(headers, ['country', 'nation', 'location_country']);
+      const businessContextIndex = this.findColumnIndex(headers, ['business_context', 'businesscontext', 'industry', 'sector', 'business_description']);
 
       // Process data rows
       const contacts = [];
@@ -672,7 +681,10 @@ export class ContactService {
           email: emailIndex !== -1 ? row[emailIndex]?.toString().trim() : undefined,
           company: companyIndex !== -1 ? row[companyIndex]?.toString().trim() : undefined,
           notes: notesIndex !== -1 ? row[notesIndex]?.toString().trim() : undefined,
-          tags: tagsIndex !== -1 ? row[tagsIndex]?.toString().trim() : undefined
+          tags: tagsIndex !== -1 ? row[tagsIndex]?.toString().trim() : undefined,
+          city: cityIndex !== -1 ? row[cityIndex]?.toString().trim() : undefined,
+          country: countryIndex !== -1 ? row[countryIndex]?.toString().trim() : undefined,
+          business_context: businessContextIndex !== -1 ? row[businessContextIndex]?.toString().trim() : undefined
         };
 
         // Remove empty optional fields
@@ -680,6 +692,9 @@ export class ContactService {
         if (!contact.company) delete contact.company;
         if (!contact.notes) delete contact.notes;
         if (!contact.tags) delete contact.tags;
+        if (!contact.city) delete contact.city;
+        if (!contact.country) delete contact.country;
+        if (!contact.business_context) delete contact.business_context;
 
         contacts.push(contact);
       }
@@ -752,6 +767,9 @@ export class ContactService {
         { header: 'phone_number', key: 'phone_number', width: 20, style: { numFmt: '@' } }, // TEXT format
         { header: 'email', key: 'email', width: 25 },
         { header: 'company', key: 'company', width: 20 },
+        { header: 'city', key: 'city', width: 15 },
+        { header: 'country', key: 'country', width: 15 },
+        { header: 'business_context', key: 'business_context', width: 30 },
         { header: 'notes', key: 'notes', width: 30 },
         { header: 'tags', key: 'tags', width: 25 }
       ];
@@ -765,6 +783,9 @@ export class ContactService {
         phone_number: '+919876543210',
         email: 'john@example.com',
         company: 'Example Corp',
+        city: 'Mumbai',
+        country: 'India',
+        business_context: 'Technology / SaaS',
         notes: 'Sample contact',
         tags: 'potential,hot-lead'
       });
@@ -774,6 +795,9 @@ export class ContactService {
         phone_number: '+12025551234',
         email: 'jane@company.com',
         company: 'Tech Solutions',
+        city: 'New York',
+        country: 'USA',
+        business_context: 'Finance / Banking',
         notes: 'Important client',
         tags: 'enterprise,qualified'
       });
@@ -783,6 +807,9 @@ export class ContactService {
         phone_number: '+971501234567',
         email: 'ali@business.ae',
         company: 'Dubai Trading Co',
+        city: 'Dubai',
+        country: 'UAE',
+        business_context: 'Trading / Import-Export',
         notes: 'Priority customer',
         tags: 'vip,callback'
       });
@@ -792,10 +819,13 @@ export class ContactService {
 
       // Add simple instruction rows without colors
       worksheet.addRow({
-        name: 'DELETE ROWS 2-12 BEFORE UPLOADING',
+        name: 'DELETE ROWS 2-15 BEFORE UPLOADING',
         phone_number: 'INSTRUCTIONS BELOW',
         email: '',
         company: '',
+        city: '',
+        country: '',
+        business_context: '',
         notes: '',
         tags: ''
       });
@@ -805,6 +835,9 @@ export class ContactService {
         phone_number: 'Example: +919876543210',
         email: '(with country code)',
         company: '',
+        city: '',
+        country: '',
+        business_context: '',
         notes: '',
         tags: ''
       });
@@ -814,6 +847,9 @@ export class ContactService {
         phone_number: 'Name auto-generated if empty',
         email: 'Email optional',
         company: 'Company optional',
+        city: 'City optional',
+        country: 'Country optional',
+        business_context: 'Business Context optional',
         notes: 'Notes optional',
         tags: 'Tags optional'
       });
@@ -823,15 +859,21 @@ export class ContactService {
         phone_number: 'comma-separated, no spaces',
         email: 'Example: hot,vip,callback',
         company: '',
+        city: '',
+        country: '',
+        business_context: '',
         notes: '',
         tags: 'potential,qualified'
       });
 
       worksheet.addRow({
         name: '4. Delete sample data',
-        phone_number: 'Delete rows 2-12',
+        phone_number: 'Delete rows 2-15',
         email: 'Keep only header (row 1)',
         company: 'Add your contacts',
+        city: '',
+        country: '',
+        business_context: '',
         notes: '',
         tags: ''
       });
@@ -841,6 +883,9 @@ export class ContactService {
         phone_number: '+91 (India)',
         email: '+1 (USA)',
         company: '+971 (UAE)',
+        city: '',
+        country: '',
+        business_context: '',
         notes: '+44 (UK)',
         tags: ''
       });
@@ -850,6 +895,9 @@ export class ContactService {
         phone_number: 'Keep only header + your data',
         email: '',
         company: '',
+        city: '',
+        country: '',
+        business_context: '',
         notes: '',
         tags: ''
       });

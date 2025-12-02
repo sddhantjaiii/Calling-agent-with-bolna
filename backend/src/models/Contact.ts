@@ -9,6 +9,9 @@ export interface ContactInterface extends BaseModelInterface {
   email?: string;
   company?: string;
   notes?: string;
+  city?: string;
+  country?: string;
+  business_context?: string;
   auto_created_from_call_id?: string;
   is_auto_created: boolean;
   auto_creation_source?: 'webhook' | 'manual' | 'bulk_upload';
@@ -27,6 +30,9 @@ export interface CreateContactData {
   email?: string;
   company?: string;
   notes?: string;
+  city?: string;
+  country?: string;
+  business_context?: string;
   auto_created_from_call_id?: string;
   is_auto_created?: boolean;
   auto_creation_source?: 'webhook' | 'manual' | 'bulk_upload';
@@ -42,6 +48,9 @@ export interface UpdateContactData {
   email?: string;
   company?: string;
   notes?: string;
+  city?: string;
+  country?: string;
+  business_context?: string;
   tags?: string[];
   auto_creation_source?: 'webhook' | 'manual' | 'bulk_upload';
   last_contact_at?: Date;
@@ -157,9 +166,9 @@ export class ContactModel extends BaseModel<ContactInterface> {
     const valuePlaceholders: string[] = [];
     
     contactsData.forEach((contact, index) => {
-      const baseIndex = index * 12; // Updated from 8 to 12 for new fields
+      const baseIndex = index * 15; // Updated to 15 for city, country, business_context fields
       valuePlaceholders.push(
-        `($${baseIndex + 1}, $${baseIndex + 2}, $${baseIndex + 3}, $${baseIndex + 4}, $${baseIndex + 5}, $${baseIndex + 6}, $${baseIndex + 7}, $${baseIndex + 8}, $${baseIndex + 9}, $${baseIndex + 10}, $${baseIndex + 11}, $${baseIndex + 12})`
+        `($${baseIndex + 1}, $${baseIndex + 2}, $${baseIndex + 3}, $${baseIndex + 4}, $${baseIndex + 5}, $${baseIndex + 6}, $${baseIndex + 7}, $${baseIndex + 8}, $${baseIndex + 9}, $${baseIndex + 10}, $${baseIndex + 11}, $${baseIndex + 12}, $${baseIndex + 13}, $${baseIndex + 14}, $${baseIndex + 15})`
       );
       values.push(
         contact.user_id,
@@ -168,6 +177,9 @@ export class ContactModel extends BaseModel<ContactInterface> {
         contact.email || null,
         contact.company || null,
         contact.notes || null,
+        contact.city || null,
+        contact.country || null,
+        contact.business_context || null,
         contact.is_auto_created ?? false,
         contact.auto_creation_source || null,
         contact.tags || [],
@@ -179,8 +191,8 @@ export class ContactModel extends BaseModel<ContactInterface> {
 
     const query = `
       INSERT INTO contacts (
-        user_id, name, phone_number, email, company, notes, is_auto_created, auto_creation_source,
-        tags, last_contact_at, call_attempted_busy, call_attempted_no_answer
+        user_id, name, phone_number, email, company, notes, city, country, business_context,
+        is_auto_created, auto_creation_source, tags, last_contact_at, call_attempted_busy, call_attempted_no_answer
       ) VALUES ${valuePlaceholders.join(', ')}
       RETURNING id
     `;

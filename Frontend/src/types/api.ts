@@ -239,6 +239,9 @@ export interface Contact {
   email?: string;
   company?: string;
   notes?: string;
+  city?: string;
+  country?: string;
+  businessContext?: string;
   autoCreatedFromCallId?: string;
   isAutoCreated: boolean;
   autoCreationSource?: 'webhook' | 'manual' | 'bulk_upload';
@@ -261,6 +264,9 @@ export interface CreateContactRequest {
   email?: string;
   company?: string;
   notes?: string;
+  city?: string;
+  country?: string;
+  businessContext?: string;
   tags?: string[];
 }
 
@@ -270,6 +276,9 @@ export interface UpdateContactRequest {
   email?: string;
   company?: string;
   notes?: string;
+  city?: string;
+  country?: string;
+  businessContext?: string;
   tags?: string[];
 }
 

@@ -43,6 +43,9 @@ export const ContactForm: React.FC<ContactFormProps> = ({
     phoneNumber: '',
     email: '',
     company: '',
+    city: '',
+    country: '',
+    businessContext: '',
     notes: '',
     tags: [] as string[],
   });
@@ -76,6 +79,9 @@ export const ContactForm: React.FC<ContactFormProps> = ({
           phoneNumber: contact.phoneNumber,
           email: contact.email || '',
           company: contact.company || '',
+          city: contact.city || '',
+          country: contact.country || '',
+          businessContext: contact.businessContext || '',
           notes: contact.notes || '',
           tags: contact.tags || [],
         });
@@ -86,6 +92,9 @@ export const ContactForm: React.FC<ContactFormProps> = ({
           phoneNumber: '+91 ',
           email: '',
           company: '',
+          city: '',
+          country: '',
+          businessContext: '',
           notes: '',
           tags: [],
         });
@@ -166,6 +175,9 @@ export const ContactForm: React.FC<ContactFormProps> = ({
           phoneNumber: formData.phoneNumber.trim(),
           email: formData.email.trim() || undefined,
           company: formData.company.trim() || undefined,
+          city: formData.city.trim() || undefined,
+          country: formData.country.trim() || undefined,
+          businessContext: formData.businessContext.trim() || undefined,
           notes: formData.notes.trim() || undefined,
           tags: formData.tags.length > 0 ? formData.tags : undefined,
         };
@@ -178,6 +190,9 @@ export const ContactForm: React.FC<ContactFormProps> = ({
           phoneNumber: formData.phoneNumber.trim(),
           email: formData.email.trim() || undefined,
           company: formData.company.trim() || undefined,
+          city: formData.city.trim() || undefined,
+          country: formData.country.trim() || undefined,
+          businessContext: formData.businessContext.trim() || undefined,
           notes: formData.notes.trim() || undefined,
           tags: formData.tags.length > 0 ? formData.tags : undefined,
         };
@@ -208,6 +223,9 @@ export const ContactForm: React.FC<ContactFormProps> = ({
                   phoneNumber: '',
                   email: '',
                   company: '',
+                  city: '',
+                  country: '',
+                  businessContext: '',
                   notes: '',
                   tags: [],
                 });
@@ -334,6 +352,47 @@ export const ContactForm: React.FC<ContactFormProps> = ({
             maxLength={100}
             showCharCount
             description="Company or organization name"
+          />
+
+          <div className="grid grid-cols-2 gap-4">
+            <ValidatedInput
+              label="City"
+              value={formData.city}
+              onChange={(e) => handleInputChange('city', e.target.value)}
+              onBlur={() => handleFieldBlur('city')}
+              placeholder="Enter city (optional)"
+              disabled={isLoading}
+              error={errors.city}
+              touched={touchedFields.city}
+              maxLength={100}
+              description="City location"
+            />
+
+            <ValidatedInput
+              label="Country"
+              value={formData.country}
+              onChange={(e) => handleInputChange('country', e.target.value)}
+              onBlur={() => handleFieldBlur('country')}
+              placeholder="Enter country (optional)"
+              disabled={isLoading}
+              error={errors.country}
+              touched={touchedFields.country}
+              maxLength={100}
+              description="Country location"
+            />
+          </div>
+
+          <ValidatedInput
+            label="Business Context"
+            value={formData.businessContext}
+            onChange={(e) => handleInputChange('businessContext', e.target.value)}
+            onBlur={() => handleFieldBlur('businessContext')}
+            placeholder="e.g., Technology / SaaS, Finance / Banking (optional)"
+            disabled={isLoading}
+            error={errors.businessContext}
+            touched={touchedFields.businessContext}
+            maxLength={255}
+            description="Industry or sector-level description"
           />
 
           <div className="space-y-2">

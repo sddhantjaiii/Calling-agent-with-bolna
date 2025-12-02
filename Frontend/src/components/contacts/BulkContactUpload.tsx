@@ -357,9 +357,9 @@ export const BulkContactUpload: React.FC<BulkContactUploadProps> = ({
       }
 
       // Fallback: Create a local CSV template
-      const csvContent = 'name,phoneNumber,email,company,notes\n' +
-                        'John Doe,+91 9876543210,john@example.com,Acme Corp,Sample contact\n' +
-                        'Jane Smith,+91 8765432109,jane@example.com,Tech Inc,Another sample';
+      const csvContent = 'name,phone_number,email,company,city,country,business_context,notes\n' +
+                        'John Doe,+91 9876543210,john@example.com,Acme Corp,Mumbai,India,Technology / SaaS,Sample contact\n' +
+                        'Jane Smith,+91 8765432109,jane@example.com,Tech Inc,New York,USA,Finance / Banking,Another sample';
       
       const blob = new Blob([csvContent], { type: 'text/csv' });
       const url = window.URL.createObjectURL(blob);

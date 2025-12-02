@@ -84,7 +84,7 @@ export class ContactController {
         return res.status(401).json({ error: 'User not authenticated' });
       }
 
-      const { name, phone_number, phoneNumber, email, company, notes, tags } = req.body;
+      const { name, phone_number, phoneNumber, email, company, notes, tags, city, country, business_context } = req.body;
       
       // Handle both field names for compatibility
       const phone = phone_number || phoneNumber;
@@ -109,7 +109,10 @@ export class ContactController {
         email,
         company,
         notes,
-        tags
+        tags,
+        city,
+        country,
+        business_context
       });
 
       // Invalidate contacts cache after creating
@@ -146,7 +149,7 @@ export class ContactController {
       }
 
       const { id } = req.params;
-      const { name, phone_number, email, company, notes, tags } = req.body;
+      const { name, phone_number, email, company, notes, tags, city, country, business_context } = req.body;
 
       // Validate phone number format if provided
       if (phone_number && !ContactService.validatePhoneNumber(phone_number)) {
@@ -162,6 +165,9 @@ export class ContactController {
       if (company !== undefined) updateData.company = company;
       if (notes !== undefined) updateData.notes = notes;
       if (tags !== undefined) updateData.tags = tags;
+      if (city !== undefined) updateData.city = city;
+      if (country !== undefined) updateData.country = country;
+      if (business_context !== undefined) updateData.business_context = business_context;
 
       const contact = await ContactService.updateContact(userId, id, updateData);
 

@@ -92,6 +92,8 @@ export const ContactList: React.FC<ContactListProps> = ({
   const [selectedLastStatus, setSelectedLastStatus] = useState<string>('all');
   const [selectedSource, setSelectedSource] = useState<string>('all');
   const [selectedCallType, setSelectedCallType] = useState<string>('all');
+  const [selectedCity, setSelectedCity] = useState<string>('all');
+  const [selectedCountry, setSelectedCountry] = useState<string>('all');
   const [editingNotes, setEditingNotes] = useState<{ contactId: string; notes: string } | null>(null);
   
   // Bulk selection state
@@ -196,6 +198,16 @@ export const ContactList: React.FC<ContactListProps> = ({
     
     // Call Type filter
     if (selectedCallType !== 'all' && contact.callType !== selectedCallType) {
+      return false;
+    }
+    
+    // City filter
+    if (selectedCity !== 'all' && contact.city !== selectedCity) {
+      return false;
+    }
+    
+    // Country filter
+    if (selectedCountry !== 'all' && contact.country !== selectedCountry) {
       return false;
     }
     
@@ -459,6 +471,24 @@ export const ContactList: React.FC<ContactListProps> = ({
     return Array.from(typeSet).sort();
   }, [displayContacts]);
 
+  // Helper: Get all unique cities
+  const allUniqueCities = React.useMemo(() => {
+    const citySet = new Set<string>();
+    displayContacts.forEach(contact => {
+      if (contact.city) citySet.add(contact.city);
+    });
+    return Array.from(citySet).sort();
+  }, [displayContacts]);
+
+  // Helper: Get all unique countries
+  const allUniqueCountries = React.useMemo(() => {
+    const countrySet = new Set<string>();
+    displayContacts.forEach(contact => {
+      if (contact.country) countrySet.add(contact.country);
+    });
+    return Array.from(countrySet).sort();
+  }, [displayContacts]);
+
   // Calculate trigger position (10 items before end)
   const triggerPosition = Math.max(0, filteredContacts.length - LOAD_TRIGGER_OFFSET);
 
@@ -588,8 +618,48 @@ export const ContactList: React.FC<ContactListProps> = ({
                 </SelectContent>
               </Select>
 
+              {/* City Filter */}
+              {allUniqueCities.length > 0 && (
+                <Select
+                  value={selectedCity}
+                  onValueChange={setSelectedCity}
+                >
+                  <SelectTrigger className="w-36 h-9">
+                    <SelectValue placeholder="City" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Cities</SelectItem>
+                    {allUniqueCities.map((city) => (
+                      <SelectItem key={city} value={city}>
+                        {city}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+
+              {/* Country Filter */}
+              {allUniqueCountries.length > 0 && (
+                <Select
+                  value={selectedCountry}
+                  onValueChange={setSelectedCountry}
+                >
+                  <SelectTrigger className="w-36 h-9">
+                    <SelectValue placeholder="Country" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Countries</SelectItem>
+                    {allUniqueCountries.map((country) => (
+                      <SelectItem key={country} value={country}>
+                        {country}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+
               {/* Clear Filters Button */}
-              {(selectedTags.length > 0 || selectedLastStatus !== 'all' || selectedSource !== 'all' || selectedCallType !== 'all') && (
+              {(selectedTags.length > 0 || selectedLastStatus !== 'all' || selectedSource !== 'all' || selectedCallType !== 'all' || selectedCity !== 'all' || selectedCountry !== 'all') && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -598,6 +668,8 @@ export const ContactList: React.FC<ContactListProps> = ({
                     setSelectedLastStatus('all');
                     setSelectedSource('all');
                     setSelectedCallType('all');
+                    setSelectedCity('all');
+                    setSelectedCountry('all');
                   }}
                 >
                   Clear Filters
