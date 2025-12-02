@@ -3,6 +3,9 @@ name: Copilot Auto Review
 on:
   pull_request:
     types: [opened, synchronize]
+  push:
+    branches:
+      - main
 
 jobs:
   review:
@@ -20,13 +23,5 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           instructions: |
-            Review every commit in this pull request.
-            Focus on:
-            - bugs
-            - logical errors
-            - unused code
-            - code smells
-            - security issues
-            - bad patterns
-            - inconsistent styling
-            Provide suggestions and line comments.
+            Review the latest changes. Identify bugs, logical errors, security concerns,
+            code smells, inconsistent patterns, and recommend improvements.
