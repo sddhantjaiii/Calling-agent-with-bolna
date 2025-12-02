@@ -8,6 +8,7 @@ import { Plus, Play, Pause, StopCircle, RotateCcw, Trash2, BarChart3 } from 'luc
 import CreateCampaignModal from '@/components/campaigns/CreateCampaignModal.tsx';
 import CampaignDetailsDialog from '@/components/campaigns/CampaignDetailsDialog.tsx';
 import { authenticatedFetch } from '@/utils/auth';
+import { formatDateInUserTimezone } from '@/utils/timezone';
 import type { Campaign, CampaignAnalytics } from '@/types/api';
 
 const Campaigns: React.FC = () => {
@@ -460,7 +461,7 @@ const Campaigns: React.FC = () => {
                       
                       {/* Created Date Column */}
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        {new Date(campaign.created_at).toLocaleDateString()}
+                        {formatDateInUserTimezone(campaign.created_at, campaign.campaign_timezone, { hour: undefined, minute: undefined })}
                       </td>
                       
                       {/* Actions Column */}

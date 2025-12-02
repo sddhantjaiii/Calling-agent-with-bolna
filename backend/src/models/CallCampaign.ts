@@ -81,15 +81,6 @@ export class CallCampaignModel {
    * Create a new campaign
    */
   static async create(userId: string, data: CreateCampaignRequest): Promise<CallCampaign> {
-    // For date-only fields, append 'T00:00:00Z' to prevent timezone conversion issues
-    // This ensures the date is stored as-is without timezone shift
-    const startDateStr = data.start_date.includes('T') 
-      ? data.start_date 
-      : `${data.start_date}T00:00:00Z`;
-    const endDateStr = data.end_date 
-      ? (data.end_date.includes('T') ? data.end_date : `${data.end_date}T00:00:00Z`)
-      : null;
-
     const result = await pool.query(
       `INSERT INTO call_campaigns (
         user_id, name, description, agent_id, next_action,
@@ -106,8 +97,8 @@ export class CallCampaignModel {
         data.first_call_time,
         data.last_call_time,
         'active',  // Changed from 'draft' to 'active'
-        startDateStr,
-        endDateStr,
+        data.start_date,
+        data.end_date || null,
         new Date(),  // Set started_at to now
         data.campaign_timezone || null,
         data.use_custom_timezone || false,

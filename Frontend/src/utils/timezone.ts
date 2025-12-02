@@ -16,6 +16,48 @@ export function detectBrowserTimezone(): string {
 }
 
 /**
+ * Format a date-only value (YYYY-MM-DD) for display.
+ * This handles dates that are stored without timezone info
+ * by parsing the date string directly to avoid UTC conversion issues.
+ */
+export function formatDateOnly(
+  date: Date | string,
+  options?: Intl.DateTimeFormatOptions
+): string {
+  // If it's a string, check if it's a date-only format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)
+  if (typeof date === 'string') {
+    // For date strings like "2025-12-03" or "2025-12-03T00:00:00.000Z"
+    // Extract just the date part and display it without timezone conversion
+    const dateMatch = date.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (dateMatch) {
+      const [, year, month, day] = dateMatch;
+      // Create date using local timezone interpretation
+      const localDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+      
+      const defaultOptions: Intl.DateTimeFormatOptions = {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        ...options
+      };
+      
+      return new Intl.DateTimeFormat('en-US', defaultOptions).format(localDate);
+    }
+  }
+  
+  // Fallback for Date objects
+  const dateObj = typeof date === 'string' ? new Date(date) : date;
+  const defaultOptions: Intl.DateTimeFormatOptions = {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    ...options
+  };
+  
+  return new Intl.DateTimeFormat('en-US', defaultOptions).format(dateObj);
+}
+
+/**
  * Format date in user's timezone
  */
 export function formatDateInUserTimezone(

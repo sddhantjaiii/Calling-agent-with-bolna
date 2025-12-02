@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Calendar, Clock, Phone, CheckCircle, XCircle, TrendingUp, Eye } from 'lucide-react';
 import { authenticatedFetch } from '@/utils/auth';
+import { formatDateInUserTimezone } from '@/utils/timezone';
 import type { Campaign } from '@/types/api';
 
 interface CampaignDetailsDialogProps {
@@ -146,7 +147,7 @@ const CampaignDetailsDialog: React.FC<CampaignDetailsDialogProps> = ({
                 <Calendar className="w-4 h-4 text-gray-500" />
                 <div>
                   <p className="text-gray-500">Created</p>
-                  <p className="font-medium">{new Date(campaign.created_at).toLocaleString()}</p>
+                  <p className="font-medium">{formatDateInUserTimezone(campaign.created_at, campaign.campaign_timezone)}</p>
                 </div>
               </div>
               
@@ -155,7 +156,7 @@ const CampaignDetailsDialog: React.FC<CampaignDetailsDialogProps> = ({
                   <Clock className="w-4 h-4 text-gray-500" />
                   <div>
                     <p className="text-gray-500">Started</p>
-                    <p className="font-medium">{new Date(campaign.started_at).toLocaleString()}</p>
+                    <p className="font-medium">{formatDateInUserTimezone(campaign.started_at, campaign.campaign_timezone)}</p>
                   </div>
                 </div>
               )}
@@ -165,7 +166,7 @@ const CampaignDetailsDialog: React.FC<CampaignDetailsDialogProps> = ({
                   <CheckCircle className="w-4 h-4 text-gray-500" />
                   <div>
                     <p className="text-gray-500">Completed</p>
-                    <p className="font-medium">{new Date(campaign.completed_at).toLocaleString()}</p>
+                    <p className="font-medium">{formatDateInUserTimezone(campaign.completed_at, campaign.campaign_timezone)}</p>
                   </div>
                 </div>
               )}
@@ -177,6 +178,40 @@ const CampaignDetailsDialog: React.FC<CampaignDetailsDialogProps> = ({
                     <p className="text-gray-500">Duration</p>
                     <p className="font-medium">{formatDuration(campaign.started_at, campaign.completed_at)}</p>
                   </div>
+                </div>
+              )}
+            </div>
+
+            {/* Schedule Information */}
+            <div className="grid grid-cols-2 gap-4 text-sm pt-2 border-t border-gray-200 dark:border-gray-700">
+              {campaign.start_date && (
+                <div>
+                  <p className="text-gray-500">Scheduled Start Date</p>
+                  <p className="font-medium">{formatDateInUserTimezone(campaign.start_date, campaign.campaign_timezone, { hour: undefined, minute: undefined })}</p>
+                </div>
+              )}
+              {campaign.end_date && (
+                <div>
+                  <p className="text-gray-500">Scheduled End Date</p>
+                  <p className="font-medium">{formatDateInUserTimezone(campaign.end_date, campaign.campaign_timezone, { hour: undefined, minute: undefined })}</p>
+                </div>
+              )}
+              {campaign.first_call_time && (
+                <div>
+                  <p className="text-gray-500">First Call Time</p>
+                  <p className="font-medium">{campaign.first_call_time}</p>
+                </div>
+              )}
+              {campaign.last_call_time && (
+                <div>
+                  <p className="text-gray-500">Last Call Time</p>
+                  <p className="font-medium">{campaign.last_call_time}</p>
+                </div>
+              )}
+              {campaign.campaign_timezone && (
+                <div>
+                  <p className="text-gray-500">Timezone</p>
+                  <p className="font-medium">{campaign.campaign_timezone}</p>
                 </div>
               )}
             </div>

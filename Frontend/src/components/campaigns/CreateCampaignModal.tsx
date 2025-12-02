@@ -35,6 +35,19 @@ import CampaignTimezoneSelectorCard from '@/components/campaigns/CampaignTimezon
 import { detectBrowserTimezone } from '@/utils/timezone';
 import * as XLSX from 'xlsx';
 
+/**
+ * Get current date in a specific timezone as YYYY-MM-DD
+ */
+function getDateInTimezone(timezone: string): string {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  return formatter.format(new Date()); // Returns YYYY-MM-DD format
+}
+
 interface CreateCampaignModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -67,7 +80,7 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
   const [agentId, setAgentId] = useState('');
   const [firstCallTime, setFirstCallTime] = useState('09:00');
   const [lastCallTime, setLastCallTime] = useState('17:00');
-  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [startDate, setStartDate] = useState(''); // Will be set after fetching timezone
   const [endDate, setEndDate] = useState('');
   const [nextAction, setNextAction] = useState('call');
   const [csvFile, setCsvFile] = useState<File | null>(null);
@@ -107,7 +120,7 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
     (agent: any) => agent.type === 'CallAgent' || agent.agent_type === 'call'
   );
 
-  // Fetch user profile for timezone
+  // Fetch user profile for timezone and set initial date
   useEffect(() => {
     const fetchUserProfile = async () => {
       try {
@@ -116,12 +129,18 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
           const data = await response.json();
           const profileTimezone = data.user?.timezone || detectBrowserTimezone();
           setUserTimezone(profileTimezone);
+          // Set start date to today in user's timezone
+          setStartDate(getDateInTimezone(profileTimezone));
         } else {
-          setUserTimezone(detectBrowserTimezone());
+          const browserTz = detectBrowserTimezone();
+          setUserTimezone(browserTz);
+          setStartDate(getDateInTimezone(browserTz));
         }
       } catch (error) {
         console.error('Failed to fetch user profile:', error);
-        setUserTimezone(detectBrowserTimezone());
+        const browserTz = detectBrowserTimezone();
+        setUserTimezone(browserTz);
+        setStartDate(getDateInTimezone(browserTz));
       }
     };
     
@@ -367,6 +386,9 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
     // Calculate contact count and show credit estimator
     let contactCount = 0;
     let campaignData: any = null;
+    
+    // Determine which timezone to use
+    const effectiveTimezone = useCustomTimezone ? campaignTimezone : userTimezone;
 
     if (csvFile) {
       // Use the parsed contact count from file analysis
@@ -382,7 +404,7 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
         next_action: nextAction,
         csvFile,
         use_custom_timezone: useCustomTimezone,
-        campaign_timezone: useCustomTimezone ? campaignTimezone : undefined,
+        campaign_timezone: effectiveTimezone,
         max_retries: maxRetries,
         retry_interval_minutes: retryIntervalMinutes,
       };
@@ -399,7 +421,7 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
         end_date: endDate || undefined,
         next_action: nextAction,
         use_custom_timezone: useCustomTimezone,
-        campaign_timezone: useCustomTimezone ? campaignTimezone : undefined,
+        campaign_timezone: effectiveTimezone,
         max_retries: maxRetries,
         retry_interval_minutes: retryIntervalMinutes,
       };
@@ -473,7 +495,8 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
     setAgentId('');
     setFirstCallTime('09:00');
     setLastCallTime('17:00');
-    setStartDate(new Date().toISOString().split('T')[0]);
+    // Reset to today's date in user's timezone
+    setStartDate(userTimezone ? getDateInTimezone(userTimezone) : getDateInTimezone(detectBrowserTimezone()));
     setEndDate('');
     setNextAction('call');
     setCsvFile(null);
