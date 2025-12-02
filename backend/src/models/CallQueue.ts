@@ -594,14 +594,37 @@ export class CallQueueModel {
     retry_interval_minutes: number;
     campaign_first_call_time: string;
     campaign_last_call_time: string;
+    campaign_timezone?: string | null;
+    use_custom_timezone?: boolean;
   }): Promise<CallQueueItem> {
+    // Determine the timezone to use (campaign timezone or UTC)
+    const timezone = data.use_custom_timezone && data.campaign_timezone 
+      ? data.campaign_timezone 
+      : 'UTC';
+    
     // Calculate scheduled_for based on retry_interval_minutes
     // but ensure it falls within campaign time window
     const now = new Date();
     let scheduledFor = new Date(now.getTime() + data.retry_interval_minutes * 60 * 1000);
     
-    // Check if scheduled time is within campaign time window
-    const scheduledTime = scheduledFor.toTimeString().slice(0, 8); // HH:MM:SS
+    // Get the time in campaign timezone for comparison
+    const getTimeInTimezone = (date: Date, tz: string): string => {
+      try {
+        return date.toLocaleTimeString('en-US', { 
+          timeZone: tz, 
+          hour12: false,
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        });
+      } catch {
+        // Fallback to UTC if timezone is invalid
+        return date.toISOString().slice(11, 19);
+      }
+    };
+    
+    // Check if scheduled time is within campaign time window (in campaign timezone)
+    const scheduledTime = getTimeInTimezone(scheduledFor, timezone);
     const firstTime = data.campaign_first_call_time;
     const lastTime = data.campaign_last_call_time;
     
@@ -613,10 +636,33 @@ export class CallQueueModel {
       : (scheduledTime >= firstTime && scheduledTime <= lastTime);
     
     if (!isWithinWindow) {
-      // Schedule for next appropriate time at first_call_time
-      scheduledFor.setDate(scheduledFor.getDate() + 1);
+      // Schedule for next day at first_call_time in campaign timezone
+      // We need to calculate what time first_call_time is in UTC/server time
       const [hours, minutes, seconds] = firstTime.split(':').map(Number);
-      scheduledFor.setHours(hours, minutes, seconds || 0, 0);
+      
+      // Create a date for tomorrow at first_call_time in campaign timezone
+      const tomorrow = new Date(scheduledFor);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      // Set time in local timezone first, then adjust for campaign timezone offset
+      try {
+        // Get current offset between server and campaign timezone
+        const serverOffset = new Date().getTimezoneOffset(); // in minutes
+        const campaignDate = new Date(tomorrow.toLocaleString('en-US', { timeZone: timezone }));
+        const campaignOffset = (tomorrow.getTime() - campaignDate.getTime()) / 60000; // in minutes
+        
+        // Set the time for first_call_time
+        scheduledFor = new Date(tomorrow);
+        scheduledFor.setHours(hours, minutes, seconds || 0, 0);
+        
+        // Adjust for timezone difference (if campaign timezone differs from server)
+        const offsetDiff = campaignOffset - serverOffset;
+        scheduledFor = new Date(scheduledFor.getTime() + offsetDiff * 60000);
+      } catch {
+        // Fallback: just set the time without timezone adjustment
+        scheduledFor.setDate(scheduledFor.getDate() + 1);
+        scheduledFor.setHours(hours, minutes, seconds || 0, 0);
+      }
     }
 
     // Get next position for this campaign

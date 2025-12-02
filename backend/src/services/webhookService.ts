@@ -1361,7 +1361,9 @@ class WebhookService {
                 last_call_outcome: callOutcome,
                 retry_interval_minutes: campaign.retry_interval_minutes,
                 campaign_first_call_time: campaign.first_call_time,
-                campaign_last_call_time: campaign.last_call_time
+                campaign_last_call_time: campaign.last_call_time,
+                campaign_timezone: campaign.campaign_timezone,
+                use_custom_timezone: campaign.use_custom_timezone
               });
               
               logger.info('🔄 Scheduled retry for failed call', {
