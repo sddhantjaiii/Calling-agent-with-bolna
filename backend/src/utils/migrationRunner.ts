@@ -12,7 +12,23 @@ class MigrationRunner {
   private migrationsPath: string;
 
   constructor() {
-    this.migrationsPath = path.join(__dirname, '../migrations');
+    // Resolve migrations path that works in both development (src/) and production (dist/)
+    // In production, __dirname is dist/utils, so we need to go up to project root
+    // and then into src/migrations where the SQL files actually live
+    const projectRoot = path.resolve(__dirname, '../..');
+    
+    // Check if we're running from dist/ (production) or src/ (development)
+    const isProduction = __dirname.includes('dist');
+    
+    if (isProduction) {
+      // In production: dist/utils -> go to project root -> src/migrations
+      this.migrationsPath = path.join(projectRoot, 'src', 'migrations');
+    } else {
+      // In development: src/utils -> ../migrations -> src/migrations
+      this.migrationsPath = path.join(__dirname, '../migrations');
+    }
+    
+    console.log(`📂 Migrations path: ${this.migrationsPath}`);
   }
 
   /**
