@@ -359,6 +359,7 @@ export class CallModel extends BaseModel<CallInterface> {
     duration_minutes?: number;
     credits_used?: number;
     recording_url?: string;
+    bolna_execution_id?: string;
     metadata?: any;
   }): Promise<CallInterface> {
     const updateFields: string[] = [];
@@ -389,6 +390,11 @@ export class CallModel extends BaseModel<CallInterface> {
     if (updateData.recording_url !== undefined) {
       updateFields.push(`recording_url = $${paramIndex++}`);
       params.push(updateData.recording_url);
+    }
+    
+    if (updateData.bolna_execution_id !== undefined) {
+      updateFields.push(`bolna_execution_id = $${paramIndex++}`);
+      params.push(updateData.bolna_execution_id);
     }
     
     if (updateData.metadata !== undefined) {

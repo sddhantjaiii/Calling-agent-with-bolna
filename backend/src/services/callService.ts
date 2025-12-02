@@ -787,8 +787,43 @@ export class CallService {
         });
       }
       
+      // CRITICAL FIX: Create call record FIRST in 'pending' state before making Bolna API call
+      // This ensures the FK constraint on call_queue.call_id is satisfied when updateStatus is called
+      const callRecord = await Call.createCall({
+        id: preReservedCallId, // Use pre-reserved ID
+        agent_id: callRequest.agentId,
+        user_id: callRequest.userId,
+        contact_id: callRequest.contactId,
+        campaign_id: callRequest.metadata?.campaign_id, // Pass campaign_id from metadata
+        bolna_execution_id: 'pending', // Will be updated after Bolna responds
+        phone_number: callRequest.phoneNumber,
+        call_source: 'phone',
+        status: 'in_progress', // Mark as in_progress immediately
+        metadata: {
+          initiated_at: new Date().toISOString(),
+          call_source: 'campaign', // Mark as campaign call
+          ...callRequest.metadata
+        }
+      });
+      
+      logger.info(`Created pending call record with ID: ${callRecord.id}`);
+      
       // Make the call via Bolna.ai
-      const bolnaResponse = await bolnaService.makeCall(bolnaCallData);
+      let bolnaResponse;
+      try {
+        bolnaResponse = await bolnaService.makeCall(bolnaCallData);
+      } catch (bolnaError) {
+        // Bolna API failed - mark call record as failed
+        logger.error(`Bolna API call failed for call ${callRecord.id}:`, bolnaError);
+        await Call.updateCall(callRecord.id, {
+          status: 'failed',
+          metadata: {
+            ...callRecord.metadata,
+            error: bolnaError instanceof Error ? bolnaError.message : 'Bolna API call failed'
+          }
+        });
+        throw bolnaError;
+      }
       
       // Update active_calls with execution_id immediately
       await concurrencyManager.updateActiveCallWithExecutionId(
@@ -796,22 +831,12 @@ export class CallService {
         bolnaResponse.execution_id
       );
       
-      // Create call record in database using pre-reserved ID
-      const callRecord = await Call.createCall({
-        id: preReservedCallId, // Use pre-reserved ID
-        agent_id: callRequest.agentId,
-        user_id: callRequest.userId,
-        contact_id: callRequest.contactId,
-        campaign_id: callRequest.metadata?.campaign_id, // Pass campaign_id from metadata
+      // Update call record with Bolna execution ID
+      await Call.updateCall(callRecord.id, {
         bolna_execution_id: bolnaResponse.execution_id,
-        phone_number: callRequest.phoneNumber,
-        call_source: 'phone',
-        status: 'in_progress',
         metadata: {
-          bolna_execution_id: bolnaResponse.execution_id,
-          initiated_at: new Date().toISOString(),
-          call_source: 'campaign', // Mark as campaign call
-          ...callRequest.metadata
+          ...callRecord.metadata,
+          bolna_execution_id: bolnaResponse.execution_id
         }
       });
       
