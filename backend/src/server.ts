@@ -31,6 +31,7 @@ import { scheduledTaskService } from './services/scheduledTaskService';
 import { webhookRetryService } from './services/webhookRetryService';
 import { QueueProcessorService } from './services/QueueProcessorService';
 import { configService } from './services/configService';
+import MigrationRunner from './utils/migrationRunner';
 
 // Environment variables already loaded at the top of this file
 
@@ -64,6 +65,21 @@ async function initializeDatabase() {
   } catch (error) {
     logger.error('Failed to initialize database', { error: error instanceof Error ? error.message : error });
     console.error('❌ Failed to initialize database:', error);
+    process.exit(1);
+  }
+}
+
+// Run database migrations
+async function runMigrations() {
+  try {
+    console.log('🔄 Running database migrations on server startup...');
+    const migrationRunner = new MigrationRunner();
+    await migrationRunner.runMigrations();
+    logger.info('Database migrations completed successfully');
+    console.log('✅ Database migrations completed');
+  } catch (error) {
+    logger.error('Failed to run database migrations', { error: error instanceof Error ? error.message : error });
+    console.error('❌ Failed to run database migrations:', error);
     process.exit(1);
   }
 }
@@ -286,6 +302,9 @@ app.use('*', notFoundHandler);
 // Start server after database initialization
 async function startServer() {
   await initializeDatabase();
+
+  // Run database migrations before starting the server
+  await runMigrations();
 
   // Clear rate limits on server startup to unblock any previously blocked IPs
   const { clearRateLimitStore } = require('./middleware/rateLimit');
