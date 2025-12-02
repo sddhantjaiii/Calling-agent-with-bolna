@@ -1,0 +1,32 @@
+name: Copilot Auto Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Automatic Copilot Review
+        uses: github/copilot-actions/review-pull-request@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          instructions: |
+            Review every commit in this pull request.
+            Focus on:
+            - bugs
+            - logical errors
+            - unused code
+            - code smells
+            - security issues
+            - bad patterns
+            - inconsistent styling
+            Provide suggestions and line comments.
