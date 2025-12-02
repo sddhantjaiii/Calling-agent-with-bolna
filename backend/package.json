@@ -4,7 +4,7 @@
   "description": "Backend API for AI Calling Agent SaaS platform",
   "main": "dist/server.js",
   "scripts": {
-    "build": "tsc && node -e \"require('fs').cpSync('src/migrations', 'dist/migrations', {recursive: true})\"",
+    "build": "tsc && node scripts/build.js",
     "start": "node dist/server.js",
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "test": "jest",
