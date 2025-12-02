@@ -83,6 +83,7 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
   // Retry configuration states
   const [maxRetries, setMaxRetries] = useState(0);
   const [retryIntervalMinutes, setRetryIntervalMinutes] = useState(60);
+  const [isCustomInterval, setIsCustomInterval] = useState(false);
   
   // Credit estimation states
   const [showEstimator, setShowEstimator] = useState(false);
@@ -626,26 +627,55 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
               </div>
               <div>
                 <Label htmlFor="retryInterval">Retry Interval (Minutes)</Label>
-                <Select 
-                  value={retryIntervalMinutes.toString()} 
-                  onValueChange={(val) => setRetryIntervalMinutes(parseInt(val))}
-                  disabled={maxRetries === 0}
-                >
-                  <SelectTrigger id="retryInterval" className="mt-1">
-                    <SelectValue placeholder="Select interval" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="15">15 minutes</SelectItem>
-                    <SelectItem value="30">30 minutes</SelectItem>
-                    <SelectItem value="60">1 hour</SelectItem>
-                    <SelectItem value="120">2 hours</SelectItem>
-                    <SelectItem value="180">3 hours</SelectItem>
-                    <SelectItem value="240">4 hours</SelectItem>
-                    <SelectItem value="360">6 hours</SelectItem>
-                    <SelectItem value="720">12 hours</SelectItem>
-                    <SelectItem value="1440">24 hours</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="flex gap-2">
+                  <Select 
+                    value={isCustomInterval ? "custom" : retryIntervalMinutes.toString()} 
+                    onValueChange={(val) => {
+                      if (val === "custom") {
+                        setIsCustomInterval(true);
+                      } else {
+                        setIsCustomInterval(false);
+                        setRetryIntervalMinutes(parseInt(val));
+                      }
+                    }}
+                    disabled={maxRetries === 0}
+                  >
+                    <SelectTrigger id="retryInterval" className="mt-1 flex-1">
+                      <SelectValue placeholder="Select interval" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="15">15 minutes</SelectItem>
+                      <SelectItem value="30">30 minutes</SelectItem>
+                      <SelectItem value="60">1 hour</SelectItem>
+                      <SelectItem value="120">2 hours</SelectItem>
+                      <SelectItem value="180">3 hours</SelectItem>
+                      <SelectItem value="240">4 hours</SelectItem>
+                      <SelectItem value="360">6 hours</SelectItem>
+                      <SelectItem value="720">12 hours</SelectItem>
+                      <SelectItem value="1440">24 hours</SelectItem>
+                      <SelectItem value="custom">Custom</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  
+                  {isCustomInterval && (
+                    <Input
+                      type="number"
+                      value={retryIntervalMinutes}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        if (!isNaN(val)) {
+                          setRetryIntervalMinutes(val);
+                        } else {
+                          setRetryIntervalMinutes(0);
+                        }
+                      }}
+                      className="mt-1 w-24"
+                      min={1}
+                      max={1440}
+                      placeholder="Mins"
+                    />
+                  )}
+                </div>
               </div>
             </div>
             {maxRetries > 0 && (
