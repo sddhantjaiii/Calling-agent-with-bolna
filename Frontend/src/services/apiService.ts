@@ -1344,6 +1344,28 @@ class ApiService {
     return this.request<any[]>(API_ENDPOINTS.LEADS.INTELLIGENCE_TIMELINE(groupId));
   }
 
+  /**
+   * Create contacts from leads for campaign creation
+   * Returns contact IDs for the leads
+   */
+  async createContactsFromLeads(leads: Array<{
+    id: string;
+    phone: string;
+    name: string;
+    email?: string;
+    company?: string;
+  }>): Promise<ApiResponse<{ contactIds: string[] }>> {
+    const user = this.getCurrentUser();
+    if (!user) {
+      throw createApiError('User must be authenticated to create contacts from leads', 401, 'UNAUTHORIZED');
+    }
+
+    return this.request<{ contactIds: string[] }>(`${API_URL}/contacts/from-leads`, {
+      method: 'POST',
+      body: JSON.stringify({ leads }),
+    });
+  }
+
   // Follow-up API methods
   async getFollowUps(params?: { completed?: boolean; leadPhone?: string; leadEmail?: string }): Promise<ApiResponse<any[]>> {
     // Validate user context before making request

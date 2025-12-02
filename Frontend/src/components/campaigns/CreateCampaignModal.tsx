@@ -80,6 +80,10 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
   const [campaignTimezone, setCampaignTimezone] = useState<string>('');
   const [userTimezone, setUserTimezone] = useState<string>('');
   
+  // Retry configuration states
+  const [maxRetries, setMaxRetries] = useState(0);
+  const [retryIntervalMinutes, setRetryIntervalMinutes] = useState(60);
+  
   // Credit estimation states
   const [showEstimator, setShowEstimator] = useState(false);
   const [estimatedContactCount, setEstimatedContactCount] = useState(0);
@@ -378,6 +382,8 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
         csvFile,
         use_custom_timezone: useCustomTimezone,
         campaign_timezone: useCustomTimezone ? campaignTimezone : undefined,
+        max_retries: maxRetries,
+        retry_interval_minutes: retryIntervalMinutes,
       };
     } else if (preSelectedContacts.length > 0) {
       contactCount = preSelectedContacts.length;
@@ -393,6 +399,8 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
         next_action: nextAction,
         use_custom_timezone: useCustomTimezone,
         campaign_timezone: useCustomTimezone ? campaignTimezone : undefined,
+        max_retries: maxRetries,
+        retry_interval_minutes: retryIntervalMinutes,
       };
     } else {
       toast({
@@ -433,6 +441,9 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
           formData.append('use_custom_timezone', 'true');
           formData.append('campaign_timezone', pendingCampaignData.campaign_timezone);
         }
+        // Add retry configuration
+        formData.append('max_retries', pendingCampaignData.max_retries.toString());
+        formData.append('retry_interval_minutes', pendingCampaignData.retry_interval_minutes.toString());
         
         uploadCsvMutation.mutate(formData);
       } else {
@@ -470,6 +481,8 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
     setShowEstimator(false);
     setPendingCampaignData(null);
     setEstimatedContactCount(0);
+    setMaxRetries(0);
+    setRetryIntervalMinutes(60);
     onClose();
   };
 
@@ -577,6 +590,69 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
                 <SelectItem value="email">Email</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Retry Configuration */}
+          <div className={`p-4 rounded-lg border ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'}`}>
+            <div className="flex items-center gap-2 mb-3">
+              <Label className="text-base font-medium">Auto-Retry for Not Connected Leads</Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <HelpCircle className="w-4 h-4 text-muted-foreground" />
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p>If a call ends with &quot;no answer&quot; or &quot;busy&quot;, the system will automatically retry calling that lead after the specified interval, up to the maximum number of retries.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="maxRetries">Number of Retries</Label>
+                <Select value={maxRetries.toString()} onValueChange={(val) => setMaxRetries(parseInt(val))}>
+                  <SelectTrigger id="maxRetries" className="mt-1">
+                    <SelectValue placeholder="Select retries" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">No retries</SelectItem>
+                    <SelectItem value="1">1 retry</SelectItem>
+                    <SelectItem value="2">2 retries</SelectItem>
+                    <SelectItem value="3">3 retries</SelectItem>
+                    <SelectItem value="4">4 retries</SelectItem>
+                    <SelectItem value="5">5 retries</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="retryInterval">Retry Interval (Minutes)</Label>
+                <Select 
+                  value={retryIntervalMinutes.toString()} 
+                  onValueChange={(val) => setRetryIntervalMinutes(parseInt(val))}
+                  disabled={maxRetries === 0}
+                >
+                  <SelectTrigger id="retryInterval" className="mt-1">
+                    <SelectValue placeholder="Select interval" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="15">15 minutes</SelectItem>
+                    <SelectItem value="30">30 minutes</SelectItem>
+                    <SelectItem value="60">1 hour</SelectItem>
+                    <SelectItem value="120">2 hours</SelectItem>
+                    <SelectItem value="180">3 hours</SelectItem>
+                    <SelectItem value="240">4 hours</SelectItem>
+                    <SelectItem value="360">6 hours</SelectItem>
+                    <SelectItem value="720">12 hours</SelectItem>
+                    <SelectItem value="1440">24 hours</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            {maxRetries > 0 && (
+              <p className="text-sm text-muted-foreground mt-2">
+                Leads that don&apos;t connect will be retried up to {maxRetries} time{maxRetries > 1 ? 's' : ''} with {retryIntervalMinutes >= 60 ? `${retryIntervalMinutes / 60} hour${retryIntervalMinutes >= 120 ? 's' : ''}` : `${retryIntervalMinutes} minutes`} between each attempt. Retries will respect campaign time windows.
+              </p>
+            )}
           </div>
 
           {/* Timezone Settings */}

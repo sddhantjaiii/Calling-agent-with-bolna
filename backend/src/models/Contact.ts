@@ -71,6 +71,17 @@ export class ContactModel extends BaseModel<ContactInterface> {
   }
 
   /**
+   * Find contact by user ID and phone number
+   */
+  async findByUserAndPhone(userId: string, phoneNumber: string): Promise<ContactInterface | null> {
+    const result = await this.query(
+      'SELECT * FROM contacts WHERE user_id = $1 AND phone_number = $2',
+      [userId, phoneNumber]
+    );
+    return result.rows[0] || null;
+  }
+
+  /**
    * Find contacts by user ID
    */
   async findByUserId(userId: string): Promise<ContactInterface[]> {

@@ -289,6 +289,28 @@ export class ContactService {
   }
 
   /**
+   * Find contact by phone number for a specific user
+   */
+  static async findByPhone(userId: string, phoneNumber: string): Promise<ContactInterface | null> {
+    try {
+      const normalizedPhone = this.normalizePhoneNumber(phoneNumber);
+      const contact = await ContactModel.findByUserAndPhone(userId, normalizedPhone);
+      
+      if (contact) {
+        logger.info('Contact found for user phone lookup:', { 
+          userId,
+          phoneNumber: normalizedPhone 
+        });
+      }
+      
+      return contact;
+    } catch (error) {
+      logger.error('Error finding contact by user and phone:', error);
+      return null;
+    }
+  }
+
+  /**
    * Get contact statistics for a user
    */
   static async getContactStats(userId: string): Promise<{

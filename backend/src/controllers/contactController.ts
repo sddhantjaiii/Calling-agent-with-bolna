@@ -654,4 +654,70 @@ export class ContactController {
       });
     }
   }
+
+  /**
+   * Create contacts from leads for campaign creation
+   * Creates new contacts or returns existing ones based on phone numbers
+   */
+  static async createContactsFromLeads(req: Request, res: Response): Promise<Response | void> {
+    try {
+      const userId = (req.user as any)?.id;
+      if (!userId) {
+        return res.status(401).json({ error: 'User not authenticated' });
+      }
+
+      const { leads } = req.body;
+      if (!leads || !Array.isArray(leads) || leads.length === 0) {
+        return res.status(400).json({ error: 'Leads array is required' });
+      }
+
+      const contactIds: string[] = [];
+      
+      for (const lead of leads) {
+        if (!lead.phone) continue;
+        
+        try {
+          // Try to find existing contact first
+          const existingContact = await ContactService.findByPhone(userId, lead.phone);
+          
+          if (existingContact) {
+            contactIds.push(existingContact.id);
+          } else {
+            // Create new contact
+            const newContact = await ContactService.createContact(userId, {
+              name: lead.name || `Lead ${lead.phone}`,
+              phone_number: lead.phone,
+              email: lead.email || undefined,
+              company: lead.company || undefined,
+            });
+            
+            if (newContact?.id) {
+              contactIds.push(newContact.id);
+            }
+          }
+        } catch (contactError) {
+          logger.error('Error processing lead for contact creation:', {
+            lead,
+            error: contactError instanceof Error ? contactError.message : String(contactError)
+          });
+          // Continue with other leads even if one fails
+        }
+      }
+
+      logger.info(`Created/found ${contactIds.length} contacts from ${leads.length} leads for user ${userId}`);
+      
+      return res.json({
+        success: true,
+        contactIds,
+        total: contactIds.length
+      });
+      
+    } catch (error) {
+      logger.error('Error in createContactsFromLeads:', error);
+      return res.status(500).json({ 
+        error: 'Failed to create contacts from leads',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
 }

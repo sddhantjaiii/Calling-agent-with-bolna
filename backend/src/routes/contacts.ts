@@ -19,6 +19,9 @@ router.get('/stats', authenticateToken, requireAuth, ContactController.getContac
 // Bulk upload endpoints (must be before /:id route)
 router.get('/template', ContactController.downloadTemplate);
 
+// Create contacts from leads (for campaign creation from Lead Intelligence)
+router.post('/from-leads', authenticateToken, requireAuth, ContactController.createContactsFromLeads);
+
 // Test endpoint to verify backend connectivity
 router.post('/test-upload', authenticateToken, requireAuth, (req, res) => {
   console.log('Test upload endpoint hit successfully');

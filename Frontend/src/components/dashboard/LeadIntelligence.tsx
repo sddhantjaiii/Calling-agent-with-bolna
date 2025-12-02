@@ -27,6 +27,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Label } from "@/components/ui/label";
 import CustomerConversionModal from "./CustomerConversionModal";
 import InteractionDetailsModal from './InteractionDetailsModal';
+import CreateCampaignModal from "@/components/campaigns/CreateCampaignModal";
 import {
   Search,
   Download,
@@ -40,6 +41,7 @@ import {
   ArrowLeft,
   Loader2,
   X,
+  Megaphone,
 } from "lucide-react";
 import { useTheme } from "@/components/theme/ThemeProvider";
 import { useNavigation } from "@/contexts/NavigationContext";
@@ -176,6 +178,10 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
   const [inviteInputValue, setInviteInputValue] = useState("");
   const [meetingTitle, setMeetingTitle] = useState("");
   const [meetingDescription, setMeetingDescription] = useState("");
+
+  // Campaign creation modal state
+  const [showCampaignModal, setShowCampaignModal] = useState(false);
+  const [campaignContactIds, setCampaignContactIds] = useState<string[]>([]);
 
   // API functions
   const fetchLeadIntelligence = async () => {
@@ -835,6 +841,69 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
     }
   };
 
+  // Handle creating campaign from selected leads
+  const handleCreateCampaignFromLeads = async () => {
+    if (selectedContacts.length === 0) {
+      toast({
+        title: "No leads selected",
+        description: "Please select at least one lead to create a campaign",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Get phone numbers from selected leads and create/get contacts
+    const leadsWithPhones = filteredContacts
+      .filter(c => selectedContacts.includes(c.id) && c.phone)
+      .map(c => ({
+        id: c.id,
+        phone: c.phone!,
+        name: c.name,
+        email: c.email,
+        company: c.company
+      }));
+
+    if (leadsWithPhones.length === 0) {
+      toast({
+        title: "No callable leads",
+        description: "Selected leads must have phone numbers to create a campaign",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Create contacts from leads or get existing contact IDs
+      const response = await apiService.createContactsFromLeads(leadsWithPhones);
+      const contactIds = response.data?.contactIds || (response as any).contactIds;
+      if (contactIds && contactIds.length > 0) {
+        setCampaignContactIds(contactIds);
+        setShowCampaignModal(true);
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to prepare leads for campaign",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error preparing leads for campaign:', error);
+      toast({
+        title: "Error",
+        description: "Failed to prepare leads for campaign",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleCampaignModalClose = () => {
+    setShowCampaignModal(false);
+    setCampaignContactIds([]);
+    setSelectedContacts([]);
+    // Refresh lead intelligence data
+    fetchLeadIntelligence();
+  };
+
   if (selectedContact) {
     return (
       <div className="space-y-6">
@@ -1241,6 +1310,15 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
               <SelectItem value="Cold">Cold</SelectItem>
             </SelectContent>
           </Select>
+          {selectedContacts.length > 0 && (
+            <Button 
+              onClick={handleCreateCampaignFromLeads}
+              className="bg-[#1A6262] hover:bg-[#155050] text-white"
+            >
+              <Megaphone className="w-4 h-4 mr-2" />
+              Create Campaign ({selectedContacts.length})
+            </Button>
+          )}
           <Button variant="outline">
             <Download className="w-4 h-4 mr-2" />
             Export
@@ -1778,6 +1856,13 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Campaign Creation Modal */}
+      <CreateCampaignModal
+        isOpen={showCampaignModal}
+        onClose={handleCampaignModalClose}
+        preSelectedContacts={campaignContactIds}
+      />
     </div>
   );
 };

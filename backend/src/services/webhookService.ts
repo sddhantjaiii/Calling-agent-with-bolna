@@ -2,6 +2,8 @@ import Call from '../models/Call';
 import Agent from '../models/Agent';
 import Transcript from '../models/Transcript';
 import CallQueue from '../models/CallQueue';
+import { CallQueueModel } from '../models/CallQueue';
+import { CallCampaignModel } from '../models/CallCampaign';
 import ContactModel from '../models/Contact';
 import { BillingService } from './billingService';
 import { ContactAutoCreationService } from './contactAutoCreationService';
@@ -1308,9 +1310,116 @@ class WebhookService {
       }
     }
 
-    // Update queue item as failed if this call was part of a campaign
+    // Update queue item and check if retry is needed
     if (call) {
-      await this.updateQueueItemStatus(call.id, 'failed', `Call ended with status: ${status}`);
+      await this.handleQueueItemFailureAndRetry(call.id, status);
+    }
+  }
+
+  /**
+   * Handle queue item failure and schedule retry if applicable
+   */
+  private async handleQueueItemFailureAndRetry(
+    callId: string,
+    callOutcome: string
+  ): Promise<void> {
+    try {
+      const queueItem = await CallQueue.findByCallId(callId);
+      
+      if (!queueItem) {
+        // Not a campaign call, skip
+        return;
+      }
+
+      // Check if this is a campaign call with retry enabled
+      if (queueItem.campaign_id && (callOutcome === 'busy' || callOutcome === 'no-answer')) {
+        const campaign = await CallCampaignModel.findById(queueItem.campaign_id, queueItem.user_id);
+        
+        if (campaign && campaign.max_retries > 0) {
+          // Check if we should retry
+          const { shouldRetry, currentRetryCount } = await CallQueueModel.shouldRetry(
+            queueItem.campaign_id,
+            queueItem.contact_id,
+            campaign.max_retries
+          );
+          
+          if (shouldRetry) {
+            // Schedule a retry
+            const newRetryCount = currentRetryCount + 1;
+            
+            try {
+              const retryItem = await CallQueueModel.createRetryItem({
+                user_id: queueItem.user_id,
+                campaign_id: queueItem.campaign_id,
+                agent_id: queueItem.agent_id,
+                contact_id: queueItem.contact_id,
+                phone_number: queueItem.phone_number,
+                contact_name: queueItem.contact_name,
+                user_data: queueItem.user_data,
+                retry_count: newRetryCount,
+                original_queue_id: queueItem.id,
+                last_call_outcome: callOutcome,
+                retry_interval_minutes: campaign.retry_interval_minutes,
+                campaign_first_call_time: campaign.first_call_time,
+                campaign_last_call_time: campaign.last_call_time
+              });
+              
+              logger.info('🔄 Scheduled retry for failed call', {
+                original_queue_id: queueItem.id,
+                new_queue_id: retryItem.id,
+                call_id: callId,
+                campaign_id: queueItem.campaign_id,
+                retry_count: newRetryCount,
+                max_retries: campaign.max_retries,
+                call_outcome: callOutcome,
+                scheduled_for: retryItem.scheduled_for
+              });
+              
+              // Mark original queue item as completed (not failed) since we're retrying
+              await CallQueue.markAsCompleted(queueItem.id, queueItem.user_id, callId);
+              
+              return; // Don't mark as failed since retry is scheduled
+            } catch (retryError) {
+              logger.error('Failed to schedule retry', {
+                queue_item_id: queueItem.id,
+                campaign_id: queueItem.campaign_id,
+                error: retryError instanceof Error ? retryError.message : String(retryError)
+              });
+              // Fall through to mark as failed
+            }
+          } else {
+            logger.info('🚫 Max retries reached, not scheduling retry', {
+              queue_item_id: queueItem.id,
+              campaign_id: queueItem.campaign_id,
+              current_retry_count: currentRetryCount,
+              max_retries: campaign.max_retries
+            });
+          }
+        }
+      }
+      
+      // Mark queue item as failed (no retry or retry failed)
+      await CallQueue.markAsFailed(
+        queueItem.id, 
+        queueItem.user_id, 
+        `Call ended with status: ${callOutcome}`
+      );
+      logger.info('📋 Queue item marked as failed', {
+        queue_item_id: queueItem.id,
+        call_id: callId,
+        campaign_id: queueItem.campaign_id,
+        reason: callOutcome
+      });
+
+      // Check if campaign is now complete
+      if (queueItem.campaign_id) {
+        await this.checkAndCompleteCampaign(queueItem.campaign_id, queueItem.user_id);
+      }
+    } catch (error) {
+      logger.error('❌ Failed to handle queue item failure and retry', {
+        call_id: callId,
+        error: error instanceof Error ? error.message : String(error)
+      });
     }
   }
 

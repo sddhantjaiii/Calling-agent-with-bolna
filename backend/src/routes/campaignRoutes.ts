@@ -132,7 +132,11 @@ router.post('/upload-csv', uploadExcel.single('file'), async (req: Request, res:
       last_call_time,
       start_date,
       end_date,
-      max_concurrent_calls
+      max_concurrent_calls,
+      max_retries,
+      retry_interval_minutes,
+      use_custom_timezone,
+      campaign_timezone
     } = req.body;
 
     const campaignName = name || campaign_name;
@@ -376,6 +380,10 @@ router.post('/upload-csv', uploadExcel.single('file'), async (req: Request, res:
       start_date,
       end_date,
       max_concurrent_calls: max_concurrent_calls ? parseInt(max_concurrent_calls) : undefined,
+      max_retries: max_retries ? parseInt(max_retries) : 0,
+      retry_interval_minutes: retry_interval_minutes ? parseInt(retry_interval_minutes) : 60,
+      use_custom_timezone: use_custom_timezone === 'true',
+      campaign_timezone: campaign_timezone || undefined,
       contact_ids: contactIds,
       contact_details_map: contactDetailsMap // Pass the contact details we already have
     };

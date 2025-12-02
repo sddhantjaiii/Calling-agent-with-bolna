@@ -85,8 +85,8 @@ export class CallCampaignModel {
       `INSERT INTO call_campaigns (
         user_id, name, description, agent_id, next_action,
         first_call_time, last_call_time, status, start_date, end_date, started_at,
-        campaign_timezone, use_custom_timezone
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        campaign_timezone, use_custom_timezone, max_retries, retry_interval_minutes
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING *`,
       [
         userId,
@@ -101,7 +101,9 @@ export class CallCampaignModel {
         data.end_date || null,
         new Date(),  // Set started_at to now
         data.campaign_timezone || null,
-        data.use_custom_timezone || false
+        data.use_custom_timezone || false,
+        data.max_retries || 0,
+        data.retry_interval_minutes || 60
       ]
     );
     return result.rows[0];

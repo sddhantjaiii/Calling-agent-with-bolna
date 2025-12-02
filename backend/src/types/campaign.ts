@@ -50,6 +50,10 @@ export interface CallCampaign {
   campaign_timezone?: string | null;      // Optional override timezone
   use_custom_timezone?: boolean;          // Use campaign timezone vs user timezone
   
+  // Retry configuration for busy/no-answer calls
+  max_retries: number;           // Number of retry attempts (0 = no retries)
+  retry_interval_minutes: number; // Minutes between retry attempts
+  
   // Status
   status: CampaignStatus;
   
@@ -117,6 +121,11 @@ export interface CallQueueItem {
   // Round-robin
   last_system_allocation_at?: string;
   
+  // Retry tracking
+  retry_count: number;           // Number of retry attempts made
+  original_queue_id?: string;    // Reference to original queue item if this is a retry
+  last_call_outcome?: string;    // Outcome of last call attempt (busy, no-answer)
+  
   // Timestamps
   created_at: string;
   updated_at: string;
@@ -147,6 +156,10 @@ export interface CreateCampaignRequest {
   // Timezone override (optional)
   campaign_timezone?: string | null;  // IANA timezone (e.g., "America/New_York")
   use_custom_timezone?: boolean;      // If true, use campaign_timezone; else use user timezone
+  
+  // Retry configuration
+  max_retries?: number;           // Number of retries for busy/no-answer (default: 0)
+  retry_interval_minutes?: number; // Minutes between retries (default: 60)
   
   // Contacts
   contact_ids: string[]; // Array of contact IDs to add to campaign
@@ -215,6 +228,8 @@ export interface UpdateCampaignRequest {
   status?: CampaignStatus;
   campaign_timezone?: string | null;
   use_custom_timezone?: boolean;
+  max_retries?: number;
+  retry_interval_minutes?: number;
 }
 
 /**
