@@ -1,3 +1,13 @@
+/**
+ * Logger utility for the application
+ * 
+ * Configuration via environment variables:
+ * - LOG_LEVEL: ERROR, WARN, INFO, DEBUG (default: INFO)
+ * - DEBUG_MODE: true/false - when true, ensures DEBUG level is enabled
+ * 
+ * All output goes to console for Railway/platform log capture (no file-based logging)
+ */
+
 interface LogLevel {
   ERROR: 0;
   WARN: 1;
@@ -14,10 +24,17 @@ const LOG_LEVELS: LogLevel = {
 
 class Logger {
   private level: number;
+  private debugMode: boolean;
 
   constructor() {
     const envLevel = process.env.LOG_LEVEL?.toUpperCase() || 'INFO';
     this.level = LOG_LEVELS[envLevel as keyof LogLevel] ?? LOG_LEVELS.INFO;
+    this.debugMode = process.env.DEBUG_MODE === 'true';
+    
+    // If DEBUG_MODE is true, ensure debug logs are enabled
+    if (this.debugMode && this.level < LOG_LEVELS.DEBUG) {
+      this.level = LOG_LEVELS.DEBUG;
+    }
   }
 
   private log(level: keyof LogLevel, message: string, ...args: any[]) {

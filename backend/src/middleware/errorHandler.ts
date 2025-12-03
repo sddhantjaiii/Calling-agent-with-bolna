@@ -1,6 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import fs from 'fs';
-import path from 'path';
+import { logger } from '../utils/logger';
 
 // Enhanced error handling middleware - centralized error processing with comprehensive logging
 export interface ApiError extends Error {
@@ -91,91 +90,17 @@ export class DatabaseError extends AppError {
   }
 }
 
-// Logging utility
-class Logger {
-  private logDir: string;
-  private errorLogFile: string;
-  private accessLogFile: string;
+// Re-export logger from utils for backward compatibility
+export { logger };
 
-  constructor() {
-    // Use /tmp/logs for Vercel compatibility
-    if (process.env.VERCEL || process.env.NOW_REGION || process.env.NOW) {
-      this.logDir = path.join('/tmp', 'logs');
-    } else {
-      this.logDir = path.join(process.cwd(), 'logs');
-    }
-    this.errorLogFile = path.join(this.logDir, 'error.log');
-    this.accessLogFile = path.join(this.logDir, 'access.log');
-    // Try to create logs directory if possible
-    try {
-      if (!fs.existsSync(this.logDir)) {
-        fs.mkdirSync(this.logDir, { recursive: true });
-      }
-      this.canWriteLogs = true;
-    } catch (e) {
-      this.canWriteLogs = false;
-    }
-  }
-
-  private formatLogEntry(level: string, message: string, meta?: any): string {
-    const timestamp = new Date().toISOString();
-    const logEntry = {
-      timestamp,
-      level,
-      message,
-      ...meta
-    };
-    return JSON.stringify(logEntry) + '\n';
-  }
-
-  private canWriteLogs: boolean = true;
-  private writeToFile(filename: string, content: string): void {
-    if (!this.canWriteLogs) return;
-    try {
-      fs.appendFileSync(filename, content);
-    } catch (error) {
-      console.error('Failed to write to log file:', error);
-    }
-  }
-
-  error(message: string, meta?: any): void {
-    const logEntry = this.formatLogEntry('ERROR', message, meta);
-    this.writeToFile(this.errorLogFile, logEntry);
-    // Always log to console in production on Vercel
-    if (process.env.NODE_ENV === 'development' || !this.canWriteLogs) {
-      console.error('ERROR:', message, meta);
-    }
-  }
-
-  warn(message: string, meta?: any): void {
-    const logEntry = this.formatLogEntry('WARN', message, meta);
-    this.writeToFile(this.errorLogFile, logEntry);
-    if (process.env.NODE_ENV === 'development' || !this.canWriteLogs) {
-      console.warn('WARN:', message, meta);
-    }
-  }
-
-  info(message: string, meta?: any): void {
-    const logEntry = this.formatLogEntry('INFO', message, meta);
-    this.writeToFile(this.accessLogFile, logEntry);
-    if (process.env.NODE_ENV === 'development' || !this.canWriteLogs) {
-      console.info('INFO:', message, meta);
-    }
-  }
-
-  debug(message: string, meta?: any): void {
-    if (process.env.NODE_ENV === 'development') {
-      const logEntry = this.formatLogEntry('DEBUG', message, meta);
-      this.writeToFile(this.accessLogFile, logEntry);
-      console.debug('DEBUG:', message, meta);
-    }
-  }
-}
-
-export const logger = new Logger();
-
-// Request logging middleware
+// Request logging middleware - controlled by ENABLE_REQUEST_LOGGING environment variable
 export const requestLogger = (req: Request, res: Response, next: NextFunction): void => {
+  // Skip request logging if disabled
+  if (process.env.ENABLE_REQUEST_LOGGING !== 'true') {
+    next();
+    return;
+  }
+
   const startTime = Date.now();
   const originalSend = res.send;
 
