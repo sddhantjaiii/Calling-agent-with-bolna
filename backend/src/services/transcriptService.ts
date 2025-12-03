@@ -530,7 +530,11 @@ export class TranscriptService {
 
       // Highlight search terms if provided
       if (searchTerm) {
-        const regex = new RegExp(`(${searchTerm})`, 'gi');
+        // Escape special regex characters to prevent ReDoS attacks
+        const escapedSearchTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        // Limit search term length to prevent performance issues
+        const limitedSearchTerm = escapedSearchTerm.substring(0, 100);
+        const regex = new RegExp(`(${limitedSearchTerm})`, 'gi');
         formatted_content = formatted_content.replace(regex, '**$1**');
       }
 

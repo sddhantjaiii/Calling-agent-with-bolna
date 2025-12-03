@@ -190,6 +190,11 @@ class BolnaService {
   private retryConfig: RetryConfig;
   private readonly REQUEST_TIMEOUT = 15000; // 15 seconds per individual request
   private readonly TOTAL_TIMEOUT = 30000; // 30 seconds total including retries
+  // Allowlist of valid Bolna API domains for SSRF protection
+  private static readonly ALLOWED_BOLNA_DOMAINS = [
+    'api.bolna.ai',
+    'api.bolna.dev', // staging/development environment
+  ];
 
   constructor() {
     this.apiKey = process.env.BOLNA_API_KEY || '';
@@ -199,6 +204,9 @@ class BolnaService {
     if (!this.apiKey) {
       throw new Error('BOLNA_API_KEY is required');
     }
+
+    // SSRF Protection: Validate that the base URL is an allowed Bolna API domain
+    this.validateBaseUrl(this.baseUrl);
 
     this.client = axios.create({
       baseURL: this.baseUrl,
@@ -238,6 +246,53 @@ class BolnaService {
         return Promise.reject(this.handleApiError(error));
       }
     );
+  }
+
+  /**
+   * SSRF Protection: Validate that the base URL is an allowed Bolna API domain
+   */
+  private validateBaseUrl(url: string): void {
+    try {
+      const parsedUrl = new URL(url);
+      const hostname = parsedUrl.hostname.toLowerCase();
+      
+      // Check if the hostname is in the allowlist
+      if (!BolnaService.ALLOWED_BOLNA_DOMAINS.includes(hostname)) {
+        throw new Error(`Invalid BOLNA_BASE_URL: ${hostname} is not an allowed Bolna API domain`);
+      }
+      
+      // Ensure HTTPS is used in production
+      if (process.env.NODE_ENV === 'production' && parsedUrl.protocol !== 'https:') {
+        throw new Error('BOLNA_BASE_URL must use HTTPS in production');
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('Invalid BOLNA_BASE_URL')) {
+        throw error;
+      }
+      throw new Error(`Invalid BOLNA_BASE_URL format: ${url}`);
+    }
+  }
+
+  /**
+   * Validate agent ID format to prevent path traversal attacks
+   * Agent IDs should be alphanumeric with hyphens/underscores only
+   */
+  private validateAgentId(agentId: string): void {
+    // Agent IDs should match UUID format or alphanumeric pattern
+    const validAgentIdPattern = /^[a-zA-Z0-9_-]+$/;
+    if (!agentId || !validAgentIdPattern.test(agentId) || agentId.length > 128) {
+      throw new Error('Invalid agent ID format');
+    }
+  }
+
+  /**
+   * Validate execution ID format
+   */
+  private validateExecutionId(executionId: string): void {
+    const validExecutionIdPattern = /^[a-zA-Z0-9_-]+$/;
+    if (!executionId || !validExecutionIdPattern.test(executionId) || executionId.length > 128) {
+      throw new Error('Invalid execution ID format');
+    }
   }
 
   private handleApiError(error: any): Error {
@@ -388,8 +443,9 @@ class BolnaService {
    * GET /v2/agent/:agent_id
    */
   async getAgent(agentId: string): Promise<BolnaAgent> {
+    this.validateAgentId(agentId);
     return this.executeWithRetry(
-      () => this.client.get(`/v2/agent/${agentId}`),
+      () => this.client.get(`/v2/agent/${encodeURIComponent(agentId)}`),
       `getAgent(${agentId})`
     );
   }
@@ -411,13 +467,14 @@ class BolnaService {
    * PUT /v2/agent/:agent_id
    */
   async updateAgent(agentId: string, agentData: Partial<CreateBolnaAgentRequest>): Promise<BolnaAgent> {
+    this.validateAgentId(agentId);
     logger.info(`[Bolna] Updating agent ${agentId}`, {
       hasConfig: !!agentData.agent_config,
       hasPrompts: !!agentData.agent_prompts
     });
     
     const result = await this.executeWithRetry(
-      () => this.client.put(`/v2/agent/${agentId}`, agentData),
+      () => this.client.put(`/v2/agent/${encodeURIComponent(agentId)}`, agentData),
       `updateAgent(${agentId})`
     );
     
@@ -430,6 +487,7 @@ class BolnaService {
    * Used to update only the system prompt without affecting other agent config
    */
   async patchAgentSystemPrompt(agentId: string, systemPrompt: string): Promise<BolnaAgent> {
+    this.validateAgentId(agentId);
     logger.info(`[Bolna] Patching agent ${agentId} system prompt`);
     
     const patchData = {
@@ -441,7 +499,7 @@ class BolnaService {
     };
     
     const result = await this.executeWithRetry(
-      () => this.client.patch(`/v2/agent/${agentId}`, patchData),
+      () => this.client.patch(`/v2/agent/${encodeURIComponent(agentId)}`, patchData),
       `patchAgentSystemPrompt(${agentId})`
     );
     
@@ -454,6 +512,7 @@ class BolnaService {
    * Used to update only the webhook URL without affecting other agent config
    */
   async patchAgentWebhookUrl(agentId: string, webhookUrl: string): Promise<BolnaAgent> {
+    this.validateAgentId(agentId);
     logger.info(`[Bolna] Patching agent ${agentId} webhook URL`);
     
     const patchData = {
@@ -463,7 +522,7 @@ class BolnaService {
     };
     
     const result = await this.executeWithRetry(
-      () => this.client.patch(`/v2/agent/${agentId}`, patchData),
+      () => this.client.patch(`/v2/agent/${encodeURIComponent(agentId)}`, patchData),
       `patchAgentWebhookUrl(${agentId})`
     );
     
@@ -475,8 +534,9 @@ class BolnaService {
    * DELETE /v2/agent/:agent_id
    */
   async deleteAgent(agentId: string): Promise<void> {
+    this.validateAgentId(agentId);
     await this.executeWithRetry(
-      () => this.client.delete(`/v2/agent/${agentId}`),
+      () => this.client.delete(`/v2/agent/${encodeURIComponent(agentId)}`),
       `deleteAgent(${agentId})`
     );
   }
@@ -486,6 +546,7 @@ class BolnaService {
    * POST /call
    */
   async makeCall(callData: BolnaCallRequest): Promise<BolnaCallResponse> {
+    this.validateAgentId(callData.agent_id);
     logger.info('[Bolna] Initiating call', {
       agentId: callData.agent_id,
       recipient: callData.recipient_phone_number,
@@ -503,8 +564,9 @@ class BolnaService {
    * POST /call/stop/:execution_id (assuming this endpoint exists)
    */
   async stopCall(executionId: string): Promise<void> {
+    this.validateExecutionId(executionId);
     await this.executeWithRetry(
-      () => this.client.post(`/call/stop/${executionId}`),
+      () => this.client.post(`/call/stop/${encodeURIComponent(executionId)}`),
       `stopCall(${executionId})`
     );
   }
@@ -593,9 +655,10 @@ class BolnaService {
   }
 
   async getCallStatus(executionId: string): Promise<any> {
+    this.validateExecutionId(executionId);
     try {
       const response = await this.executeWithRetry(
-        () => this.client.get(`/call/${executionId}`),
+        () => this.client.get(`/call/${encodeURIComponent(executionId)}`),
         'getCallStatus'
       );
       return response;

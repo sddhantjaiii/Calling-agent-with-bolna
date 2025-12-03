@@ -38,11 +38,29 @@ export const sanitizeInput = (input: string, allowLongText: boolean = false): st
 
 export const sanitizeHtml = (input: string): string => {
   if (typeof input !== 'string') return String(input);
-  return input
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
-    .replace(/javascript:/gi, '')
-    .replace(/on\w+\s*=/gi, '');
+  
+  // Use a simple, non-backtracking approach to remove dangerous HTML
+  // First, limit input length to prevent DoS
+  const limitedInput = input.length > 100000 ? input.substring(0, 100000) : input;
+  
+  let sanitized = limitedInput;
+  
+  // Remove script tags using a simple approach (without nested quantifiers)
+  // This is safer than regex with nested groups that can cause ReDoS
+  sanitized = sanitized.replace(/<script[^>]*>/gi, '');
+  sanitized = sanitized.replace(/<\/script>/gi, '');
+  
+  // Remove iframe tags
+  sanitized = sanitized.replace(/<iframe[^>]*>/gi, '');
+  sanitized = sanitized.replace(/<\/iframe>/gi, '');
+  
+  // Remove javascript: protocol
+  sanitized = sanitized.replace(/javascript:/gi, '');
+  
+  // Remove event handlers (on* attributes) - use simple pattern
+  sanitized = sanitized.replace(/\s+on\w+\s*=/gi, ' ');
+  
+  return sanitized;
 };
 
 // Validation result handler

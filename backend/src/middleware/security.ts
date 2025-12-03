@@ -45,6 +45,12 @@ export const sanitizeString = (input: string, config: SecurityConfig = defaultSe
   }
 
   let sanitized = input.trim();
+  
+  // Limit length early to prevent ReDoS attacks with regex patterns
+  // This ensures regex patterns operate on bounded input
+  if (sanitized.length > 10000) {
+    sanitized = sanitized.substring(0, 10000);
+  }
 
   // SQL injection prevention
   if (config.enableSqlInjectionPrevention) {
@@ -65,8 +71,6 @@ export const sanitizeString = (input: string, config: SecurityConfig = defaultSe
   if (config.enableInputSanitization) {
     // Remove potentially dangerous characters
     sanitized = sanitized.replace(/[<>'"]/g, '');
-    // Limit length to prevent buffer overflow attacks
-    sanitized = sanitized.substring(0, 10000);
   }
 
   return sanitized;
