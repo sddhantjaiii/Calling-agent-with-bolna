@@ -31,7 +31,13 @@ class AdminAnalyticsService {
   }
 
   private generateSessionId(): string {
-    return `admin_session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // Use crypto.getRandomValues() for cryptographically secure random values
+    const randomBytes = new Uint8Array(12);
+    crypto.getRandomValues(randomBytes);
+    const randomHex = Array.from(randomBytes)
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+    return `admin_session_${Date.now()}_${randomHex}`;
   }
 
   setUserId(userId: string) {

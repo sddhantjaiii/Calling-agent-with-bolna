@@ -19,7 +19,6 @@ import {
   notFoundHandler,
 
   inputSanitization,
-  contentSecurityPolicy,
   requestSizeLimit,
   sanitizeRequest,
   requestLogger,
@@ -86,13 +85,40 @@ async function runMigrations() {
 app.set('trust proxy', 1);
 
 // Security middleware - order matters!
+// Use Helmet with secure configuration (don't disable security features)
 app.use(helmet({
-  contentSecurityPolicy: false, // We'll use our custom CSP
-  crossOriginEmbedderPolicy: false // Allow embedding for development
+  contentSecurityPolicy: {
+    // Use custom CSP defined below, but keep Helmet's framework
+    useDefaults: false,
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"], // Allow inline styles for UI frameworks
+      imgSrc: ["'self'", "data:", "https:"],
+      fontSrc: ["'self'"],
+      connectSrc: ["'self'", "https://api.bolna.ai", "https://api.stripe.com"],
+      frameAncestors: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+      objectSrc: ["'none'"],
+      upgradeInsecureRequests: []
+    }
+  },
+  crossOriginEmbedderPolicy: process.env.NODE_ENV === 'production', // Enable in production
+  crossOriginOpenerPolicy: { policy: "same-origin" },
+  crossOriginResourcePolicy: { policy: "same-origin" },
+  referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+  hsts: {
+    maxAge: 31536000, // 1 year
+    includeSubDomains: true,
+    preload: true
+  },
+  noSniff: true,
+  xssFilter: true,
+  hidePoweredBy: true
 }));
 
-// Content Security Policy
-app.use(contentSecurityPolicy);
+// Note: CSP is now configured in Helmet above, removing duplicate middleware
 
 // Request size limiting
 app.use(requestSizeLimit('10mb'));

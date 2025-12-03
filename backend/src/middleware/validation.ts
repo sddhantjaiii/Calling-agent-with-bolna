@@ -38,11 +38,33 @@ export const sanitizeInput = (input: string, allowLongText: boolean = false): st
 
 export const sanitizeHtml = (input: string): string => {
   if (typeof input !== 'string') return String(input);
-  return input
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
-    .replace(/javascript:/gi, '')
-    .replace(/on\w+\s*=/gi, '');
+  
+  // First, limit input length to prevent DoS
+  const limitedInput = input.length > 100000 ? input.substring(0, 100000) : input;
+  
+  // The safest approach is to HTML-encode characters that could form HTML tags
+  // This prevents any HTML injection including script and iframe tags
+  let sanitized = limitedInput
+    .replace(/&/g, '&amp;')   // Must be first
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+  
+  // Additionally remove dangerous URL protocols for extra safety
+  // Use iterative approach to handle obfuscated protocols
+  let previousLength: number;
+  do {
+    previousLength = sanitized.length;
+    sanitized = sanitized.replace(/javascript:/gi, '');
+    sanitized = sanitized.replace(/data:/gi, '');
+    sanitized = sanitized.replace(/vbscript:/gi, '');
+  } while (sanitized.length !== previousLength);
+  
+  // Remove event handlers (on* attributes) - use simple pattern
+  sanitized = sanitized.replace(/\s+on\w+\s*=/gi, ' ');
+  
+  return sanitized;
 };
 
 // Validation result handler
