@@ -24,14 +24,11 @@ import {
 describe('Timezone Standardization', () => {
   
   describe('Node.js Process Timezone', () => {
-    test('process.env.TZ should default to UTC when not set to IST', () => {
+    test('process.env.TZ should default to UTC', () => {
       // The server sets TZ to UTC on startup
-      // In test environment, TZ might not be set, but we verify the expected behavior
-      const expectedTZ = 'UTC';
-      const actualTZ = process.env.TZ || 'UTC';
-      
-      // Verify that if TZ is set, it's either UTC or we're in a test environment
-      expect(['UTC', undefined, '']).toContain(process.env.TZ === 'UTC' ? 'UTC' : process.env.TZ);
+      // In test environment, TZ might not be set, so we verify it's either UTC or not set
+      const actualTZ = process.env.TZ;
+      expect([undefined, '', 'UTC']).toContain(actualTZ);
     });
 
     test('new Date().toISOString() should always produce UTC timestamps', () => {
