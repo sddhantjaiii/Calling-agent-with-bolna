@@ -93,7 +93,7 @@ router.use('/settings', authenticatedRateLimit, settingsRoutes);
 router.use('/openai-prompts', authenticatedRateLimit, openaiPromptRoutes);
 router.use('/scheduler', authenticatedRateLimit, schedulerRoutes); // Campaign scheduler monitoring
 router.use('/phone-numbers', authenticatedRateLimit, userPhoneNumbersRoutes); // User phone numbers
-router.use('/integrations', integrationRoutes); // Google Calendar and other integrations (has mixed auth)
+router.use('/integrations', generalRateLimit, integrationRoutes); // Google Calendar and other integrations (has mixed auth)
 router.use('/demos', authenticatedRateLimit, demoRoutes); // Demo schedule management
 router.use('/email-settings', authenticatedRateLimit, emailSettingsRoutes); // Follow-up email settings
 

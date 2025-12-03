@@ -7,6 +7,7 @@
 import { Router } from 'express';
 import { integrationController } from '../controllers/integrationController';
 import { authenticateToken } from '../middleware/auth';
+import { authRateLimit } from '../middleware/rateLimit';
 
 const router = Router();
 
@@ -29,9 +30,11 @@ router.get(
  * GET /api/integrations/google/callback
  * Handle OAuth callback from Google
  * No auth required (Google redirects here)
+ * Rate limited to prevent abuse
  */
 router.get(
   '/google/callback',
+  authRateLimit,
   integrationController.handleGoogleCallback.bind(integrationController)
 );
 
