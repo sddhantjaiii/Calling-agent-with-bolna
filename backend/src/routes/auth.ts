@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { AuthController, validateRegistration, validateLogin, validateRefreshToken } from '../controllers/authController';
 import { authenticateToken, optionalAuth } from '../middleware/auth';
 import { authService } from '../services/authService';
+import { validateUrl } from '../middleware/validation';
 
 const router = Router();
 
@@ -13,9 +14,24 @@ router.post('/refresh', validateRefreshToken, AuthController.refreshToken);
 
 // Google OAuth routes - simplified without Passport sessions
 router.get('/google', (req, res) => {
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI;
+  
+  // Validate redirect URI has a safe scheme
+  if (!redirectUri || !validateUrl(redirectUri)) {
+    console.error('Invalid GOOGLE_REDIRECT_URI configured');
+    res.status(500).json({
+      error: {
+        code: 'CONFIGURATION_ERROR',
+        message: 'OAuth configuration error',
+        timestamp: new Date(),
+      },
+    });
+    return;
+  }
+
   const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
     `client_id=${process.env.GOOGLE_CLIENT_ID}&` +
-    `redirect_uri=${encodeURIComponent(process.env.GOOGLE_REDIRECT_URI!)}&` +
+    `redirect_uri=${encodeURIComponent(redirectUri)}&` +
     `response_type=code&` +
     `scope=${encodeURIComponent('profile email')}&` +
     `access_type=offline&` +

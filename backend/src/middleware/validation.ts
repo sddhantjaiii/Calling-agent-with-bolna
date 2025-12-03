@@ -20,8 +20,10 @@ export const validateUUID = (uuid: string): boolean => {
 
 export const validateUrl = (url: string): boolean => {
   try {
-    new URL(url);
-    return true;
+    const parsedUrl = new URL(url);
+    // Only allow safe URL schemes (http and https) to prevent protocol-based attacks
+    // like javascript:, file:, data:, etc.
+    return parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:';
   } catch {
     return false;
   }
