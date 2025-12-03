@@ -11,6 +11,7 @@ interface CampaignWindow {
   timezone: string;       // The timezone this campaign operates in
   queuedCount: number;
   status: string;
+  nextScheduledTime?: Date | null;
 }
 
 /**
@@ -111,7 +112,13 @@ export class InMemoryCampaignScheduler {
             FROM call_queue cq 
             WHERE cq.campaign_id = cc.id 
               AND cq.status = 'queued'
-          ) as queued_count
+          ) as queued_count,
+          (
+            SELECT MIN(scheduled_for)
+            FROM call_queue cq
+            WHERE cq.campaign_id = cc.id
+              AND cq.status = 'queued'
+          ) as next_scheduled_time
         FROM call_campaigns cc
         JOIN users u ON u.id = cc.user_id
         WHERE cc.status = 'active'
@@ -144,7 +151,8 @@ export class InMemoryCampaignScheduler {
             lastCallTime: row.last_call_time,    // Keep in campaign timezone
             timezone: effectiveTimezone,         // Store the timezone
             queuedCount: row.queued_count,
-            status: row.status
+            status: row.status,
+            nextScheduledTime: row.next_scheduled_time ? new Date(row.next_scheduled_time) : null
           });
         } else {
           // Campaign has no queued calls - remove from memory
@@ -279,6 +287,12 @@ export class InMemoryCampaignScheduler {
 
       // Check if currently within campaign window
       if (currentTimeString >= window.firstCallTime && currentTimeString <= window.lastCallTime) {
+        // Check if we have a specific scheduled time in the future
+        if (window.nextScheduledTime && window.nextScheduledTime > now) {
+          console.log(`[Scheduler] Campaign ${window.campaignId.slice(0,8)} active but next call scheduled for ${window.nextScheduledTime.toISOString()}`);
+          return window.nextScheduledTime;
+        }
+
         console.log(`[Scheduler] ✅ Campaign ${window.campaignId.slice(0,8)} is ACTIVE NOW - wake immediately`);
         return now; // Wake immediately
       }
