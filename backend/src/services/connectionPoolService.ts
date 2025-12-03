@@ -34,8 +34,8 @@ export class ConnectionPoolService {
   private healthCheckInterval: any | null = null;
   private config: ConnectionPoolConfig;
   private isShuttingDown: boolean = false;
-  // Session timezone to use for all DB connections; default to IST
-  private sessionTimeZone: string = (process.env.DB_TIMEZONE || 'Asia/Kolkata').trim();
+  // Session timezone to use for all DB connections; default to UTC for consistent storage
+  private sessionTimeZone: string = (process.env.DB_TIMEZONE || 'UTC').trim();
 
   constructor(config: ConnectionPoolConfig) {
     this.config = {
@@ -87,12 +87,12 @@ export class ConnectionPoolService {
         waitingCount: this.pool.waitingCount
       });
 
-      // Enforce session time zone (default Asia/Kolkata). Validate input to avoid SQL issues.
+      // Enforce session time zone (default UTC). Validate input to avoid SQL issues.
       const tz = this.sessionTimeZone;
       const tzIsValid = /^[A-Za-z_\/+-:]{1,64}$/.test(tz);
-      const tzSql = tzIsValid ? tz : 'Asia/Kolkata';
+      const tzSql = tzIsValid ? tz : 'UTC';
       if (!tzIsValid) {
-        logger.warn('Invalid DB_TIMEZONE provided, falling back to Asia/Kolkata', { provided: tz });
+        logger.warn('Invalid DB_TIMEZONE provided, falling back to UTC', { provided: tz });
       }
       // Use string literal (not parameterized) since PostgreSQL doesn't support parameters for SET TIME ZONE
       client.query(`SET TIME ZONE '${tzSql}'`).catch((err) => {

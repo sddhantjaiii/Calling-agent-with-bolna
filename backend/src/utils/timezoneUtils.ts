@@ -1,5 +1,10 @@
 /**
  * Timezone Utilities
+ * 
+ * IMPORTANT: All functions assume timestamps are stored in UTC.
+ * Database session timezone MUST be set to UTC.
+ * Node.js process.env.TZ MUST be set to UTC.
+ * 
  * Centralized timezone conversion and formatting logic
  */
 

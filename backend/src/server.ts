@@ -36,13 +36,11 @@ import MigrationRunner from './utils/migrationRunner';
 // Environment variables already loaded at the top of this file
 
 // Set timezone for the Node.js process - critical for Vercel deployment
-// This ensures all Date operations use IST instead of UTC
-// Use APP_TIMEZONE for Vercel (TZ is reserved), fallback to TZ for local development
+// This ensures all Date operations use UTC for consistent storage
 // NOTE: This is the SERVER default timezone. User-specific timezones are cached and used per-request.
-const timezone = process.env.APP_TIMEZONE || process.env.TZ || 'Asia/Kolkata';
-process.env.TZ = timezone;
-logger.info(`Server default timezone set to: ${timezone} (user-specific timezones are cached per-request)`);
-console.log(`🌍 Server default timezone: ${timezone} (users can have their own timezones)`);
+process.env.TZ = 'UTC'; // Always force UTC for consistent behavior
+logger.info('Server process timezone set to: UTC (user-specific timezones are cached per-request)');
+console.log('🌍 Server process timezone: UTC (users can have their own timezones)');
 
 const app = express();
 const PORT = process.env.PORT || 3000;

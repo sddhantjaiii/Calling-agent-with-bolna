@@ -715,14 +715,14 @@ export class InMemoryCampaignScheduler {
       hour12: false,
       hour: '2-digit',
       minute: '2-digit',
-      timeZone: process.env.APP_TIMEZONE || 'Asia/Kolkata'
+      timeZone: process.env.APP_TIMEZONE || 'UTC'
     });
   }
 
   private getTimeToday(timeString: string): Date {
-    const timezone = process.env.APP_TIMEZONE || 'Asia/Kolkata';
+    const timezone = process.env.APP_TIMEZONE || 'UTC';
     
-    // Get current date components in IST
+    // Get current date components in the configured timezone
     const now = new Date();
     const parts = new Intl.DateTimeFormat('en-US', {
       timeZone: timezone,
@@ -748,16 +748,16 @@ export class InMemoryCampaignScheduler {
     // Create date string in ISO format: YYYY-MM-DDTHH:mm:ss
     const isoString = `${dateParts.year}-${dateParts.month}-${dateParts.day}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
     
-    // Parse in IST context by converting from IST to UTC
-    const targetInIST = new Date(isoString + '+05:30'); // IST offset
+    // Parse in configured timezone context (UTC by default)
+    const targetDate = new Date(isoString + 'Z'); // UTC offset
     
-    return targetInIST;
+    return targetDate;
   }
 
   private getTimeTomorrow(timeString: string): Date {
-    const timezone = process.env.APP_TIMEZONE || 'Asia/Kolkata';
+    const timezone = process.env.APP_TIMEZONE || 'UTC';
     
-    // Get tomorrow's date in IST
+    // Get tomorrow's date in the configured timezone
     const now = new Date();
     const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
     
@@ -782,11 +782,11 @@ export class InMemoryCampaignScheduler {
     // Parse target time
     const [hours, minutes] = timeString.split(':').map(Number);
     
-    // Create ISO string with IST offset
+    // Create ISO string with UTC offset
     const isoString = `${dateParts.year}-${dateParts.month}-${dateParts.day}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`;
-    const targetInIST = new Date(isoString + '+05:30');
+    const targetDate = new Date(isoString + 'Z'); // UTC offset
     
-    return targetInIST;
+    return targetDate;
   }
 }
 
