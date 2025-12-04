@@ -1344,8 +1344,6 @@ class WebhookService {
           callStatus: status, // 'busy' or 'no-answer'
           leadStatus: undefined, // No lead status for failed calls
           transcript: undefined, // No transcript for failed calls
-          summary: undefined,
-          nextSteps: undefined,
           durationMinutes: 0,
           retryCount: 0,
           createdAt: new Date(call.created_at)
