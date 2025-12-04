@@ -645,6 +645,15 @@ Make sure to:
         throw new Error('AI response missing required fields');
       }
 
+      // Ensure the body template contains valid HTML tags.
+      // Some AI responses might omit angle brackets and return tag-like
+      // strings such as "div style=...". If we detect that there are no
+      // angle brackets at all, we wrap the content in a basic <div> so
+      // email clients and the preview render proper HTML instead of raw text.
+      if (!/[<>]/.test(parsed.body_template)) {
+        parsed.body_template = `<div style="font-family: Arial, sans-serif;">${parsed.body_template}</div>`;
+      }
+
       // Sanitize the HTML template
       const sanitizedBody = DOMPurify.sanitize(parsed.body_template, {
         ALLOWED_TAGS: ['html', 'head', 'body', 'meta', 'style', 'div', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 
