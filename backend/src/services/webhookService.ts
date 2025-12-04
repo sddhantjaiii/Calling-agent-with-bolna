@@ -1185,8 +1185,6 @@ class WebhookService {
                   callStatus: updatedCall.status || 'completed',
                   leadStatus: individualData?.lead_status_tag || undefined,
                   transcript: transcript.content,
-                  summary: individualData?.reasoning?.intent || undefined,
-                  nextSteps: individualData?.reasoning?.cta_behavior || undefined,
                   durationMinutes: updatedCall.duration_minutes,
                   retryCount: 0,
                   createdAt: new Date(updatedCall.created_at)

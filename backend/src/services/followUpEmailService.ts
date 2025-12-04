@@ -16,8 +16,6 @@ export interface EmailTemplateVariables {
   phone?: string;
   agent_name?: string;
   sender_name: string;
-  summary?: string;
-  next_steps?: string;
   call_duration?: string;
   call_date?: string;
   lead_status?: string;
@@ -36,8 +34,6 @@ export interface FollowUpCallData {
   callStatus: string;
   leadStatus?: string;
   transcript?: string;
-  summary?: string;
-  nextSteps?: string;
   durationMinutes?: number;
   retryCount?: number;
   createdAt: Date;
@@ -131,8 +127,6 @@ class FollowUpEmailService {
         phone: callData.phoneNumber,
         agent_name: context.agentName,
         sender_name: context.userName || 'Our Team',
-        summary: callData.summary || 'We discussed your needs and how we can help.',
-        next_steps: callData.nextSteps,
         call_duration: callData.durationMinutes ? `${callData.durationMinutes} minutes` : undefined,
         call_date: callData.createdAt.toLocaleDateString('en-US', {
           weekday: 'long',
@@ -461,8 +455,6 @@ class FollowUpEmailService {
       phone: sampleData?.phone || '+1 (555) 123-4567',
       agent_name: sampleData?.agent_name || 'Sarah',
       sender_name: sampleData?.sender_name || 'Your Team',
-      summary: sampleData?.summary || 'We discussed your needs for an AI calling solution and how our platform can help automate your outreach.',
-      next_steps: sampleData?.next_steps || 'Schedule a demo to see the platform in action.',
       call_duration: sampleData?.call_duration || '5 minutes',
       call_date: sampleData?.call_date || new Date().toLocaleDateString('en-US', {
         weekday: 'long',
@@ -501,8 +493,6 @@ class FollowUpEmailService {
       { name: 'phone', description: 'Phone number of the lead', example: '+1 (555) 123-4567' },
       { name: 'agent_name', description: 'Name of the AI agent that made the call', example: 'Sarah' },
       { name: 'sender_name', description: 'Your name or company name', example: 'Your Team' },
-      { name: 'summary', description: 'AI-generated summary of the call', example: 'We discussed your needs...' },
-      { name: 'next_steps', description: 'Suggested next steps from the call', example: 'Schedule a demo...' },
       { name: 'call_duration', description: 'Duration of the call', example: '5 minutes' },
       { name: 'call_date', description: 'Date when the call was made', example: 'Monday, December 2, 2025' },
       { name: 'lead_status', description: 'Current lead status/tag', example: 'Warm' }

@@ -68,14 +68,6 @@ export const DEFAULT_BODY_TEMPLATE = `<!DOCTYPE html>
         <div class="content">
             <p>Hi {{lead_name}},</p>
             <p>Thank you for taking the time to speak with us today. It was great learning about your needs{{#if company}} at {{company}}{{/if}}.</p>
-            <div class="highlight">
-                <p><strong>Summary of Our Conversation:</strong></p>
-                <p>{{summary}}</p>
-            </div>
-            {{#if next_steps}}
-            <p><strong>Next Steps:</strong></p>
-            <p>{{next_steps}}</p>
-            {{/if}}
             <p>If you have any questions, feel free to reach out. We look forward to hearing from you!</p>
             <p>Best regards,<br>{{sender_name}}</p>
         </div>
