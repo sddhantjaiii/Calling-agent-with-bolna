@@ -134,7 +134,11 @@ class FollowUpEmailService {
           month: 'long',
           day: 'numeric'
         }),
-        lead_status: callData.leadStatus
+        lead_status: callData.leadStatus,
+        // Call status flags for conditional template sections
+        call_completed: callData.callStatus === 'completed' ? 'true' : undefined,
+        call_busy: callData.callStatus === 'busy' ? 'true' : undefined,
+        call_no_answer: callData.callStatus === 'no-answer' || callData.callStatus === 'no_answer' ? 'true' : undefined
       };
 
       // Generate personalized content using OpenAI if configured
@@ -444,9 +448,12 @@ class FollowUpEmailService {
    */
   async previewEmail(
     userId: string,
-    sampleData?: Partial<EmailTemplateVariables>
+    sampleData?: Partial<EmailTemplateVariables> & { preview_call_status?: 'completed' | 'busy' | 'no_answer' }
   ): Promise<{ subject: string; html: string; text: string }> {
     const settings = await UserEmailSettingsModel.getOrCreate(userId);
+    
+    // Determine which call status to preview
+    const previewStatus = sampleData?.preview_call_status || 'completed';
     
     const variables: EmailTemplateVariables = {
       lead_name: sampleData?.lead_name || 'John Doe',
@@ -455,14 +462,18 @@ class FollowUpEmailService {
       phone: sampleData?.phone || '+1 (555) 123-4567',
       agent_name: sampleData?.agent_name || 'Sarah',
       sender_name: sampleData?.sender_name || 'Your Team',
-      call_duration: sampleData?.call_duration || '5 minutes',
+      call_duration: previewStatus === 'completed' ? (sampleData?.call_duration || '5 minutes') : undefined,
       call_date: sampleData?.call_date || new Date().toLocaleDateString('en-US', {
         weekday: 'long',
         year: 'numeric',
         month: 'long',
         day: 'numeric'
       }),
-      lead_status: sampleData?.lead_status || 'Warm'
+      lead_status: sampleData?.lead_status || 'Warm',
+      // Set call status flags based on preview selection
+      call_completed: previewStatus === 'completed' ? 'true' : undefined,
+      call_busy: previewStatus === 'busy' ? 'true' : undefined,
+      call_no_answer: previewStatus === 'no_answer' ? 'true' : undefined
     };
 
     const subject = this.applyTemplate(
@@ -495,7 +506,10 @@ class FollowUpEmailService {
       { name: 'sender_name', description: 'Your name or company name', example: 'Your Team' },
       { name: 'call_duration', description: 'Duration of the call', example: '5 minutes' },
       { name: 'call_date', description: 'Date when the call was made', example: 'Monday, December 2, 2025' },
-      { name: 'lead_status', description: 'Current lead status/tag', example: 'Warm' }
+      { name: 'lead_status', description: 'Current lead status/tag', example: 'Warm' },
+      { name: 'call_completed', description: 'True if call was completed successfully (use with {{#if call_completed}})', example: 'true' },
+      { name: 'call_busy', description: 'True if lead was busy (use with {{#if call_busy}})', example: 'false' },
+      { name: 'call_no_answer', description: 'True if there was no answer (use with {{#if call_no_answer}})', example: 'false' }
     ];
   }
 
@@ -513,10 +527,6 @@ class FollowUpEmailService {
   }> {
     const { description, tone, brandColor = '#4f46e5', companyName } = params;
 
-    const availableVars = this.getAvailableVariables()
-      .map(v => `{{${v.name}}} - ${v.description}`)
-      .join('\n');
-
     const toneGuide = {
       professional: 'Use formal language, proper salutations, and business-appropriate phrasing. Maintain a polished and respectful tone.',
       friendly: 'Use warm, approachable language while staying professional. Be personable but not overly casual.',
@@ -526,27 +536,57 @@ class FollowUpEmailService {
     const systemPrompt = `You are an expert email template designer. Generate a professional HTML email template for follow-up emails after phone calls.
 
 AVAILABLE VARIABLES (use these in the template with double curly braces):
-${availableVars}
+- {{lead_name}} - Name of the lead/contact
+- {{lead_email}} - Email address of the lead  
+- {{company}} - Company name (optional, use with {{#if company}})
+- {{phone}} - Phone number
+- {{agent_name}} - Name of the AI agent
+- {{sender_name}} - Sender's name/company
+- {{call_duration}} - Duration of the call (only available for completed calls)
+- {{call_date}} - Date when the call was made
+- {{lead_status}} - Lead status tag (Hot/Warm/Cold)
+
+CALL STATUS CONDITIONALS (IMPORTANT - use these to show different content based on call outcome):
+- {{#if call_completed}}...{{/if}} - Content shown only when call was completed successfully
+- {{#if call_busy}}...{{/if}} - Content shown only when lead was busy
+- {{#if call_no_answer}}...{{/if}} - Content shown only when there was no answer
 
 CONDITIONAL SYNTAX:
 - Use {{#if variable}}content{{/if}} for optional sections
 - Example: {{#if company}} at {{company}}{{/if}}
 
 REQUIREMENTS:
-1. Generate a responsive HTML email template
-2. Use inline CSS styles (no external stylesheets)
-3. Include the specified brand color: ${brandColor}
-4. Make it mobile-friendly
-5. Include proper email structure: header, content, footer
-6. Use the specified tone: ${tone}
-7. ${companyName ? `Company name is: ${companyName}` : 'Do not mention specific company name'}
+1. Generate a SINGLE responsive HTML email template that handles ALL three call outcomes
+2. Use the call status conditionals to show appropriate messaging for each scenario:
+   - For completed calls: Thank them for the conversation, reference what was discussed
+   - For busy calls: Acknowledge they were busy, offer to reschedule
+   - For no answer: Let them know you tried to reach them, offer callback
+3. Use inline CSS styles (no external stylesheets)
+4. Include the specified brand color: ${brandColor}
+5. Make it mobile-friendly with max-width: 600px
+6. Include proper email structure: header, content, footer
+7. Use the specified tone: ${tone}
+8. ${companyName ? `Company name is: ${companyName}` : 'Do not mention specific company name'}
 
 TONE GUIDE: ${toneGuide[tone]}
 
+EXAMPLE STRUCTURE:
+<div>
+  {{#if call_completed}}
+    <p>Thank you for speaking with us...</p>
+  {{/if}}
+  {{#if call_busy}}
+    <p>We tried to reach you but you were busy...</p>
+  {{/if}}
+  {{#if call_no_answer}}
+    <p>We attempted to call you but couldn't connect...</p>
+  {{/if}}
+</div>
+
 Respond with a JSON object containing:
 {
-  "subject_template": "The email subject line with variables like {{lead_name}}",
-  "body_template": "Complete HTML email template"
+  "subject_template": "The email subject line (can also use conditionals)",
+  "body_template": "Complete HTML email template with all three call outcome sections"
 }
 
 Do NOT include markdown code blocks. Return only valid JSON.`;
@@ -558,6 +598,7 @@ Make sure to:
 - Use {{lead_name}} for personalization
 - Use {{#if company}} at {{company}}{{/if}} for optional company mention
 - Include {{sender_name}} in the signature
+- Include ALL THREE call outcome sections (completed, busy, no_answer) with appropriate messaging for each
 - Make the design clean and modern with the brand color ${brandColor}`;
 
     try {

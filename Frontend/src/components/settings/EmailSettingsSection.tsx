@@ -103,6 +103,9 @@ const EmailSettingsSection = () => {
   const [templateTone, setTemplateTone] = useState<'professional' | 'friendly' | 'casual'>('professional');
   const [brandColor, setBrandColor] = useState('#4f46e5');
   const [companyName, setCompanyName] = useState('');
+  
+  // Preview State
+  const [previewCallStatus, setPreviewCallStatus] = useState<'completed' | 'busy' | 'no_answer'>('completed');
 
   // Form state
   const [autoSendEnabled, setAutoSendEnabled] = useState(false);
@@ -268,7 +271,7 @@ const EmailSettingsSection = () => {
     }
   };
 
-  const handlePreview = async () => {
+  const handlePreview = async (callStatus?: 'completed' | 'busy' | 'no_answer') => {
     try {
       setLoadingPreview(true);
       const token = localStorage.getItem('auth_token');
@@ -281,7 +284,9 @@ const EmailSettingsSection = () => {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({}), // Use default sample data
+          body: JSON.stringify({ 
+            preview_call_status: callStatus || previewCallStatus 
+          }),
         }
       );
 
@@ -757,22 +762,36 @@ const EmailSettingsSection = () => {
                 <div>
                   <CardTitle>Email Template</CardTitle>
                   <CardDescription>
-                    Edit the generated template or create your own
+                    Edit the generated template or create your own. Use conditional blocks for different call outcomes.
                   </CardDescription>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-center">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => handleResetTemplate('both')}
                   >
                     <RefreshCw className="w-4 h-4 mr-2" />
-                    Reset to Default
+                    Reset
                   </Button>
+                  {/* Preview with call status selector */}
+                  <Select
+                    value={previewCallStatus}
+                    onValueChange={(value: 'completed' | 'busy' | 'no_answer') => setPreviewCallStatus(value)}
+                  >
+                    <SelectTrigger className="w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="completed">✅ Completed</SelectItem>
+                      <SelectItem value="busy">📞 Busy</SelectItem>
+                      <SelectItem value="no_answer">❌ No Answer</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={handlePreview}
+                    onClick={() => handlePreview()}
                     disabled={loadingPreview}
                   >
                     {loadingPreview ? (
@@ -786,6 +805,17 @@ const EmailSettingsSection = () => {
               </div>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* Call Status Conditionals Info */}
+              <Alert>
+                <HelpCircle className="w-4 h-4" />
+                <AlertDescription>
+                  Use <code className="mx-1 px-1 bg-gray-100 dark:bg-gray-800 rounded">{'{{#if call_completed}}'}</code>, 
+                  <code className="mx-1 px-1 bg-gray-100 dark:bg-gray-800 rounded">{'{{#if call_busy}}'}</code>, and 
+                  <code className="mx-1 px-1 bg-gray-100 dark:bg-gray-800 rounded">{'{{#if call_no_answer}}'}</code> to show 
+                  different content based on call outcome. Select a status above to preview.
+                </AlertDescription>
+              </Alert>
+              
               {/* Subject Line */}
               <div className="space-y-2">
                 <Label>Subject Line</Label>
@@ -1046,8 +1076,23 @@ const EmailSettingsSection = () => {
                     srcDoc={preview.html}
                     className="w-full h-96 bg-white"
                     title="Email Preview"
+                    sandbox="allow-same-origin"
+                    style={{ border: 'none' }}
                   />
                 </div>
+                {/* Fallback: Show rendered HTML directly */}
+                <details className="mt-2">
+                  <summary className={`text-sm cursor-pointer ${
+                    theme === 'dark' ? 'text-slate-400' : 'text-gray-500'
+                  }`}>
+                    View raw HTML
+                  </summary>
+                  <pre className={`mt-2 p-3 rounded text-xs overflow-x-auto ${
+                    theme === 'dark' ? 'bg-gray-800' : 'bg-gray-100'
+                  }`}>
+                    {preview.html}
+                  </pre>
+                </details>
               </div>
             </div>
           )}
