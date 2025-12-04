@@ -380,6 +380,66 @@ export class EmailSettingsController {
       });
     }
   }
+
+  /**
+   * POST /api/email-settings/generate-template
+   * Generate email template using AI based on user description
+   */
+  static async generateTemplate(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = req.userId;
+      
+      if (!userId) {
+        res.status(401).json({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: 'User not authenticated',
+            timestamp: new Date(),
+          },
+        });
+        return;
+      }
+
+      const { description, tone, brandColor, companyName } = req.body;
+
+      if (!description || description.trim().length < 10) {
+        res.status(400).json({
+          error: {
+            code: 'INVALID_DESCRIPTION',
+            message: 'Please provide a description of at least 10 characters',
+            timestamp: new Date(),
+          },
+        });
+        return;
+      }
+
+      const validTones = ['professional', 'friendly', 'casual'];
+      const selectedTone = validTones.includes(tone) ? tone : 'professional';
+
+      const template = await followUpEmailService.generateTemplateWithAI({
+        description: description.trim(),
+        tone: selectedTone,
+        brandColor: brandColor || '#4f46e5',
+        companyName: companyName || undefined
+      });
+
+      res.json({
+        success: true,
+        data: template,
+        message: 'Template generated successfully',
+        timestamp: new Date(),
+      });
+    } catch (error) {
+      logger.error('Generate template error:', error);
+      res.status(500).json({
+        error: {
+          code: 'GENERATE_TEMPLATE_ERROR',
+          message: error instanceof Error ? error.message : 'Failed to generate template',
+          timestamp: new Date(),
+        },
+      });
+    }
+  }
 }
 
 export default EmailSettingsController;

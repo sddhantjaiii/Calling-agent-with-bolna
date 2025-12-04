@@ -498,6 +498,130 @@ class FollowUpEmailService {
       { name: 'lead_status', description: 'Current lead status/tag', example: 'Warm' }
     ];
   }
+
+  /**
+   * Generate email template using AI based on user description
+   */
+  async generateTemplateWithAI(params: {
+    description: string;
+    tone: 'professional' | 'friendly' | 'casual';
+    brandColor?: string;
+    companyName?: string;
+  }): Promise<{
+    subject_template: string;
+    body_template: string;
+  }> {
+    const { description, tone, brandColor = '#4f46e5', companyName } = params;
+
+    const availableVars = this.getAvailableVariables()
+      .map(v => `{{${v.name}}} - ${v.description}`)
+      .join('\n');
+
+    const toneGuide = {
+      professional: 'Use formal language, proper salutations, and business-appropriate phrasing. Maintain a polished and respectful tone.',
+      friendly: 'Use warm, approachable language while staying professional. Be personable but not overly casual.',
+      casual: 'Use relaxed, conversational language. Be warm and human, like writing to a friend.'
+    };
+
+    const systemPrompt = `You are an expert email template designer. Generate a professional HTML email template for follow-up emails after phone calls.
+
+AVAILABLE VARIABLES (use these in the template with double curly braces):
+${availableVars}
+
+CONDITIONAL SYNTAX:
+- Use {{#if variable}}content{{/if}} for optional sections
+- Example: {{#if company}} at {{company}}{{/if}}
+
+REQUIREMENTS:
+1. Generate a responsive HTML email template
+2. Use inline CSS styles (no external stylesheets)
+3. Include the specified brand color: ${brandColor}
+4. Make it mobile-friendly
+5. Include proper email structure: header, content, footer
+6. Use the specified tone: ${tone}
+7. ${companyName ? `Company name is: ${companyName}` : 'Do not mention specific company name'}
+
+TONE GUIDE: ${toneGuide[tone]}
+
+Respond with a JSON object containing:
+{
+  "subject_template": "The email subject line with variables like {{lead_name}}",
+  "body_template": "Complete HTML email template"
+}
+
+Do NOT include markdown code blocks. Return only valid JSON.`;
+
+    const userPrompt = `Create an email template based on this description:
+"${description}"
+
+Make sure to:
+- Use {{lead_name}} for personalization
+- Use {{#if company}} at {{company}}{{/if}} for optional company mention
+- Include {{sender_name}} in the signature
+- Make the design clean and modern with the brand color ${brandColor}`;
+
+    try {
+      const response = await axios.post(
+        `${this.baseUrl}/chat/completions`,
+        {
+          model: 'gpt-4o-mini',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
+          ],
+          temperature: 0.7,
+          max_tokens: 2000
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      const content = response.data.choices[0]?.message?.content;
+      
+      if (!content) {
+        throw new Error('No content returned from AI');
+      }
+
+      // Parse the JSON response
+      let parsed;
+      try {
+        // Remove any markdown code blocks if present
+        const cleanContent = content
+          .replace(/```json\n?/g, '')
+          .replace(/```\n?/g, '')
+          .trim();
+        parsed = JSON.parse(cleanContent);
+      } catch (parseError) {
+        logger.error('Failed to parse AI response:', { content, error: parseError });
+        throw new Error('Failed to parse AI response as JSON');
+      }
+
+      if (!parsed.subject_template || !parsed.body_template) {
+        throw new Error('AI response missing required fields');
+      }
+
+      // Sanitize the HTML template
+      const sanitizedBody = DOMPurify.sanitize(parsed.body_template, {
+        ALLOWED_TAGS: ['html', 'head', 'body', 'meta', 'style', 'div', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 
+                       'span', 'a', 'br', 'hr', 'strong', 'b', 'em', 'i', 'u', 'ul', 'ol', 'li', 'table', 
+                       'tr', 'td', 'th', 'thead', 'tbody', 'img', 'center', 'blockquote'],
+        ALLOWED_ATTR: ['style', 'href', 'src', 'alt', 'width', 'height', 'border', 'cellpadding', 
+                       'cellspacing', 'align', 'valign', 'bgcolor', 'class', 'id', 'charset', 'name', 'content']
+      });
+
+      return {
+        subject_template: parsed.subject_template,
+        body_template: sanitizedBody
+      };
+    } catch (error) {
+      logger.error('Failed to generate template with AI:', error);
+      throw error;
+    }
+  }
 }
 
 export const followUpEmailService = new FollowUpEmailService();

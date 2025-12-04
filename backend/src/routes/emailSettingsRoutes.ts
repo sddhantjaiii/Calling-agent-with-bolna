@@ -92,4 +92,16 @@ router.post(
   EmailSettingsController.validatePrompt
 );
 
+/**
+ * POST /api/email-settings/generate-template
+ * Generate email template using AI based on user description
+ * Body: { description: string, tone: 'professional' | 'friendly' | 'casual', brandColor?: string, companyName?: string }
+ * Requires authentication
+ */
+router.post(
+  '/generate-template',
+  authenticateToken,
+  EmailSettingsController.generateTemplate
+);
+
 export default router;

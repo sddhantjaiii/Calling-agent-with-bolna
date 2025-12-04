@@ -42,6 +42,8 @@ import {
   Filter,
   Sparkles,
   HelpCircle,
+  Wand2,
+  Palette,
 } from 'lucide-react';
 
 // Types
@@ -94,6 +96,13 @@ const EmailSettingsSection = () => {
     status: 'idle' | 'valid' | 'invalid';
     message?: string;
   }>({ status: 'idle' });
+
+  // AI Template Generator State
+  const [generatingTemplate, setGeneratingTemplate] = useState(false);
+  const [templateDescription, setTemplateDescription] = useState('');
+  const [templateTone, setTemplateTone] = useState<'professional' | 'friendly' | 'casual'>('professional');
+  const [brandColor, setBrandColor] = useState('#4f46e5');
+  const [companyName, setCompanyName] = useState('');
 
   // Form state
   const [autoSendEnabled, setAutoSendEnabled] = useState(false);
@@ -377,6 +386,50 @@ const EmailSettingsSection = () => {
     }
   };
 
+  const handleGenerateTemplate = async () => {
+    if (!templateDescription || templateDescription.trim().length < 10) {
+      toast.error('Please describe your email in at least 10 characters');
+      return;
+    }
+
+    try {
+      setGeneratingTemplate(true);
+      const token = localStorage.getItem('auth_token');
+      
+      const response = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL}/api/email-settings/generate-template`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            description: templateDescription,
+            tone: templateTone,
+            brandColor: brandColor,
+            companyName: companyName || undefined
+          }),
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        setSubjectTemplate(data.data.subject_template);
+        setBodyTemplate(data.data.body_template);
+        toast.success('Template generated successfully! Review and save to apply.');
+      } else {
+        const error = await response.json();
+        toast.error(error.error?.message || 'Failed to generate template');
+      }
+    } catch (error) {
+      console.error('Failed to generate template:', error);
+      toast.error('Failed to generate template');
+    } finally {
+      setGeneratingTemplate(false);
+    }
+  };
+
   const handleConditionChange = (condition: string, checked: boolean) => {
     if (checked) {
       setSendConditions([...sendConditions, condition]);
@@ -582,13 +635,129 @@ const EmailSettingsSection = () => {
 
         {/* Template Tab */}
         <TabsContent value="template">
+          {/* AI Template Generator Card */}
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Wand2 className="w-5 h-5 text-indigo-500" />
+                AI Template Generator
+              </CardTitle>
+              <CardDescription>
+                Describe what you want and let AI create a professional email template for you
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Description Input */}
+              <div className="space-y-2">
+                <Label>Describe your follow-up email</Label>
+                <Textarea
+                  value={templateDescription}
+                  onChange={(e) => setTemplateDescription(e.target.value)}
+                  placeholder="Example: A warm follow-up email thanking the lead for their time, mentioning our AI calling solution can help automate their outreach, and inviting them to schedule a demo..."
+                  rows={3}
+                  className="resize-none"
+                />
+                <p className={`text-xs ${
+                  theme === 'dark' ? 'text-slate-500' : 'text-gray-500'
+                }`}>
+                  Be specific about what you want to include. The AI will use appropriate variables automatically.
+                </p>
+              </div>
+
+              {/* Options Row */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Tone Selector */}
+                <div className="space-y-2">
+                  <Label>Tone</Label>
+                  <Select
+                    value={templateTone}
+                    onValueChange={(value: 'professional' | 'friendly' | 'casual') => setTemplateTone(value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="professional">
+                        <span className="flex items-center gap-2">
+                          💼 Professional
+                        </span>
+                      </SelectItem>
+                      <SelectItem value="friendly">
+                        <span className="flex items-center gap-2">
+                          😊 Friendly
+                        </span>
+                      </SelectItem>
+                      <SelectItem value="casual">
+                        <span className="flex items-center gap-2">
+                          🎉 Casual
+                        </span>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Brand Color */}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Palette className="w-4 h-4" />
+                    Brand Color
+                  </Label>
+                  <div className="flex gap-2">
+                    <input
+                      type="color"
+                      value={brandColor}
+                      onChange={(e) => setBrandColor(e.target.value)}
+                      className="w-10 h-10 rounded cursor-pointer border-0"
+                    />
+                    <Input
+                      value={brandColor}
+                      onChange={(e) => setBrandColor(e.target.value)}
+                      placeholder="#4f46e5"
+                      className="flex-1"
+                    />
+                  </div>
+                </div>
+
+                {/* Company Name */}
+                <div className="space-y-2">
+                  <Label>Company Name (optional)</Label>
+                  <Input
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    placeholder="Your company name"
+                  />
+                </div>
+              </div>
+
+              {/* Generate Button */}
+              <Button
+                onClick={handleGenerateTemplate}
+                disabled={generatingTemplate || !templateDescription.trim()}
+                className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700"
+              >
+                {generatingTemplate ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Generating Template...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Generate Template with AI
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Template Editor Card */}
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle>Email Template</CardTitle>
                   <CardDescription>
-                    Customize the subject and body of follow-up emails
+                    Edit the generated template or create your own
                   </CardDescription>
                 </div>
                 <div className="flex gap-2">
