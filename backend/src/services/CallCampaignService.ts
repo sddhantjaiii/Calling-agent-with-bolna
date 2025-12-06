@@ -301,11 +301,9 @@ export class CallCampaignService {
         phone_number: contact.phone_number,
         contact_name: contact.name || undefined,
         user_data: {
-          summary: '', // Will be populated from contact's last conversation if needed
-          next_action: nextAction,
-          email: contact.email || '',
-          company: contact.company || '',
-          notes: contact.notes || ''
+          lead_name: contact.name || '',
+          business_name: contact.company || '',
+          email: contact.email || ''
         },
         priority,
         position: i + 1,
