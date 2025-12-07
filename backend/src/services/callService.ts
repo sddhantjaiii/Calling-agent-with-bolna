@@ -866,7 +866,7 @@ export class CallService {
         user_id: callRequest.userId,
         contact_id: callRequest.contactId,
         campaign_id: callRequest.metadata?.campaign_id, // Pass campaign_id from metadata
-        bolna_execution_id: 'pending', // Will be updated after Bolna responds
+        bolna_execution_id: null, // Will be updated after Bolna responds (NULL allows multiple pending calls)
         phone_number: callRequest.phoneNumber,
         call_source: 'phone',
         status: 'in_progress', // Mark as in_progress immediately
