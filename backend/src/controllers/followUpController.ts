@@ -42,15 +42,6 @@ export class FollowUpController {
       connectionTimeoutMillis: 10000,
     };
     this.pool = new Pool(config);
-    // Set session time zone for all connections from this Pool
-    const tz = (process.env.DB_TIMEZONE || 'UTC').trim();
-    const tzIsValid = /^[A-Za-z_\/+-:]{1,64}$/.test(tz);
-    const tzSql = tzIsValid ? tz : 'UTC';
-    this.pool.on('connect', (client) => {
-      client.query(`SET TIME ZONE '${tzSql}'`).catch((err) => {
-        console.warn('Failed to set session time zone for followUpController pool', tzSql, err?.message);
-      });
-    });
   }
 
   async getFollowUps(req: AuthenticatedRequest, res: Response): Promise<void> {

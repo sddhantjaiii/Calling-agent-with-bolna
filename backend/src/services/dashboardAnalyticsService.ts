@@ -110,6 +110,9 @@ export class DashboardAnalyticsService {
     try {
       logger.info(`Fetching optimized analytics data for user ${userId}`);
 
+      // Fetch timezone once at the start to avoid N+1 queries
+      const userTimezone = await getUserTimezoneForQuery(userId);
+
       // Execute all analytics queries in parallel for maximum performance
       // Requirements: 2.4 - parallel query execution, US-2.1 - enhanced CTA metrics
       const [
@@ -121,13 +124,13 @@ export class DashboardAnalyticsService {
         ctaMetrics,
         companyLeadBreakdown
       ] = await Promise.all([
-        this.getOptimizedLeadsOverTime(userId),
-        this.getOptimizedInteractionsOverTime(userId),
+        this.getOptimizedLeadsOverTime(userId, userTimezone),
+        this.getOptimizedInteractionsOverTime(userId, userTimezone),
         this.getOptimizedLeadQualityDistribution(userId),
-        this.getOptimizedAgentPerformance(userId),
-        this.getAggregatedStats(userId),
-        this.getEnhancedCTAMetrics(userId),
-        this.getCompanyLeadBreakdown(userId)
+        this.getOptimizedAgentPerformance(userId, userTimezone),
+        this.getAggregatedStats(userId, userTimezone),
+        this.getEnhancedCTAMetrics(userId, userTimezone),
+        this.getCompanyLeadBreakdown(userId, userTimezone)
       ]);
 
       // Generate derived data efficiently
@@ -144,7 +147,7 @@ export class DashboardAnalyticsService {
 
       const successRates = {
         labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4'],
-        data: await this.getWeeklySuccessRates(userId),
+        data: await this.getWeeklySuccessRates(userId, userTimezone),
       };
 
       const leadQuality = {
@@ -186,9 +189,8 @@ export class DashboardAnalyticsService {
    * Requirements: 2.2 - indexed date queries with proper date range filtering
    * Using timezone-aware date calculations for consistent IST results
    */
-  private static async getOptimizedLeadsOverTime(userId: string): Promise<AnalyticsTimeSeriesData[]> {
+  private static async getOptimizedLeadsOverTime(userId: string, userTimezone: string): Promise<AnalyticsTimeSeriesData[]> {
     try {
-      const userTimezone = await getUserTimezoneForQuery(userId);
       const query = `
         WITH series AS (
           SELECT generate_series(
@@ -235,9 +237,8 @@ export class DashboardAnalyticsService {
    * Requirements: 2.2 - indexed date queries with proper date range filtering
    * Using timezone-aware date calculations for consistent IST results
    */
-  private static async getOptimizedInteractionsOverTime(userId: string): Promise<AnalyticsInteractionData[]> {
+  private static async getOptimizedInteractionsOverTime(userId: string, userTimezone: string): Promise<AnalyticsInteractionData[]> {
     try {
-      const userTimezone = await getUserTimezoneForQuery(userId);
       const query = `
         WITH series AS (
           SELECT generate_series(
@@ -352,9 +353,8 @@ export class DashboardAnalyticsService {
    * Optimized agent performance data with batch queries
    * Requirements: 2.3 - use pre-aggregated data from analytics tables
    */
-  private static async getOptimizedAgentPerformance(userId: string): Promise<AgentPerformanceData[]> {
+  private static async getOptimizedAgentPerformance(userId: string, userTimezone: string): Promise<AgentPerformanceData[]> {
     try {
-      const userTimezone = await getUserTimezoneForQuery(userId);
       // Use pre-aggregated data from agent_analytics table for better performance
       const query = `
         SELECT 
@@ -399,9 +399,8 @@ export class DashboardAnalyticsService {
    * Get aggregated statistics for derived calculations
    * Using timezone-aware date filtering for consistent IST results
    */
-  private static async getAggregatedStats(userId: string): Promise<any> {
+  private static async getAggregatedStats(userId: string, userTimezone: string): Promise<any> {
     try {
-      const userTimezone = await getUserTimezoneForQuery(userId);
       const query = `
         SELECT 
           COUNT(DISTINCT c.id) as total_calls,
@@ -600,9 +599,8 @@ export class DashboardAnalyticsService {
    * Get weekly success rates with optimized query
    * Using timezone-aware date filtering for consistent IST results
    */
-  private static async getWeeklySuccessRates(userId: string): Promise<number[]> {
+  private static async getWeeklySuccessRates(userId: string, userTimezone: string): Promise<number[]> {
     try {
-      const userTimezone = await getUserTimezoneForQuery(userId);
       const query = `
         SELECT 
           EXTRACT(WEEK FROM created_at AT TIME ZONE $2) as week,
@@ -635,9 +633,9 @@ export class DashboardAnalyticsService {
    * Requirements: US-2.1 - Enhanced CTA metrics from new columns
    * Using timezone-aware date filtering for consistent IST results
    */
-  static async getEnhancedCTAMetrics(userId: string): Promise<any> {
+  static async getEnhancedCTAMetrics(userId: string, userTimezone?: string): Promise<any> {
     try {
-      const userTimezone = await getUserTimezoneForQuery(userId);
+      const tz = userTimezone || await getUserTimezoneForQuery(userId);
       const query = `
         SELECT 
           COUNT(CASE WHEN la.cta_pricing_clicked = true THEN 1 END) as pricing_clicks,
@@ -684,9 +682,9 @@ export class DashboardAnalyticsService {
    * Requirements: US-2.1 - Company-based lead analysis
    * Using timezone-aware date filtering for consistent IST results
    */
-  static async getCompanyLeadBreakdown(userId: string): Promise<any[]> {
+  static async getCompanyLeadBreakdown(userId: string, userTimezone?: string): Promise<any[]> {
     try {
-      const userTimezone = await getUserTimezoneForQuery(userId);
+      const tz = userTimezone || await getUserTimezoneForQuery(userId);
       const query = `
         SELECT 
           la.company_name,
@@ -704,7 +702,7 @@ export class DashboardAnalyticsService {
         LIMIT 10
       `;
 
-      const result = await this.executeQueryWithTimeout(query, [userId, userTimezone], this.QUERY_TIMEOUT);
+      const result = await this.executeQueryWithTimeout(query, [userId, tz], this.QUERY_TIMEOUT);
 
       return result.rows.map((row: any) => ({
         companyName: row.company_name,
