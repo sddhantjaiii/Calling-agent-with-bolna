@@ -9,7 +9,8 @@ import {
   Activity, 
   Shield,
   TrendingUp,
-  CreditCard
+  CreditCard,
+  Wrench
 } from 'lucide-react';
 import UserTierManager from './UserTierManager';
 import BillingDisputeHandler from './BillingDisputeHandler';
@@ -17,15 +18,23 @@ import TrialExtensionManager from './TrialExtensionManager';
 import SystemHealthMonitor from './SystemHealthMonitor';
 import IncidentTracker from './IncidentTracker';
 import DataPrivacyCompliance from './DataPrivacyCompliance';
+import ManualTriggers from './ManualTriggers';
 
 interface AdvancedFeaturesProps {
   className?: string;
 }
 
 const AdvancedFeatures: React.FC<AdvancedFeaturesProps> = ({ className }) => {
-  const [activeTab, setActiveTab] = useState('tiers');
+  const [activeTab, setActiveTab] = useState('triggers');
 
   const features = [
+    {
+      id: 'triggers',
+      label: 'Manual Triggers',
+      icon: Wrench,
+      description: 'Trigger analysis or simulate webhooks manually',
+      badge: 'Debug'
+    },
     {
       id: 'tiers',
       label: 'User Tiers',
@@ -86,7 +95,7 @@ const AdvancedFeatures: React.FC<AdvancedFeaturesProps> = ({ className }) => {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
           {features.map((feature) => {
             const Icon = feature.icon;
             return (
@@ -119,6 +128,7 @@ const AdvancedFeatures: React.FC<AdvancedFeaturesProps> = ({ className }) => {
                   </div>
                 </CardHeader>
                 <CardContent>
+                  {feature.id === 'triggers' && <ManualTriggers />}
                   {feature.id === 'tiers' && <UserTierManager />}
                   {feature.id === 'billing' && <BillingDisputeHandler />}
                   {feature.id === 'trials' && <TrialExtensionManager />}

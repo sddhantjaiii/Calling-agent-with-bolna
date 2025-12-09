@@ -2406,6 +2406,25 @@ class ApiService {
     });
   }
 
+  // Admin Manual Triggers API
+  async triggerAnalysis(executionId: string): Promise<ApiResponse<any>> {
+    return this.request<any>(API_ENDPOINTS.ADMIN.MANUAL_TRIGGERS_ANALYSIS, {
+      method: 'POST',
+      body: JSON.stringify({ execution_id: executionId }),
+    });
+  }
+
+  async simulateWebhook(payload: any): Promise<ApiResponse<any>> {
+    return this.request<any>(API_ENDPOINTS.ADMIN.MANUAL_TRIGGERS_WEBHOOK, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async getCallByExecutionId(executionId: string): Promise<ApiResponse<any>> {
+    return this.request<any>(API_ENDPOINTS.ADMIN.MANUAL_TRIGGERS_CALL(executionId));
+  }
+
   async sendEmailVerification(): Promise<ApiResponse<EmailVerificationResponse>> {
     return this.request<EmailVerificationResponse>(API_ENDPOINTS.EMAIL.SEND_VERIFICATION, {
       method: 'POST',

@@ -243,6 +243,10 @@ export const API_ENDPOINTS = {
     REPORTS_GENERATE: `${API_URL}/admin/reports/generate`,
     REPORTS_DOWNLOAD: (reportId: string) => `${API_URL}/admin/reports/${reportId}/download`,
     ANALYTICS_EXPORT: `${API_URL}/admin/analytics/export`,
+    // Manual Triggers
+    MANUAL_TRIGGERS_ANALYSIS: `${API_URL}/admin/manual-triggers/analysis`,
+    MANUAL_TRIGGERS_WEBHOOK: `${API_URL}/admin/manual-triggers/webhook`,
+    MANUAL_TRIGGERS_CALL: (executionId: string) => `${API_URL}/admin/manual-triggers/call/${executionId}`,
   },
 
   // Webhooks (for reference, not typically called from frontend)

@@ -15,7 +15,8 @@ import {
   Menu,
   Phone,
   Plug,
-  UserCheck
+  UserCheck,
+  Wrench
 } from 'lucide-react';
 import { useAdmin } from '@/contexts/AdminContext';
 import { useFocusTrap } from '../../hooks/useAccessibility';
@@ -92,6 +93,12 @@ const adminMenuItems: AdminMenuItem[] = [
     label: 'Integrations',
     icon: Plug,
     href: '/admin/integrations',
+  },
+  {
+    id: 'advanced',
+    label: 'Advanced Tools',
+    icon: Wrench,
+    href: '/admin/advanced',
   },
   {
     id: 'configuration',

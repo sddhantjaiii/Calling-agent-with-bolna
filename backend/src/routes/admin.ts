@@ -4,6 +4,7 @@ import { authenticateToken } from '../middleware/auth';
 import { requireAdmin, requireSuperAdmin, logAdminAction } from '../middleware/adminAuth';
 import phoneNumberRoutes from './phoneNumbers';
 import failureLogsRoutes from './admin/failureLogsRoutes';
+import manualTriggersRoutes from './admin/manualTriggersRoutes';
 
 const router = Router();
 
@@ -412,5 +413,8 @@ router.get(
 
 // Failure logs routes
 router.use('/failure-logs', failureLogsRoutes);
+
+// Manual triggers routes (webhook simulation, analysis trigger)
+router.use('/manual-triggers', manualTriggersRoutes);
 
 export default router;

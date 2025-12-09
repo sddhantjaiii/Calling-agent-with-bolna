@@ -4,4 +4,5 @@ export { default as TrialExtensionManager } from './TrialExtensionManager';
 export { default as SystemHealthMonitor } from './SystemHealthMonitor';
 export { default as IncidentTracker } from './IncidentTracker';
 export { default as DataPrivacyCompliance } from './DataPrivacyCompliance';
+export { default as ManualTriggers } from './ManualTriggers';
 export { default as AdvancedFeatures } from './AdvancedFeatures';
