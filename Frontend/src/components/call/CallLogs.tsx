@@ -91,7 +91,7 @@ const CallLogs: React.FC<CallLogsProps> = ({
 
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
-  const [sortBy, setSortBy] = useState<'durationSeconds' | 'contactName'>('durationSeconds');
+  const [sortBy, setSortBy] = useState<'createdAt' | 'durationSeconds' | 'contactName'>('createdAt');
   const [sortOrder, setSortOrder] = useState<'ASC' | 'DESC'>('DESC');
   const [selectedCallSource, setSelectedCallSource] = useState<string>("");
   const [selectedLeadType, setSelectedLeadType] = useState<string>("");
@@ -133,6 +133,7 @@ const CallLogs: React.FC<CallLogsProps> = ({
 
   // Map camelCase to snake_case for backend - Updated for duration_seconds
   const sortByMapping: Record<string, string> = {
+    'createdAt': 'created_at',
     'durationSeconds': 'duration_seconds',
     'contactName': 'contact_name'
   };
@@ -693,6 +694,7 @@ const CallLogs: React.FC<CallLogsProps> = ({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="createdAt">Sort by Latest</SelectItem>
                   <SelectItem value="durationSeconds">Sort by Duration</SelectItem>
                   <SelectItem value="contactName">Sort by Contact</SelectItem>
                 </SelectContent>
