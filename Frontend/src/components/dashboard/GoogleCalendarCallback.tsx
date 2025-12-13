@@ -1,7 +1,8 @@
 /**
- * Google Calendar OAuth Callback Handler
+ * Google OAuth Callback Handler
  * 
- * This component handles the OAuth redirect from Google after the user authorizes calendar access.
+ * This component handles the OAuth redirect from Google after the user authorizes 
+ * calendar and Gmail access.
  */
 
 import { useEffect, useState } from "react";
@@ -15,7 +16,7 @@ const GoogleCalendarCallback = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [status, setStatus] = useState<"processing" | "success" | "error">("processing");
-  const [message, setMessage] = useState("Processing Google Calendar authorization...");
+  const [message, setMessage] = useState("Processing Google authorization...");
 
   useEffect(() => {
     handleCallback();
@@ -32,10 +33,10 @@ const GoogleCalendarCallback = () => {
         setStatus("error");
         setMessage(
           error === "access_denied"
-            ? "You denied access to Google Calendar. Please try again if you'd like to connect."
+            ? "You denied access. Please try again if you'd like to connect Google Calendar & Gmail."
             : `Authorization failed: ${error}`
         );
-        toast.error("Failed to connect Google Calendar");
+        toast.error("Failed to connect Google");
         setTimeout(() => navigate("/integrations"), 3000);
         return;
       }
@@ -63,23 +64,23 @@ const GoogleCalendarCallback = () => {
       if (response.ok) {
         const data = await response.json();
         setStatus("success");
-        setMessage(`Successfully connected to Google Calendar! (${data.google_email})`);
-        toast.success("Google Calendar connected successfully!");
+        setMessage(`Successfully connected Google Calendar & Gmail! (${data.google_email})`);
+        toast.success("Google Calendar & Gmail connected successfully!");
         
         // Redirect to dashboard integrations tab after 2 seconds
         setTimeout(() => navigate("/dashboard?tab=integrations"), 2000);
       } else {
         const errorData = await response.json();
         setStatus("error");
-        setMessage(errorData.message || "Failed to connect Google Calendar");
-        toast.error("Failed to connect Google Calendar");
+        setMessage(errorData.message || "Failed to connect Google");
+        toast.error("Failed to connect Google");
         setTimeout(() => navigate("/dashboard?tab=integrations"), 3000);
       }
     } catch (error) {
       console.error("Callback error:", error);
       setStatus("error");
       setMessage("An unexpected error occurred. Please try again.");
-      toast.error("Failed to connect Google Calendar");
+      toast.error("Failed to connect Google");
       setTimeout(() => navigate("/dashboard?tab=integrations"), 3000);
     }
   };

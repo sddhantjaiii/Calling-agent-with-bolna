@@ -130,7 +130,7 @@ const Integrations = () => {
     const googleCalendarStatus = urlParams.get('google_calendar');
     
     if (googleCalendarStatus === 'connected') {
-      toast.success('Google Calendar connected successfully!');
+      toast.success('Google Calendar & Gmail connected successfully!');
       // Clean up URL - keep the dashboard tab parameter
       const cleanUrl = window.location.pathname + '?tab=integrations';
       window.history.replaceState({}, '', cleanUrl);
@@ -140,7 +140,7 @@ const Integrations = () => {
         checkGmailStatus();
       }, 1000);
     } else if (googleCalendarStatus === 'error') {
-      const errorMessage = urlParams.get('message') || 'Failed to connect Google Calendar';
+      const errorMessage = urlParams.get('message') || 'Failed to connect Google';
       toast.error(errorMessage);
       // Clean up URL - keep the dashboard tab parameter
       const cleanUrl = window.location.pathname + '?tab=integrations';
@@ -246,11 +246,11 @@ const Integrations = () => {
         // Redirect to Google OAuth
         window.location.href = data.authUrl;
       } else {
-        toast.error("Failed to initiate Google Calendar connection");
+        toast.error("Failed to initiate Google connection");
       }
     } catch (error) {
-      console.error("Failed to connect calendar:", error);
-      toast.error("Failed to connect Google Calendar");
+      console.error("Failed to connect Google:", error);
+      toast.error("Failed to connect Google");
     }
   };
 
@@ -269,14 +269,15 @@ const Integrations = () => {
       );
 
       if (response.ok) {
-        toast.success("Google Calendar disconnected successfully");
+        toast.success("Google account disconnected successfully");
         setCalendarStatus({ connected: false, loading: false });
+        setGmailStatus({ connected: false, hasGmailScope: false, loading: false });
       } else {
-        toast.error("Failed to disconnect Google Calendar");
+        toast.error("Failed to disconnect Google account");
       }
     } catch (error) {
-      console.error("Failed to disconnect calendar:", error);
-      toast.error("Failed to disconnect Google Calendar");
+      console.error("Failed to disconnect Google:", error);
+      toast.error("Failed to disconnect Google account");
     }
   };
 
@@ -1192,7 +1193,7 @@ const Integrations = () => {
             theme === "dark" ? "text-white" : "text-gray-900"
           }`}
         >
-          Calendar & Meeting Integrations
+          Google Calendar & Email Integration
         </h2>
         <div className="grid grid-cols-1 gap-4">
           <div
@@ -1213,14 +1214,14 @@ const Integrations = () => {
                       theme === "dark" ? "text-white" : "text-gray-900"
                     }`}
                   >
-                    Google Calendar
+                    Google Calendar & Gmail
                   </h3>
                   <p
                     className={`text-sm mb-2 ${
                       theme === "dark" ? "text-slate-400" : "text-gray-600"
                     }`}
                   >
-                    Automatically schedule demo meetings from AI call analysis
+                    Schedule meetings & send follow-up emails from your Gmail
                   </p>
                   
                   {/* Connection Status */}
@@ -1287,7 +1288,7 @@ const Integrations = () => {
                     className="hover:opacity-90 text-white"
                   >
                     <Calendar className="w-4 h-4 mr-2" />
-                    Connect Calendar
+                    Connect Google
                   </Button>
                 )}
               </div>
@@ -1315,10 +1316,10 @@ const Integrations = () => {
                     <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
                     <div>
                       <p className={`text-sm font-medium ${theme === "dark" ? "text-slate-300" : "text-gray-700"}`}>
-                        Email Notifications
+                        Follow-up Emails
                       </p>
                       <p className={`text-xs ${theme === "dark" ? "text-slate-500" : "text-gray-500"}`}>
-                        Automated invites
+                        Sent from your Gmail
                       </p>
                     </div>
                   </div>
@@ -1356,10 +1357,10 @@ const Integrations = () => {
                 <AlertCircle className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
                 <div>
                   <p className={`text-sm font-medium ${theme === "dark" ? "text-blue-300" : "text-blue-800"}`}>
-                    Connect your Google Calendar to enable automatic meeting scheduling
+                    Connect your Google account to enable calendar & email features
                   </p>
                   <p className={`text-xs mt-1 ${theme === "dark" ? "text-blue-400" : "text-blue-600"}`}>
-                    When AI detects a demo booking request with email and date/time, a meeting will be automatically scheduled in your calendar.
+                    This enables automatic meeting scheduling and allows follow-up emails to be sent directly from your Gmail account.
                   </p>
                 </div>
               </div>
@@ -1397,13 +1398,13 @@ const Integrations = () => {
               <div className={`mt-4 p-4 rounded-lg flex items-start space-x-3 ${
                 theme === "dark" ? "bg-green-900/20 border border-green-800" : "bg-green-50 border border-green-200"
               }`}>
-                <CheckCircle className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
+                <Mail className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
                 <div>
                   <p className={`text-sm font-medium ${theme === "dark" ? "text-green-300" : "text-green-800"}`}>
                     Gmail email sending enabled
                   </p>
                   <p className={`text-xs mt-1 ${theme === "dark" ? "text-green-400" : "text-green-600"}`}>
-                    Contact emails and campaign emails will be sent from your Gmail account ({gmailStatus.email || calendarStatus.email}).
+                    All follow-up emails will be sent from your Gmail: <strong>{gmailStatus.email || calendarStatus.email}</strong>
                   </p>
                 </div>
               </div>

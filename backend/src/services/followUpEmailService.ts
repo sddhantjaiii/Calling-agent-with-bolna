@@ -1,4 +1,5 @@
 import { emailService } from './emailService';
+import { gmailService } from './gmailService';
 import UserEmailSettingsModel, { UserEmailSettingsInterface, DEFAULT_BODY_TEMPLATE, DEFAULT_SUBJECT_TEMPLATE } from '../models/UserEmailSettings';
 import openaiPromptService from './openaiPromptService';
 import { logger } from '../utils/logger';
@@ -167,22 +168,39 @@ class FollowUpEmailService {
         variables
       );
 
-      // Send the email
-      const sent = await emailService.sendFollowUpEmail({
-        to: contactEmail,
+      // Send the email via Gmail API (user's connected Gmail account)
+      const gmailResult = await gmailService.sendEmail(callData.userId, {
+        to: { address: contactEmail },
         subject,
-        html: body,
-        text: this.htmlToPlainText(body)
+        htmlBody: body,
+        textBody: this.htmlToPlainText(body)
       });
 
-      if (sent) {
-        logger.info('Follow-up email sent successfully', {
+      if (gmailResult.success) {
+        logger.info('Follow-up email sent successfully via Gmail', {
           callId: callData.callId,
-          to: contactEmail
+          to: contactEmail,
+          messageId: gmailResult.messageId
         });
-        return { sent: true, reason: 'Email sent successfully' };
+        return { sent: true, reason: 'Email sent successfully via Gmail', emailId: gmailResult.messageId };
       } else {
-        return { sent: false, reason: 'Email service failed to send' };
+        // Gmail failed - check if user needs to reconnect
+        if (gmailResult.requiresReconnect) {
+          // Send notification to user via ZeptoMail that they need to reconnect Gmail
+          await this.sendGmailReconnectNotification(callData.userId, context.userName || 'User');
+          logger.warn('Gmail requires reconnection, notification sent', {
+            callId: callData.callId,
+            userId: callData.userId,
+            error: gmailResult.error
+          });
+          return { sent: false, reason: `Gmail not connected or permission revoked. Notification sent to reconnect. Error: ${gmailResult.error}` };
+        }
+        
+        logger.error('Failed to send follow-up email via Gmail', {
+          callId: callData.callId,
+          error: gmailResult.error
+        });
+        return { sent: false, reason: gmailResult.error || 'Gmail service failed to send' };
       }
     } catch (error) {
       logger.error('Error sending follow-up email', {
@@ -665,6 +683,120 @@ Make sure to:
     } catch (error) {
       logger.error('Failed to generate template with AI:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Send notification to user that their Gmail needs reconnection
+   * This is sent via ZeptoMail (system email) when Gmail fails due to permission issues
+   */
+  private async sendGmailReconnectNotification(userId: string, userName: string): Promise<void> {
+    try {
+      // Get user email from database
+      const result = await pool.query(
+        'SELECT email, name FROM users WHERE id = $1',
+        [userId]
+      );
+
+      if (result.rows.length === 0) {
+        logger.warn('User not found for Gmail reconnect notification', { userId });
+        return;
+      }
+
+      const userEmail = result.rows[0].email;
+      const displayName = result.rows[0].name || userName;
+      const frontendUrl = process.env.FRONTEND_URL || 'https://app.sniperthink.com';
+
+      const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Gmail Reconnection Required</title>
+        </head>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0;">
+          <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="background: #f59e0b; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
+              <h1 style="margin: 0;">⚠️ Action Required</h1>
+            </div>
+            <div style="padding: 30px; background: #fff; border: 1px solid #e5e7eb; border-top: none;">
+              <h2 style="color: #1f2937;">Hi ${displayName},</h2>
+              <p>We tried to send a follow-up email on your behalf, but your Gmail connection needs to be refreshed.</p>
+              
+              <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0;">
+                <strong>Why is this happening?</strong>
+                <p style="margin: 5px 0 0 0;">Your Google account permission may have expired or been revoked. This can happen when:</p>
+                <ul style="margin: 10px 0;">
+                  <li>You changed your Google password</li>
+                  <li>You revoked access from Google settings</li>
+                  <li>The connection token expired</li>
+                </ul>
+              </div>
+
+              <p><strong>What to do:</strong></p>
+              <ol>
+                <li>Go to your <strong>Settings → Integrations</strong> page</li>
+                <li>Click <strong>"Reconnect Google"</strong></li>
+                <li>Allow the Gmail permissions when prompted</li>
+              </ol>
+
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${frontendUrl}/dashboard?tab=integrations" 
+                   style="background: #1A6262; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; display: inline-block;">
+                  Reconnect Google Account
+                </a>
+              </div>
+
+              <p style="color: #6b7280; font-size: 14px;">
+                Once reconnected, follow-up emails will be sent from your Gmail account automatically.
+              </p>
+            </div>
+            <div style="padding: 20px; text-align: center; color: #6b7280; font-size: 12px;">
+              <p>© ${new Date().getFullYear()} SniperThink AI Calling Platform</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+
+      const text = `
+Hi ${displayName},
+
+We tried to send a follow-up email on your behalf, but your Gmail connection needs to be refreshed.
+
+Why is this happening?
+Your Google account permission may have expired or been revoked.
+
+What to do:
+1. Go to your Settings → Integrations page
+2. Click "Reconnect Google"
+3. Allow the Gmail permissions when prompted
+
+Reconnect here: ${frontendUrl}/dashboard?tab=integrations
+
+Once reconnected, follow-up emails will be sent from your Gmail account automatically.
+
+© ${new Date().getFullYear()} SniperThink AI Calling Platform
+      `.trim();
+
+      // Send via ZeptoMail (system email)
+      await emailService.sendFollowUpEmail({
+        to: userEmail,
+        subject: '⚠️ Action Required: Reconnect Your Gmail',
+        html,
+        text
+      });
+
+      logger.info('Gmail reconnection notification sent', {
+        userId,
+        userEmail
+      });
+    } catch (error) {
+      logger.error('Failed to send Gmail reconnect notification', {
+        userId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
     }
   }
 }

@@ -97,6 +97,18 @@ const EmailSettingsSection = () => {
     message?: string;
   }>({ status: 'idle' });
 
+  // Gmail status state
+  const [gmailStatus, setGmailStatus] = useState<{
+    connected: boolean;
+    hasGmailScope: boolean;
+    loading: boolean;
+    email?: string;
+  }>({
+    connected: false,
+    hasGmailScope: false,
+    loading: true,
+  });
+
   // AI Template Generator State
   const [generatingTemplate, setGeneratingTemplate] = useState(false);
   const [templateDescription, setTemplateDescription] = useState('');
@@ -138,7 +150,55 @@ const EmailSettingsSection = () => {
   useEffect(() => {
     loadSettings();
     loadVariables();
+    checkGmailStatus();
   }, []);
+
+  const checkGmailStatus = async () => {
+    try {
+      setGmailStatus(prev => ({ ...prev, loading: true }));
+      const token = localStorage.getItem('auth_token');
+      
+      const response = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL}/api/integrations/gmail/status`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setGmailStatus({
+            connected: data.connected,
+            hasGmailScope: data.hasGmailScope,
+            loading: false,
+            email: data.email,
+          });
+        } else {
+          setGmailStatus({
+            connected: false,
+            hasGmailScope: false,
+            loading: false,
+          });
+        }
+      } else {
+        setGmailStatus({
+          connected: false,
+          hasGmailScope: false,
+          loading: false,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to check Gmail status:', error);
+      setGmailStatus({
+        connected: false,
+        hasGmailScope: false,
+        loading: false,
+      });
+    }
+  };
 
   const loadSettings = async () => {
     try {
@@ -479,6 +539,22 @@ const EmailSettingsSection = () => {
 
   return (
     <div className="space-y-6">
+      {/* Gmail Connection Status Banner */}
+      {!gmailStatus.loading && !gmailStatus.hasGmailScope && (
+        <Alert className="border-amber-500/50 bg-amber-500/10">
+          <AlertCircle className="w-4 h-4 text-amber-500" />
+          <AlertDescription className="text-amber-600 dark:text-amber-400">
+            <strong>Gmail not connected.</strong> Follow-up emails require a connected Google account. 
+            <a 
+              href="/dashboard?tab=integrations" 
+              className="underline ml-1 font-medium hover:text-amber-700 dark:hover:text-amber-300"
+            >
+              Connect Google in Integrations
+            </a>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Header with Toggle */}
       <div className={`p-6 rounded-lg border ${
         theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
@@ -503,6 +579,15 @@ const EmailSettingsSection = () => {
               }`}>
                 Automatically send personalized follow-up emails after calls
               </p>
+              {/* Gmail sender info */}
+              {gmailStatus.hasGmailScope && gmailStatus.email && (
+                <p className={`text-xs mt-1 flex items-center gap-1 ${
+                  theme === 'dark' ? 'text-green-400' : 'text-green-600'
+                }`}>
+                  <CheckCircle className="w-3 h-3" />
+                  Emails will be sent from: <strong>{gmailStatus.email}</strong>
+                </p>
+              )}
             </div>
           </div>
           
@@ -515,15 +600,25 @@ const EmailSettingsSection = () => {
             <Switch
               checked={autoSendEnabled}
               onCheckedChange={handleToggleAutoSend}
+              disabled={!gmailStatus.hasGmailScope}
             />
           </div>
         </div>
 
-        {autoSendEnabled && (
+        {autoSendEnabled && gmailStatus.hasGmailScope && (
           <Alert className="mt-4 border-green-500/50 bg-green-500/10">
             <CheckCircle className="w-4 h-4 text-green-500" />
             <AlertDescription className="text-green-600 dark:text-green-400">
-              Auto-send is active. Follow-up emails will be sent based on your configured conditions.
+              Auto-send is active. Follow-up emails will be sent from <strong>{gmailStatus.email}</strong> based on your configured conditions.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {autoSendEnabled && !gmailStatus.hasGmailScope && (
+          <Alert className="mt-4 border-amber-500/50 bg-amber-500/10">
+            <AlertCircle className="w-4 h-4 text-amber-500" />
+            <AlertDescription className="text-amber-600 dark:text-amber-400">
+              Auto-send is enabled but Gmail is not connected. Emails will not be sent until you connect your Google account.
             </AlertDescription>
           </Alert>
         )}
