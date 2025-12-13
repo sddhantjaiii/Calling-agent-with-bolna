@@ -4,14 +4,16 @@ import { logger } from '../utils/logger';
 /**
  * Webchat Service Client
  * 
- * Communicates with the Chat Agent Server (port 4000) for webchat widget management
+ * Communicates with the Chat Agent Server for webchat widget management
  * This service proxies webchat requests from the main dashboard to the chat agent server
  * 
  * Architecture:
  * Frontend → Main Dashboard Backend (this service) → Chat Agent Server → OpenAI Responses API
+ * 
+ * Configure via environment variable: CHAT_AGENT_SERVER_URL
  */
 
-const CHAT_AGENT_SERVER_URL = process.env.CHAT_AGENT_SERVER_URL || 'http://localhost:4000';
+const CHAT_AGENT_SERVER_URL = process.env.CHAT_AGENT_SERVER_URL;
 
 export interface WebchatChannel {
   webchat_id: string;
@@ -61,51 +63,61 @@ export interface ChatAgentListResponse {
 }
 
 class WebchatServiceClient {
-  private client: AxiosInstance;
+  private client: AxiosInstance | null = null;
 
-  constructor() {
-    this.client = axios.create({
-      baseURL: CHAT_AGENT_SERVER_URL,
-      timeout: 30000,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+  private getClient(): AxiosInstance {
+    if (!CHAT_AGENT_SERVER_URL) {
+      throw new Error('CHAT_AGENT_SERVER_URL environment variable is not configured');
+    }
+    
+    if (!this.client) {
+      logger.info('🔧 Webchat Service initialized', { baseURL: CHAT_AGENT_SERVER_URL });
+      
+      this.client = axios.create({
+        baseURL: CHAT_AGENT_SERVER_URL,
+        timeout: 30000,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
 
-    // Request interceptor for logging
-    this.client.interceptors.request.use(
-      (config) => {
-        logger.debug('📤 Webchat Service Request', {
-          method: config.method?.toUpperCase(),
-          url: config.url,
-          baseURL: config.baseURL,
-        });
-        return config;
-      },
-      (error) => {
-        logger.error('❌ Webchat Service Request Error', { error: error.message });
-        return Promise.reject(error);
-      }
-    );
+      // Request interceptor for logging
+      this.client.interceptors.request.use(
+        (config) => {
+          logger.debug('📤 Webchat Service Request', {
+            method: config.method?.toUpperCase(),
+            url: config.url,
+            baseURL: config.baseURL,
+          });
+          return config;
+        },
+        (error) => {
+          logger.error('❌ Webchat Service Request Error', { error: error.message });
+          return Promise.reject(error);
+        }
+      );
 
-    // Response interceptor for logging
-    this.client.interceptors.response.use(
-      (response) => {
-        logger.debug('📥 Webchat Service Response', {
-          status: response.status,
-          url: response.config.url,
-        });
-        return response;
-      },
-      (error) => {
-        logger.error('❌ Webchat Service Response Error', {
-          status: error.response?.status,
-          message: error.response?.data?.message || error.message,
-          url: error.config?.url,
-        });
-        return Promise.reject(error);
-      }
-    );
+      // Response interceptor for logging
+      this.client.interceptors.response.use(
+        (response) => {
+          logger.debug('📥 Webchat Service Response', {
+            status: response.status,
+            url: response.config.url,
+          });
+          return response;
+        },
+        (error) => {
+          logger.error('❌ Webchat Service Response Error', {
+            status: error.response?.status,
+            message: error.response?.data?.message || error.message,
+            url: error.config?.url,
+          });
+          return Promise.reject(error);
+        }
+      );
+    }
+    
+    return this.client;
   }
 
   /**
@@ -114,9 +126,8 @@ class WebchatServiceClient {
    */
   async listAgents(userId: string): Promise<WebchatResponse<ChatAgentListResponse[]>> {
     try {
-      // Check if Chat Agent Server URL is configured
-      if (!process.env.CHAT_AGENT_SERVER_URL) {
-        logger.warn('⚠️ CHAT_AGENT_SERVER_URL not configured, webchat agents not available');
+      if (!CHAT_AGENT_SERVER_URL) {
+        logger.warn('⚠️ CHAT_AGENT_SERVER_URL not configured');
         return {
           success: true,
           data: [],
@@ -124,7 +135,7 @@ class WebchatServiceClient {
         };
       }
 
-      const response = await this.client.get(`/api/v1/agents`, {
+      const response = await this.getClient().get(`/api/v1/agents`, {
         params: { user_id: userId },
       });
       return response.data;
@@ -149,8 +160,7 @@ class WebchatServiceClient {
    */
   async createWebchatChannel(data: CreateWebchatRequest): Promise<WebchatResponse<WebchatChannel>> {
     try {
-      // Check if Chat Agent Server URL is configured
-      if (!process.env.CHAT_AGENT_SERVER_URL) {
+      if (!CHAT_AGENT_SERVER_URL) {
         logger.error('❌ CHAT_AGENT_SERVER_URL not configured');
         throw new Error('Chat Agent Server not configured. Please set CHAT_AGENT_SERVER_URL environment variable.');
       }
@@ -162,7 +172,7 @@ class WebchatServiceClient {
         hasAgentId: !!data.agent_id,
       });
 
-      const response = await this.client.post('/api/v1/webchat/channels', data);
+      const response = await this.getClient().post('/api/v1/webchat/channels', data);
       
       logger.info('✅ Webchat channel created', {
         webchatId: response.data?.data?.webchat_id,
@@ -185,9 +195,8 @@ class WebchatServiceClient {
    */
   async listWebchatChannels(userId: string): Promise<WebchatResponse<ListWebchatChannelsResponse>> {
     try {
-      // Check if Chat Agent Server URL is configured
-      if (!process.env.CHAT_AGENT_SERVER_URL) {
-        logger.warn('⚠️ CHAT_AGENT_SERVER_URL not configured, webchat channels not available');
+      if (!CHAT_AGENT_SERVER_URL) {
+        logger.warn('⚠️ CHAT_AGENT_SERVER_URL not configured');
         return {
           success: true,
           data: { channels: [], count: 0 },
@@ -195,7 +204,7 @@ class WebchatServiceClient {
         };
       }
 
-      const response = await this.client.get('/api/v1/webchat/channels', {
+      const response = await this.getClient().get('/api/v1/webchat/channels', {
         params: { user_id: userId },
       });
       return response.data;
@@ -225,7 +234,7 @@ class WebchatServiceClient {
     config_url: string;
   }>> {
     try {
-      const response = await this.client.get(`/api/v1/webchat/channels/${webchatId}/embed`);
+      const response = await this.getClient().get(`/api/v1/webchat/channels/${webchatId}/embed`);
       return response.data;
     } catch (error: any) {
       logger.error('❌ Get webchat embed failed', { webchatId, error: error.message });
@@ -241,7 +250,7 @@ class WebchatServiceClient {
     try {
       logger.info('🗑️ Deleting webchat channel', { webchatId });
       
-      const response = await this.client.delete(`/api/v1/webchat/channels/${webchatId}`);
+      const response = await this.getClient().delete(`/api/v1/webchat/channels/${webchatId}`);
       
       logger.info('✅ Webchat channel deleted', { webchatId });
       
@@ -257,7 +266,8 @@ class WebchatServiceClient {
    */
   async healthCheck(): Promise<boolean> {
     try {
-      await this.client.get('/health', { timeout: 5000 });
+      if (!CHAT_AGENT_SERVER_URL) return false;
+      await this.getClient().get('/health', { timeout: 5000 });
       return true;
     } catch {
       return false;
