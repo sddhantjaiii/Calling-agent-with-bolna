@@ -63,6 +63,12 @@ export interface LeadTimelineEntry {
   followUpStatus?: string;
   followUpCompleted?: boolean;
   followUpCallId?: string; // The call that triggered this follow-up
+  // Email-specific fields
+  interactionType?: 'call' | 'email'; // Type of interaction
+  emailSubject?: string; // Email subject
+  emailStatus?: 'sent' | 'delivered' | 'opened' | 'failed'; // Email delivery status
+  emailTo?: string; // Email recipient
+  emailFrom?: string; // Email sender
 }
 
 export class LeadIntelligenceController {
@@ -335,70 +341,132 @@ export class LeadIntelligenceController {
 
       if (groupType === 'phone') {
         query = `
-          SELECT 
-            c.id,
-            la.extracted_name as lead_name,
-            la.extracted_email as extracted_email,
-            la.company_name as company_name,
-            a.name as interaction_agent,
-            c.created_at as interaction_date,
-            CASE 
-              WHEN c.metadata->>'call_source' = 'internet' THEN 'Internet'
-              ELSE 'Phone'
-            END as platform,
-            CASE 
-              WHEN c.lead_type = 'inbound' THEN 'Inbound'
-              WHEN c.lead_type = 'outbound' THEN 'Outbound'
-              ELSE 'Outbound'
-            END as call_direction,
-            c.hangup_by,
-            c.hangup_reason,
-            CASE 
-              WHEN la.lead_status_tag IS NOT NULL THEN la.lead_status_tag
-              WHEN c.status = 'failed' AND c.call_lifecycle_status IS NOT NULL THEN c.call_lifecycle_status
-              ELSE 'Cold'
-            END as status,
-            la.smart_notification,
-            CASE 
-              WHEN COALESCE(c.duration_seconds, 0) > 0 THEN 
-                LPAD(((c.duration_seconds / 60))::text, 2, '0') || ':' || LPAD((c.duration_seconds % 60)::text, 2, '0')
-              WHEN c.duration_minutes IS NOT NULL THEN 
-                LPAD((c.duration_minutes)::text, 2, '0') || ':00'
-              ELSE '00:00'
-            END as duration,
-            la.engagement_health as engagement_level,
-            la.intent_level,
-            la.budget_constraint,
-            la.urgency_level as timeline_urgency,
-            la.fit_alignment,
-            la.total_score,
-            la.intent_score,
-            la.urgency_score,
-            la.budget_score,
-            la.fit_score,
-            la.engagement_score,
-            la.cta_pricing_clicked,
-            la.cta_demo_clicked,
-            la.cta_followup_clicked,
-            la.cta_sample_clicked,
-            la.cta_escalated_to_human,
-            la.demo_book_datetime,
-            fu.follow_up_date,
-            fu.remark as follow_up_remark,
-            fu.follow_up_status,
-            fu.is_completed as follow_up_completed,
-            fu.call_id as follow_up_call_id
-          FROM calls c
-          LEFT JOIN lead_analytics la ON c.id = la.call_id AND la.analysis_type = 'individual'
-          LEFT JOIN agents a ON c.agent_id = a.id
-          LEFT JOIN contacts ct ON c.contact_id = ct.id
-          LEFT JOIN follow_ups fu ON (
-            (fu.call_id = c.id) OR 
-            (fu.call_id IS NULL AND fu.lead_phone = c.phone_number AND fu.user_id = $1)
-          )
-          WHERE c.user_id = $1 
-            AND c.phone_number = $2
-          ORDER BY c.created_at DESC;
+          SELECT * FROM (
+            -- Call interactions
+            SELECT 
+              c.id,
+              'call'::text as interaction_type,
+              la.extracted_name as lead_name,
+              la.extracted_email as extracted_email,
+              la.company_name as company_name,
+              a.name as interaction_agent,
+              c.created_at as interaction_date,
+              CASE 
+                WHEN c.metadata->>'call_source' = 'internet' THEN 'Internet'
+                ELSE 'Phone'
+              END as platform,
+              CASE 
+                WHEN c.lead_type = 'inbound' THEN 'Inbound'
+                WHEN c.lead_type = 'outbound' THEN 'Outbound'
+                ELSE 'Outbound'
+              END as call_direction,
+              c.hangup_by,
+              c.hangup_reason,
+              CASE 
+                WHEN la.lead_status_tag IS NOT NULL THEN la.lead_status_tag
+                WHEN c.status = 'failed' AND c.call_lifecycle_status IS NOT NULL THEN c.call_lifecycle_status
+                ELSE 'Cold'
+              END as status,
+              la.smart_notification,
+              CASE 
+                WHEN COALESCE(c.duration_seconds, 0) > 0 THEN 
+                  LPAD(((c.duration_seconds / 60))::text, 2, '0') || ':' || LPAD((c.duration_seconds % 60)::text, 2, '0')
+                WHEN c.duration_minutes IS NOT NULL THEN 
+                  LPAD((c.duration_minutes)::text, 2, '0') || ':00'
+                ELSE '00:00'
+              END as duration,
+              la.engagement_health as engagement_level,
+              la.intent_level,
+              la.budget_constraint,
+              la.urgency_level as timeline_urgency,
+              la.fit_alignment,
+              la.total_score,
+              la.intent_score,
+              la.urgency_score,
+              la.budget_score,
+              la.fit_score,
+              la.engagement_score,
+              la.cta_pricing_clicked,
+              la.cta_demo_clicked,
+              la.cta_followup_clicked,
+              la.cta_sample_clicked,
+              la.cta_escalated_to_human,
+              la.demo_book_datetime,
+              fu.follow_up_date,
+              fu.remark as follow_up_remark,
+              fu.follow_up_status,
+              fu.is_completed as follow_up_completed,
+              fu.call_id as follow_up_call_id,
+              NULL::text as email_subject,
+              NULL::text as email_status,
+              NULL::text as email_to,
+              NULL::text as email_from
+            FROM calls c
+            LEFT JOIN lead_analytics la ON c.id = la.call_id AND la.analysis_type = 'individual'
+            LEFT JOIN agents a ON c.agent_id = a.id
+            LEFT JOIN contacts ct ON c.contact_id = ct.id
+            LEFT JOIN follow_ups fu ON (
+              (fu.call_id = c.id) OR 
+              (fu.call_id IS NULL AND fu.lead_phone = c.phone_number AND fu.user_id = $1)
+            )
+            WHERE c.user_id = $1 
+              AND c.phone_number = $2
+            
+            UNION ALL
+            
+            -- Email interactions
+            SELECT 
+              e.id,
+              'email'::text as interaction_type,
+              co.name as lead_name,
+              co.email as extracted_email,
+              co.company as company_name,
+              'Email System' as interaction_agent,
+              e.sent_at as interaction_date,
+              'Email' as platform,
+              NULL as call_direction,
+              NULL as hangup_by,
+              NULL as hangup_reason,
+              CASE 
+                WHEN e.status = 'opened' THEN 'Hot'
+                WHEN e.status = 'delivered' THEN 'Warm'
+                WHEN e.status = 'failed' THEN 'Cold'
+                ELSE 'Warm'
+              END as status,
+              e.subject as smart_notification,
+              NULL as duration,
+              NULL as engagement_level,
+              NULL as intent_level,
+              NULL as budget_constraint,
+              NULL as timeline_urgency,
+              NULL as fit_alignment,
+              NULL::numeric as total_score,
+              NULL::numeric as intent_score,
+              NULL::numeric as urgency_score,
+              NULL::numeric as budget_score,
+              NULL::numeric as fit_score,
+              NULL::numeric as engagement_score,
+              false as cta_pricing_clicked,
+              false as cta_demo_clicked,
+              false as cta_followup_clicked,
+              false as cta_sample_clicked,
+              false as cta_escalated_to_human,
+              NULL::timestamp as demo_book_datetime,
+              NULL::timestamp as follow_up_date,
+              NULL::text as follow_up_remark,
+              NULL::text as follow_up_status,
+              NULL::boolean as follow_up_completed,
+              NULL::uuid as follow_up_call_id,
+              e.subject as email_subject,
+              e.status as email_status,
+              e.to_email as email_to,
+              e.from_email as email_from
+            FROM emails e
+            LEFT JOIN contacts co ON e.contact_id = co.id
+            WHERE e.user_id = $1
+              AND co.phone = $2
+          ) combined
+          ORDER BY interaction_date DESC;
         `;
         queryParams.push(groupKey);
       } else if (groupType === 'email') {
@@ -539,6 +607,7 @@ export class LeadIntelligenceController {
       
       const timeline: LeadTimelineEntry[] = result.rows.map(row => ({
         id: row.id,
+        interactionType: row.interaction_type as 'call' | 'email',
         leadName: row.lead_name,
         interactionAgent: row.interaction_agent || 'Unknown Agent',
         interactionDate: row.interaction_date,
@@ -577,7 +646,12 @@ export class LeadIntelligenceController {
         // Extracted data
         extractedEmail: row.extracted_email,
         // Additional fields
-        demoBookDatetime: row.demo_book_datetime
+        demoBookDatetime: row.demo_book_datetime,
+        // Email-specific fields
+        emailSubject: row.email_subject,
+        emailStatus: row.email_status as 'sent' | 'delivered' | 'opened' | 'failed',
+        emailTo: row.email_to,
+        emailFrom: row.email_from
       }));
 
       res.json(timeline);

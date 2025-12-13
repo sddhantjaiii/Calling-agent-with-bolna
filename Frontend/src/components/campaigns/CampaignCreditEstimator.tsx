@@ -66,6 +66,7 @@ interface CreditCheckResponse {
 
 interface CampaignCreditEstimatorProps {
   contactCount: number;
+  campaignType?: 'call' | 'whatsapp' | 'email';
   onCreditCheckComplete?: (canProceed: boolean, estimate: CreditEstimate) => void;
   showDetailedBreakdown?: boolean;
   estimateOnly?: boolean;
@@ -74,6 +75,7 @@ interface CampaignCreditEstimatorProps {
 
 export const CampaignCreditEstimator: React.FC<CampaignCreditEstimatorProps> = ({
   contactCount,
+  campaignType = 'call',
   onCreditCheckComplete,
   showDetailedBreakdown = true,
   estimateOnly = false,
@@ -86,6 +88,25 @@ export const CampaignCreditEstimator: React.FC<CampaignCreditEstimatorProps> = (
   const fetchCreditEstimate = async () => {
     if (contactCount <= 0) {
       setCreditCheck(null);
+      return;
+    }
+
+    // Skip credit check for email campaigns
+    if (campaignType === 'email') {
+      // For email campaigns, just notify parent that we can proceed
+      if (onCreditCheckComplete) {
+        const mockEstimate: CreditEstimate = {
+          contactCount,
+          minimumCreditsNeeded: contactCount,
+          averageCreditsPerCall: 1,
+          estimatedTotalCredits: contactCount,
+          userCurrentCredits: 0,
+          canAfford: true,
+          shortfall: 0,
+          hasHistoricalData: false,
+        };
+        onCreditCheckComplete(true, mockEstimate);
+      }
       return;
     }
 
@@ -125,7 +146,7 @@ export const CampaignCreditEstimator: React.FC<CampaignCreditEstimatorProps> = (
 
   useEffect(() => {
     fetchCreditEstimate();
-  }, [contactCount, estimateOnly]);
+  }, [contactCount, estimateOnly, campaignType]);
 
   const getWarningIcon = (type: string) => {
     switch (type) {
@@ -355,13 +376,22 @@ export const CampaignCreditEstimator: React.FC<CampaignCreditEstimatorProps> = (
 // Compact version for inline use
 export const CompactCreditEstimator: React.FC<{
   contactCount: number;
+  campaignType?: 'call' | 'whatsapp' | 'email';
   onCreditCheckComplete?: (canProceed: boolean) => void;
-}> = ({ contactCount, onCreditCheckComplete }) => {
+}> = ({ contactCount, campaignType = 'call', onCreditCheckComplete }) => {
   const [creditCheck, setCreditCheck] = useState<CreditCheckResponse | null>(null);
   const [loading, setLoading] = useState(false);
 
   const fetchCreditEstimate = async () => {
     if (contactCount <= 0) return;
+    
+    // Skip credit check for email campaigns
+    if (campaignType === 'email') {
+      if (onCreditCheckComplete) {
+        onCreditCheckComplete(true);
+      }
+      return;
+    }
     
     setLoading(true);
     try {
@@ -387,7 +417,7 @@ export const CompactCreditEstimator: React.FC<{
 
   useEffect(() => {
     fetchCreditEstimate();
-  }, [contactCount]);
+  }, [contactCount, campaignType]);
 
   if (contactCount <= 0 || loading) {
     return (

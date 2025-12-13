@@ -47,6 +47,8 @@ import { useToast } from '@/components/ui/use-toast';
 import DeleteContactDialog from './DeleteContactDialog';
 import BulkContactUpload from './BulkContactUpload';
 import { CallAgentModal } from './CallAgentModal';
+import { SendWhatsAppModal } from './SendWhatsAppModal';
+import { SendEmailModal } from './SendEmailModal';
 import CreateCampaignModal from '@/components/campaigns/CreateCampaignModal';
 import type { Contact, ContactsListOptions } from '@/types';
 
@@ -84,6 +86,8 @@ export const ContactList: React.FC<ContactListProps> = ({
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
   const [allLoadedContacts, setAllLoadedContacts] = useState<Contact[]>([]);
   const [isAgentModalOpen, setIsAgentModalOpen] = useState(false);
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   
@@ -342,6 +346,16 @@ export const ContactList: React.FC<ContactListProps> = ({
   const handleCallClick = (contact: Contact) => {
     setSelectedContact(contact);
     setIsAgentModalOpen(true);
+  };
+
+  const handleWhatsAppClick = (contact: Contact) => {
+    setSelectedContact(contact);
+    setIsWhatsAppModalOpen(true);
+  };
+
+  const handleEmailClick = (contact: Contact) => {
+    setSelectedContact(contact);
+    setIsEmailModalOpen(true);
   };
 
   const handleSelectAll = (checked: boolean) => {
@@ -922,8 +936,27 @@ export const ContactList: React.FC<ContactListProps> = ({
                               variant="ghost"
                               size="icon"
                               onClick={() => handleCallClick(contact)}
+                              title="Call"
                             >
                               <PhoneCall className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleWhatsAppClick(contact)}
+                              title="Send WhatsApp Message"
+                              className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                            >
+                              <MessageSquare className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleEmailClick(contact)}
+                              title="Send Email"
+                              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                            >
+                              <Mail className="w-4 h-4" />
                             </Button>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
@@ -934,6 +967,18 @@ export const ContactList: React.FC<ContactListProps> = ({
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem onClick={() => onContactSelect?.(contact)}>
                                   View Details
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleCallClick(contact)}>
+                                  <PhoneCall className="w-4 h-4 mr-2" />
+                                  Call
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleWhatsAppClick(contact)}>
+                                  <MessageSquare className="w-4 h-4 mr-2 text-green-600" />
+                                  Send WhatsApp
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleEmailClick(contact)}>
+                                  <Mail className="w-4 h-4 mr-2 text-blue-600" />
+                                  Send Email
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => onContactEdit?.(contact)}>
                                   <Edit className="w-4 h-4 mr-2" />
@@ -1019,6 +1064,34 @@ export const ContactList: React.FC<ContactListProps> = ({
           open={isAgentModalOpen}
           onClose={() => setIsAgentModalOpen(false)}
           contact={selectedContact}
+        />
+      )}
+
+      {selectedContact && (
+        <SendWhatsAppModal
+          open={isWhatsAppModalOpen}
+          onClose={() => setIsWhatsAppModalOpen(false)}
+          contact={selectedContact}
+          onMessageSent={() => {
+            toast({
+              title: 'Success',
+              description: 'WhatsApp message sent successfully',
+            });
+          }}
+        />
+      )}
+
+      {selectedContact && (
+        <SendEmailModal
+          open={isEmailModalOpen}
+          onClose={() => setIsEmailModalOpen(false)}
+          contact={selectedContact}
+          onEmailSent={() => {
+            toast({
+              title: 'Success',
+              description: 'Email sent successfully',
+            });
+          }}
         />
       )}
 

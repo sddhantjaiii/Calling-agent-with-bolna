@@ -9,6 +9,7 @@ import { google } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
 import { UserModel } from '../models/User';
 import { logger } from '../utils/logger';
+import axios from 'axios';
 import {
   GoogleOAuthTokens,
   GoogleTokenRefreshResponse,
@@ -42,6 +43,103 @@ class GoogleAuthService {
       this.clientSecret,
       this.redirectUri
     );
+  }
+
+  /**
+   * Sync Google Calendar tokens to external microservice
+   * This is called after successfully saving tokens to the main database
+   */
+  private async syncTokensToMicroservice(
+    userId: string,
+    accessToken: string,
+    refreshToken: string,
+    tokenExpiry: Date,
+    scope: string
+  ): Promise<void> {
+    const microserviceUrl = process.env.CHAT_AGENT_SERVER_URL;
+    
+    if (!microserviceUrl) {
+      logger.warn('⚠️ CHAT_AGENT_SERVER_URL not configured, skipping token sync to chat agent server', { userId });
+      return;
+    }
+
+    try {
+      logger.info('🔄 Syncing Google Calendar tokens to chat agent server', { 
+        userId,
+        chatAgentServerUrl: microserviceUrl 
+      });
+
+      const response = await axios.post(
+        `${microserviceUrl}/api/users/${userId}/google-calendar/connect`,
+        {
+          access_token: accessToken,
+          refresh_token: refreshToken,
+          token_expiry: tokenExpiry.toISOString(),
+          scope: scope
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          timeout: 10000 // 10 second timeout
+        }
+      );
+
+      if (response.data.success) {
+        logger.info('✅ Tokens synced to chat agent server successfully', {
+          userId,
+          tokenExpiry: response.data.token_expiry
+        });
+      } else {
+        logger.error('❌ Chat agent server returned unsuccessful response', {
+          userId,
+          response: response.data
+        });
+      }
+    } catch (error) {
+      // Log error but don't throw - main OAuth flow should succeed even if sync fails
+      logger.error('❌ Failed to sync tokens to chat agent server', {
+        userId,
+        chatAgentServerUrl: microserviceUrl,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        details: axios.isAxiosError(error) ? {
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          data: error.response?.data
+        } : undefined
+      });
+    }
+  }
+
+  /**
+   * Delete Google Calendar tokens from chat agent server
+   * Called when user disconnects Google Calendar
+   */
+  private async deleteTokensFromMicroservice(userId: string): Promise<void> {
+    const microserviceUrl = process.env.CHAT_AGENT_SERVER_URL;
+    
+    if (!microserviceUrl) {
+      return;
+    }
+
+    try {
+      logger.info('🔄 Deleting Google Calendar tokens from chat agent server', { userId });
+
+      await axios.delete(
+        `${microserviceUrl}/api/google-tokens/${userId}`,
+        {
+          timeout: 10000
+        }
+      );
+
+      logger.info('✅ Tokens deleted from chat agent server successfully', { userId });
+    } catch (error) {
+      // Log but don't throw - disconnection should succeed even if chat agent server fails
+      logger.error('❌ Failed to delete tokens from chat agent server', {
+        userId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
   }
 
   /**
@@ -147,6 +245,16 @@ class GoogleAuthService {
         userId,
         googleEmail: userInfo.email
       });
+
+      // Sync tokens to external microservice (non-blocking)
+      const scopeString = tokens.scope || GOOGLE_OAUTH_SCOPES.join(' ');
+      await this.syncTokensToMicroservice(
+        userId,
+        tokens.access_token,
+        tokens.refresh_token,
+        tokenExpiry,
+        scopeString
+      );
 
       return {
         success: true,
@@ -316,6 +424,9 @@ class GoogleAuthService {
         google_calendar_id: null,
         google_email: null
       });
+
+      // Delete tokens from external microservice
+      await this.deleteTokensFromMicroservice(userId);
 
       logger.info('✅ Google Calendar disconnected successfully', { userId });
     } catch (error) {

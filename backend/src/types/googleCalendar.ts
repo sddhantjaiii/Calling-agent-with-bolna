@@ -393,8 +393,15 @@ export interface ParsedMeetingDateTime {
 
 export const GOOGLE_OAUTH_SCOPES: string[] = [
   'https://www.googleapis.com/auth/calendar.events',
-  'https://www.googleapis.com/auth/userinfo.email'
+  'https://www.googleapis.com/auth/userinfo.email',
+  'https://www.googleapis.com/auth/gmail.send'  // Added for sending emails via Gmail
 ];
+
+// Helper to check if Gmail scope is present in user's stored scope
+export const hasGmailScope = (storedScope: string | null | undefined): boolean => {
+  if (!storedScope) return false;
+  return storedScope.includes('gmail.send');
+};
 
 export const DEFAULT_MEETING_DURATION_MINUTES = 30;
 

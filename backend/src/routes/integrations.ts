@@ -60,6 +60,17 @@ router.get(
   integrationController.getGoogleStatus.bind(integrationController)
 );
 
+/**
+ * GET /api/integrations/gmail/status
+ * Get Gmail connection status (checks if gmail.send scope is granted)
+ * Requires authentication
+ */
+router.get(
+  '/gmail/status',
+  authenticateToken,
+  integrationController.getGmailStatus.bind(integrationController)
+);
+
 // ============================================
 // Calendar Meeting Routes
 // ============================================

@@ -8,6 +8,8 @@ import agentRoutes from './agents';
 import callRoutes from './calls';
 import transcriptRoutes from './transcripts';
 import contactRoutes from './contacts';
+import contactEmailRoutes from './contactEmails';
+import emailCampaignRoutes from './emailCampaignRoutes';
 import billingRoutes from './billing';
 import webhookRoutes from './webhooks';
 import adminRoutes from './admin';
@@ -32,6 +34,7 @@ import userPhoneNumbersRoutes from './userPhoneNumbers';
 import integrationRoutes from './integrations';
 import demoRoutes from './demoRoutes';
 import emailSettingsRoutes from './emailSettingsRoutes';
+import whatsappRoutes from './whatsapp';
 
 // Import rate limiting middleware
 import { generalRateLimit, authRateLimit } from '../middleware/rateLimit';
@@ -75,6 +78,8 @@ router.use('/agents', authenticatedRateLimit, agentRoutes);
 router.use('/calls', authenticatedRateLimit, callRoutes);
 router.use('/transcripts', authenticatedRateLimit, transcriptRoutes);
 router.use('/contacts', authenticatedRateLimit, contactRoutes);
+router.use('/contact-emails', authenticatedRateLimit, contactEmailRoutes);
+router.use('/email-campaigns', authenticatedRateLimit, emailCampaignRoutes);
 router.use('/billing', authenticatedRateLimit, billingRoutes);
 router.use('/admin', authenticatedRateLimit, adminRoutes);
 router.use('/dashboard', authenticatedRateLimit, dashboardRoutes);
@@ -96,6 +101,7 @@ router.use('/phone-numbers', authenticatedRateLimit, userPhoneNumbersRoutes); //
 router.use('/integrations', generalRateLimit, integrationRoutes); // Google Calendar and other integrations (has mixed auth)
 router.use('/demos', authenticatedRateLimit, demoRoutes); // Demo schedule management
 router.use('/email-settings', authenticatedRateLimit, emailSettingsRoutes); // Follow-up email settings
+router.use('/whatsapp', authenticatedRateLimit, whatsappRoutes); // WhatsApp templates with R2 media upload
 
 // Monitoring routes - no rate limiting
 router.use('/monitoring', monitoringRoutes);

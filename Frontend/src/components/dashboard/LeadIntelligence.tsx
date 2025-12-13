@@ -118,6 +118,12 @@ interface LeadTimelineEntry {
   followUpStatus?: string;
   followUpCompleted?: boolean;
   followUpCallId?: string; // The call this follow-up is linked to
+  // Email-specific fields
+  interactionType?: 'call' | 'email'; // Type of interaction
+  emailSubject?: string; // Email subject
+  emailStatus?: 'sent' | 'delivered' | 'opened' | 'failed'; // Email delivery status
+  emailTo?: string; // Email recipient
+  emailFrom?: string; // Email sender
 }
 
 interface CreateFollowUpRequest {
@@ -1031,12 +1037,36 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                         
                         {/* Platform Column */}
                         <TableCell className="text-foreground">
-                          {interaction.platform || "—"}
+                          {interaction.interactionType === 'email' ? (
+                            <div className="flex items-center gap-1.5">
+                              <Mail className="w-4 h-4 text-blue-600" />
+                              <span>Email</span>
+                            </div>
+                          ) : (
+                            interaction.platform || "—"
+                          )}
                         </TableCell>
                         
-                        {/* Call Type (Inbound/Outbound) - Simple text */}
+                        {/* Call Type (Inbound/Outbound) or Email Status */}
                         <TableCell className="text-foreground">
-                          {interaction.callDirection || "—"}
+                          {interaction.interactionType === 'email' ? (
+                            <Badge
+                              variant="outline"
+                              className={
+                                interaction.emailStatus === 'opened'
+                                  ? 'bg-green-100 text-green-700 border-green-300 dark:bg-green-900/30 dark:text-green-400'
+                                  : interaction.emailStatus === 'delivered'
+                                  ? 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900/30 dark:text-blue-400'
+                                  : interaction.emailStatus === 'failed'
+                                  ? 'bg-red-100 text-red-700 border-red-300 dark:bg-red-900/30 dark:text-red-400'
+                                  : 'bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-900/30 dark:text-gray-400'
+                              }
+                            >
+                              {interaction.emailStatus || 'sent'}
+                            </Badge>
+                          ) : (
+                            interaction.callDirection || "—"
+                          )}
                         </TableCell>
                         
                         {/* Hangup By with Reason - Compact */}
@@ -1067,16 +1097,19 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                           </Badge>
                         </TableCell>
                         
-                        {/* Smart Summary */}
+                        {/* Smart Summary or Email Subject */}
                         <TableCell className="text-foreground max-w-xs">
-                          <div className="text-xs truncate" title={interaction.smartNotification || ''}>
-                            {interaction.smartNotification || "—"}
+                          <div className="text-xs truncate" title={interaction.interactionType === 'email' ? interaction.emailSubject : interaction.smartNotification || ''}>
+                            {interaction.interactionType === 'email' 
+                              ? (interaction.emailSubject || "—")
+                              : (interaction.smartNotification || "—")
+                            }
                           </div>
                         </TableCell>
                         
                         {/* Duration */}
                         <TableCell className="text-foreground text-xs">
-                          {interaction.duration || "—"}
+                          {interaction.interactionType === 'email' ? '—' : (interaction.duration || "—")}
                         </TableCell>
                         
                         {/* Analytics - Each on new line */}

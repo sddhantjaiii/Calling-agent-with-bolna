@@ -4,6 +4,7 @@
 This is a **multi-tenant SaaS platform** for AI-powered outbound/inbound calling with **Bolna.ai** as the voice AI provider. The stack consists of:
 - **Backend**: Node.js/Express + TypeScript (port 3000) → `backend/src/`
 - **Frontend**: React + Vite + shadcn/ui (port 5173) → `Frontend/src/`
+- **Chat Agent Server**: External microservice (port 4000) → Receives Google Calendar tokens for meeting booking
 - **Mobile**: React Native + Expo → `mobile/`
 - **Database**: PostgreSQL (Neon serverless)
 - **Voice AI**: Bolna.ai (replaced ElevenLabs)
@@ -88,6 +89,7 @@ npm run test         # Vitest tests
 - `OPENAI_API_KEY` - For transcript analysis
 - `VITE_API_BASE_URL` - Frontend → Backend URL (required in production)
 - `FRONTEND_URL` - CORS allowed origins (comma-separated)
+- `CHAT_AGENT_SERVER_URL` - Chat agent server URL for Google Calendar token sync (optional)
 
 ## Migration Patterns
 SQL migrations in `backend/src/migrations/` run automatically on server start.

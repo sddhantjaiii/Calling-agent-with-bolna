@@ -21,8 +21,19 @@ export const getApiBaseUrl = () => {
   throw new Error(msg);
 };
 
+// WhatsApp Chat Agent Service URL
+export const getWhatsAppServiceUrl = () => {
+  if (import.meta.env.VITE_WHATSAPP_SERVICE_URL) {
+    return import.meta.env.VITE_WHATSAPP_SERVICE_URL;
+  }
+  // Default to localhost:4000 for development
+  return 'http://localhost:4000';
+};
+
 export const API_BASE_URL = getApiBaseUrl();
 export const API_URL = `${API_BASE_URL}/api`;
+export const WHATSAPP_SERVICE_URL = getWhatsAppServiceUrl();
+export const WHATSAPP_API_URL = `${WHATSAPP_SERVICE_URL}/api/v1`;
 
 // Helper to derive WebSocket base URL from API base (http->ws, https->wss)
 export const getWsBaseUrl = () => {
@@ -198,6 +209,15 @@ export const API_ENDPOINTS = {
   // Phone Numbers
   PHONE_NUMBERS: {
     LIST: `${API_URL}/phone-numbers`,
+  },
+
+  // WhatsApp Chat Agent Service (External Service)
+  WHATSAPP: {
+    PHONE_NUMBERS: (userId: string) => `${WHATSAPP_API_URL}/phone-numbers?user_id=${userId}`,
+    TEMPLATES: (phoneNumberId: string) => `${WHATSAPP_API_URL}/templates?phone_number_id=${phoneNumberId}`,
+    SEND: `${WHATSAPP_API_URL}/send`,
+    CAMPAIGN: `${WHATSAPP_API_URL}/campaign`,
+    CAMPAIGN_STATUS: (campaignId: string) => `${WHATSAPP_API_URL}/campaign/${campaignId}`,
   },
 
   // Customers

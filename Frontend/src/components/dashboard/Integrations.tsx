@@ -43,6 +43,20 @@ const Integrations = () => {
     loading: true,
   });
 
+  // Gmail integration state
+  const [gmailStatus, setGmailStatus] = useState<{
+    connected: boolean;
+    hasGmailScope: boolean;
+    loading: boolean;
+    requiresReconnect?: boolean;
+    email?: string;
+    message?: string;
+  }>({
+    connected: false,
+    hasGmailScope: false,
+    loading: true,
+  });
+
   // Dynamic Information state
   const [dynamicInfoAgents, setDynamicInfoAgents] = useState<Array<{ id: string; name: string; agent_type: string }>>([]);
   const [selectedDynamicAgent, setSelectedDynamicAgent] = useState("");
@@ -79,6 +93,7 @@ const Integrations = () => {
   // Check Google Calendar connection status on mount
   useEffect(() => {
     checkCalendarStatus();
+    checkGmailStatus();
     
     // Handle OAuth callback query parameters
     const urlParams = new URLSearchParams(window.location.search);
@@ -90,7 +105,10 @@ const Integrations = () => {
       const cleanUrl = window.location.pathname + '?tab=integrations';
       window.history.replaceState({}, '', cleanUrl);
       // Refresh status
-      setTimeout(() => checkCalendarStatus(), 1000);
+      setTimeout(() => {
+        checkCalendarStatus();
+        checkGmailStatus();
+      }, 1000);
     } else if (googleCalendarStatus === 'error') {
       const errorMessage = urlParams.get('message') || 'Failed to connect Google Calendar';
       toast.error(errorMessage);
@@ -127,6 +145,55 @@ const Integrations = () => {
     } catch (error) {
       console.error("Failed to check calendar status:", error);
       setCalendarStatus({ connected: false, loading: false });
+    }
+  };
+
+  const checkGmailStatus = async () => {
+    try {
+      setGmailStatus(prev => ({ ...prev, loading: true }));
+      const token = localStorage.getItem("auth_token");
+      
+      const response = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL}/api/integrations/gmail/status`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setGmailStatus({
+            connected: data.data.connected,
+            hasGmailScope: data.data.hasGmailScope,
+            loading: false,
+            requiresReconnect: data.data.requiresReconnect,
+            email: data.data.email,
+            message: data.data.message,
+          });
+        } else {
+          setGmailStatus({
+            connected: false,
+            hasGmailScope: false,
+            loading: false,
+          });
+        }
+      } else {
+        setGmailStatus({
+          connected: false,
+          hasGmailScope: false,
+          loading: false,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to check Gmail status:", error);
+      setGmailStatus({
+        connected: false,
+        hasGmailScope: false,
+        loading: false,
+      });
     }
   };
 
@@ -1041,6 +1108,50 @@ const Integrations = () => {
                   </p>
                   <p className={`text-xs mt-1 ${theme === "dark" ? "text-blue-400" : "text-blue-600"}`}>
                     When AI detects a demo booking request with email and date/time, a meeting will be automatically scheduled in your calendar.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Gmail Email Sending Status Banner */}
+            {!gmailStatus.loading && calendarStatus.connected && !gmailStatus.hasGmailScope && (
+              <div className={`mt-4 p-4 rounded-lg flex items-start justify-between ${
+                theme === "dark" ? "bg-amber-900/20 border border-amber-800" : "bg-amber-50 border border-amber-200"
+              }`}>
+                <div className="flex items-start space-x-3">
+                  <AlertCircle className="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className={`text-sm font-medium ${theme === "dark" ? "text-amber-300" : "text-amber-800"}`}>
+                      Reconnect Google to enable sending emails from your Gmail
+                    </p>
+                    <p className={`text-xs mt-1 ${theme === "dark" ? "text-amber-400" : "text-amber-600"}`}>
+                      Your Google connection needs to be updated to include email sending permission. Emails will be sent from your connected Gmail account.
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={handleConnectCalendar}
+                  className="ml-4 whitespace-nowrap bg-amber-600 hover:bg-amber-700 text-white flex-shrink-0"
+                >
+                  <Mail className="w-4 h-4 mr-2" />
+                  Reconnect Google
+                </Button>
+              </div>
+            )}
+
+            {/* Gmail Connected Status */}
+            {!gmailStatus.loading && gmailStatus.hasGmailScope && (
+              <div className={`mt-4 p-4 rounded-lg flex items-start space-x-3 ${
+                theme === "dark" ? "bg-green-900/20 border border-green-800" : "bg-green-50 border border-green-200"
+              }`}>
+                <CheckCircle className="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className={`text-sm font-medium ${theme === "dark" ? "text-green-300" : "text-green-800"}`}>
+                    Gmail email sending enabled
+                  </p>
+                  <p className={`text-xs mt-1 ${theme === "dark" ? "text-green-400" : "text-green-600"}`}>
+                    Contact emails and campaign emails will be sent from your Gmail account ({gmailStatus.email || calendarStatus.email}).
                   </p>
                 </div>
               </div>

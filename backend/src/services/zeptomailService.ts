@@ -127,13 +127,34 @@ class ZeptoMailService {
 
       // Add attachments if provided
       if (options.attachments && options.attachments.length > 0) {
-        emailPayload.attachments = options.attachments.map(attachment => ({
-          name: attachment.filename,
-          content: attachment.content instanceof Buffer 
-            ? attachment.content.toString('base64') 
-            : attachment.content,
-          mime_type: attachment.contentType || 'application/octet-stream'
-        }));
+        emailPayload.attachments = options.attachments.map(attachment => {
+          // ZeptoMail API expects base64 string for content
+          let base64Content: string;
+          
+          if (attachment.content instanceof Buffer) {
+            // Convert Buffer to base64 string
+            base64Content = attachment.content.toString('base64');
+          } else if (typeof attachment.content === 'string') {
+            // Content is already base64 string - use as-is
+            base64Content = attachment.content;
+          } else {
+            base64Content = Buffer.from(String(attachment.content)).toString('base64');
+          }
+          
+          console.log(`📎 Processing attachment: ${attachment.filename}`);
+          console.log(`   - Content type: ${typeof attachment.content}`);
+          console.log(`   - Base64 length: ${base64Content.length} chars`);
+          console.log(`   - Estimated file size: ${Math.round(base64Content.length * 0.75 / 1024)} KB`);
+          console.log(`   - MIME type: ${attachment.contentType || 'application/octet-stream'}`);
+          
+          return {
+            name: attachment.filename,
+            content: base64Content,
+            mime_type: attachment.contentType || 'application/octet-stream'
+          };
+        });
+        
+        console.log(`📧 Email has ${emailPayload.attachments.length} attachment(s)`);
       }
 
       // Send email

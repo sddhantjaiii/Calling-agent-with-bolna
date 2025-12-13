@@ -17,6 +17,9 @@ import {
 import { useToast } from '@/components/ui/use-toast';
 import { useContacts } from '@/hooks/useContacts';
 import DeleteContactDialog from './DeleteContactDialog';
+import { CallAgentModal } from './CallAgentModal';
+import { SendWhatsAppModal } from './SendWhatsAppModal';
+import { SendEmailModal } from './SendEmailModal';
 import type { Contact } from '@/types';
 
 interface ContactDetailsProps {
@@ -35,6 +38,9 @@ export const ContactDetails: React.FC<ContactDetailsProps> = ({
   const { toast } = useToast();
   const { deleting } = useContacts();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isCallModalOpen, setIsCallModalOpen] = useState(false);
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -55,31 +61,15 @@ export const ContactDetails: React.FC<ContactDetailsProps> = ({
   };
 
   const handleCall = () => {
-    // TODO: Implement call functionality
-    toast({
-      title: 'Call feature',
-      description: 'Call functionality will be implemented soon.',
-    });
+    setIsCallModalOpen(true);
   };
 
   const handleMessage = () => {
-    // TODO: Implement message functionality
-    toast({
-      title: 'Message feature',
-      description: 'Message functionality will be implemented soon.',
-    });
+    setIsWhatsAppModalOpen(true);
   };
 
   const handleEmail = () => {
-    if (contact.email) {
-      window.open(`mailto:${contact.email}`);
-    } else {
-      toast({
-        title: 'No email',
-        description: 'This contact does not have an email address.',
-        variant: 'destructive',
-      });
-    }
+    setIsEmailModalOpen(true);
   };
 
   const handleDeleteClick = () => {
@@ -134,7 +124,7 @@ export const ContactDetails: React.FC<ContactDetailsProps> = ({
           </Button>
           <Button variant="outline" onClick={handleMessage}>
             <MessageSquare className="w-4 h-4 mr-2" />
-            Message
+            WhatsApp
           </Button>
           <Button variant="outline" onClick={handleEmail}>
             <Mail className="w-4 h-4 mr-2" />
@@ -401,6 +391,45 @@ export const ContactDetails: React.FC<ContactDetailsProps> = ({
         contact={contact}
         onConfirm={handleDeleteConfirm}
         isDeleting={deleting}
+      />
+
+      {/* Call Modal */}
+      <CallAgentModal
+        open={isCallModalOpen}
+        onClose={() => setIsCallModalOpen(false)}
+        contact={contact}
+        onCallInitiated={() => {
+          toast({
+            title: 'Call initiated',
+            description: `Calling ${contact.name}...`,
+          });
+        }}
+      />
+
+      {/* WhatsApp Modal */}
+      <SendWhatsAppModal
+        open={isWhatsAppModalOpen}
+        onClose={() => setIsWhatsAppModalOpen(false)}
+        contact={contact}
+        onMessageSent={() => {
+          toast({
+            title: 'Message sent',
+            description: `WhatsApp message sent to ${contact.name}`,
+          });
+        }}
+      />
+
+      {/* Email Modal */}
+      <SendEmailModal
+        open={isEmailModalOpen}
+        onClose={() => setIsEmailModalOpen(false)}
+        contact={contact}
+        onEmailSent={() => {
+          toast({
+            title: 'Email sent',
+            description: `Email sent to ${contact.name}`,
+          });
+        }}
       />
     </div>
   );

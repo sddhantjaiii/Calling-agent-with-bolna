@@ -10,6 +10,7 @@ import { GoogleAuthService } from '../services/googleAuthService';
 import MeetingSchedulerService from '../services/meetingSchedulerService';
 import CalendarMeeting from '../models/CalendarMeeting';
 import { meetingEmailService } from '../services/meetingEmailService';
+import { gmailService } from '../services/gmailService';
 import { logger } from '../utils/logger';
 
 // Create service instances
@@ -141,6 +142,36 @@ export class IntegrationController {
       });
       res.status(500).json({
         error: 'Failed to get connection status',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+
+  /**
+   * GET /api/integrations/gmail/status
+   * Get Gmail connection status (checks if gmail.send scope is granted)
+   */
+  async getGmailStatus(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+
+      const status = await gmailService.getGmailStatus(userId);
+
+      res.json({
+        success: true,
+        ...status
+      });
+    } catch (error) {
+      logger.error('Failed to get Gmail status', {
+        userId: req.user?.id,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      res.status(500).json({
+        error: 'Failed to get Gmail status',
         message: error instanceof Error ? error.message : 'Unknown error'
       });
     }

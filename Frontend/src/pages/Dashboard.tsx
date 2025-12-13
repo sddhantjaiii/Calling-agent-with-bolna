@@ -11,6 +11,7 @@ import Customers from "@/components/dashboard/Customers";
 import CallingAgent from "@/components/dashboard/CallingAgent";
 import Campaigns from "@/pages/Campaigns";
 import CampaignSettings from "@/pages/CampaignSettings";
+import Templates from "@/pages/Templates";
 import { useTheme } from "@/components/theme/ThemeProvider";
 import { useAgents } from "@/contexts/AgentContext";
 import { NavigationProvider, useNavigation } from "@/contexts/NavigationContext";
@@ -192,6 +193,9 @@ const DashboardContent = ({
       }
       // Default to campaigns list if no sub-tab specified
       return <Campaigns />;
+    }
+    if (activeTab === "templates") {
+      return <Templates />;
     }
     if (activeTab === "lead-intelligence") {
       return <LeadIntelligence onOpenProfile={handleOpenProfile} />;

@@ -12,6 +12,7 @@ import {
   Bell,
   UserCheck,
   Target,
+  Send,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -166,6 +167,11 @@ const Sidebar = ({
           icon: SettingsIcon,
         },
       ],
+    },
+    {
+      id: "templates",
+      label: "Templates",
+      icon: Send,
     },
     {
       id: "lead-intelligence",
