@@ -28,10 +28,10 @@ export const listChatAgents = async (req: Request, res: Response) => {
     }
 
     const response = await webchatService.listAgents(userId);
-    res.json(response);
+    return res.json(response);
   } catch (error: any) {
     logger.error('❌ List chat agents failed', { error: error.message });
-    res.status(error.response?.status || 500).json({
+    return res.status(error.response?.status || 500).json({
       success: false,
       error: 'Failed to list agents',
       message: error.response?.data?.message || error.message,
@@ -91,10 +91,10 @@ export const createWebchatChannel = async (req: Request, res: Response) => {
       agent_id,
     });
 
-    res.status(201).json(response);
+    return res.status(201).json(response);
   } catch (error: any) {
     logger.error('❌ Create webchat channel failed', { error: error.message });
-    res.status(error.response?.status || 500).json({
+    return res.status(error.response?.status || 500).json({
       success: false,
       error: 'Failed to create webchat channel',
       message: error.response?.data?.message || error.message,
@@ -119,10 +119,10 @@ export const listWebchatChannels = async (req: Request, res: Response) => {
     }
 
     const response = await webchatService.listWebchatChannels(userId);
-    res.json(response);
+    return res.json(response);
   } catch (error: any) {
     logger.error('❌ List webchat channels failed', { error: error.message });
-    res.status(error.response?.status || 500).json({
+    return res.status(error.response?.status || 500).json({
       success: false,
       error: 'Failed to list webchat channels',
       message: error.response?.data?.message || error.message,
@@ -147,10 +147,10 @@ export const getWebchatEmbed = async (req: Request, res: Response) => {
     }
 
     const response = await webchatService.getWebchatEmbed(webchatId);
-    res.json(response);
+    return res.json(response);
   } catch (error: any) {
     logger.error('❌ Get webchat embed failed', { error: error.message });
-    res.status(error.response?.status || 500).json({
+    return res.status(error.response?.status || 500).json({
       success: false,
       error: 'Failed to get embed code',
       message: error.response?.data?.message || error.message,
@@ -175,10 +175,10 @@ export const deleteWebchatChannel = async (req: Request, res: Response) => {
     }
 
     const response = await webchatService.deleteWebchatChannel(webchatId);
-    res.json(response);
+    return res.json(response);
   } catch (error: any) {
     logger.error('❌ Delete webchat channel failed', { error: error.message });
-    res.status(error.response?.status || 500).json({
+    return res.status(error.response?.status || 500).json({
       success: false,
       error: 'Failed to delete webchat channel',
       message: error.response?.data?.message || error.message,
