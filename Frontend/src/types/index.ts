@@ -17,6 +17,7 @@ export type {
   DashboardOverview,
   DashboardAnalytics,
   CreditBalance,
+  ChatCreditBalance,
   CreditStats,
   BillingHistory,
   Voice,

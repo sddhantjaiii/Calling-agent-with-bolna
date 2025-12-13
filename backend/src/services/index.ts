@@ -18,3 +18,4 @@ export * from './dashboardCache';
 export * from './agentCache';
 export * from './databaseNotificationListener';
 export * from './timezoneCacheService';
+export * from './chatAgentUserSyncService';

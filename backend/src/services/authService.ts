@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import { databaseService } from './databaseService';
 import { emailService } from './emailService';
 import { configService } from './configService';
+import { chatAgentUserSyncService } from './chatAgentUserSyncService';
 import database from '../config/database';
 
 export interface User {
@@ -193,6 +194,12 @@ class AuthService {
         console.error('Failed to send verification email to new user:', error);
       });
     }
+
+    // Sync user to Chat Agent Server for WhatsApp features (async, non-blocking)
+    // Retry schedule: immediate → 60 minutes → 12 hours
+    chatAgentUserSyncService.syncNewUser(user.id, user.email).catch(error => {
+      console.error('Failed to sync user to Chat Agent Server:', error);
+    });
 
     // Log successful registration
     await this.logLoginAttempt({

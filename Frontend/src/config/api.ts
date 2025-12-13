@@ -75,6 +75,7 @@ export const API_ENDPOINTS = {
   // Billing
   BILLING: {
     CREDITS: `${API_URL}/billing/credits`,
+    CHAT_CREDITS: `${API_URL}/billing/chat-credits`,
     STATS: `${API_URL}/billing/stats`,
     PURCHASE: `${API_URL}/billing/purchase`,
     CONFIRM_PAYMENT: `${API_URL}/billing/confirm-payment`,

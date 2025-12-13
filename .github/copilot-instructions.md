@@ -1,13 +1,53 @@
 # AI Calling Agent - Copilot Instructions
 
 ## Architecture Overview
-This is a **multi-tenant SaaS platform** for AI-powered outbound/inbound calling with **Bolna.ai** as the voice AI provider. The stack consists of:
+This is a **multi-tenant SaaS platform** for AI-powered outbound/inbound calling with **Bolna.ai** as the voice AI provider.
+
+### This Repository = Main Dashboard
+This codebase is the **Main Dashboard** application that provides:
+- User authentication & multi-tenant management
+- AI calling agent creation and management (Bolna.ai integration)
+- Call campaigns, contact management, analytics
+- WhatsApp template management UI (proxied to Chat Agent Server)
+
+### Stack Components
 - **Backend**: Node.js/Express + TypeScript (port 3000) → `backend/src/`
 - **Frontend**: React + Vite + shadcn/ui (port 5173) → `Frontend/src/`
-- **Chat Agent Server**: External microservice (port 4000) → Receives Google Calendar tokens for meeting booking
 - **Mobile**: React Native + Expo → `mobile/`
 - **Database**: PostgreSQL (Neon serverless)
 - **Voice AI**: Bolna.ai (replaced ElevenLabs)
+
+### Chat Agent Server (External Microservice)
+The **Chat Agent Server** is a **separate microservice** (port 4000) that handles ALL WhatsApp-related functionality:
+- **WhatsApp Template Creation** - Creates templates via Meta WhatsApp Business API
+- **Template Send Campaigns** - Bulk WhatsApp message campaigns
+- **Template Management** - CRUD operations for WhatsApp templates
+- **Google Calendar Integration** - Receives calendar tokens for meeting booking
+- **Meta API Communication** - Direct integration with Meta/Facebook WhatsApp Business API
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         ARCHITECTURE FLOW                           │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│   [Frontend]  ──────►  [Main Dashboard Backend]                     │
+│       │                        │                                    │
+│       │                        │ (proxy WhatsApp requests)          │
+│       │                        ▼                                    │
+│       │              [Chat Agent Server] ◄────► [Meta WhatsApp API] │
+│       │                   (port 4000)                               │
+│       │                        │                                    │
+│       └────────────────────────┘                                    │
+│                                                                     │
+│   [Main Dashboard Backend] ──────► [Bolna.ai] (Voice AI calls)      │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**Communication Pattern:**
+- Frontend → Main Dashboard Backend → Chat Agent Server → Meta API
+- Main Dashboard Backend proxies WhatsApp-related API calls to Chat Agent Server
+- Chat Agent Server is the ONLY service that communicates directly with Meta
 
 ## Critical Data Flow Patterns
 
@@ -89,7 +129,7 @@ npm run test         # Vitest tests
 - `OPENAI_API_KEY` - For transcript analysis
 - `VITE_API_BASE_URL` - Frontend → Backend URL (required in production)
 - `FRONTEND_URL` - CORS allowed origins (comma-separated)
-- `CHAT_AGENT_SERVER_URL` - Chat agent server URL for Google Calendar token sync (optional)
+- `CHAT_AGENT_SERVER_URL` - Chat Agent Server URL for WhatsApp operations and Google Calendar token sync (**required for WhatsApp features**)
 
 ## Migration Patterns
 SQL migrations in `backend/src/migrations/` run automatically on server start.

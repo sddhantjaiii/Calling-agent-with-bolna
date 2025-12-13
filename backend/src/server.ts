@@ -29,6 +29,7 @@ import { scheduledTaskService } from './services/scheduledTaskService';
 import { webhookRetryService } from './services/webhookRetryService';
 import { QueueProcessorService } from './services/QueueProcessorService';
 import { configService } from './services/configService';
+import { chatAgentUserSyncService } from './services/chatAgentUserSyncService';
 import MigrationRunner from './utils/migrationRunner';
 
 // Environment variables already loaded at the top of this file
@@ -389,6 +390,15 @@ async function startServer() {
       logger.info('Webhook retry processor started');
     } catch (error) {
       logger.error('Failed to start webhook retry processor', { error });
+    }
+
+    // Start Chat Agent User Sync Service (for WhatsApp microservice user sync)
+    try {
+      chatAgentUserSyncService.initialize();
+      logger.info('Chat Agent User Sync Service started');
+      console.log('🔄 Chat Agent User Sync Service started (retries: immediate → 60min → 12h)');
+    } catch (error) {
+      logger.error('Failed to start Chat Agent User Sync Service', { error });
     }
 
     // Start in-memory campaign scheduler (REPLACES polling queue processor)

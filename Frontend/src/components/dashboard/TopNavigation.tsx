@@ -21,7 +21,7 @@ import { useAgents } from "@/contexts/AgentContext";
 import { useNavigation } from "@/contexts/NavigationContext";
 import { toast } from "sonner";
 import InviteTeamModal from "./InviteTeamModal";
-import CreditDisplay from "../billing/CreditDisplay";
+import DualCreditDisplay from "../billing/DualCreditDisplay";
 import TimezoneDisplay from "./TimezoneDisplay";
 // import AgentSelector from "@/components/ui/AgentSelector";
 import NotificationDropdown from "./NotificationDropdown";
@@ -86,8 +86,8 @@ const TopNavigation = ({ sidebarCollapsed, onToggleSidebar }: TopNavigationProps
       </div>
 
       <div className="flex items-center space-x-4">
-        {/* Credit Display */}
-        <CreditDisplay variant="compact" showRefresh={true} />
+        {/* Dual Credit Display (Call & Chat) */}
+        <DualCreditDisplay showRefresh={true} />
 
         {/* Timezone Display */}
         <TimezoneDisplay />

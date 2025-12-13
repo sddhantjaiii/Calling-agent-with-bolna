@@ -20,6 +20,7 @@ import type {
   DashboardOverview,
   DashboardAnalytics,
   CreditBalance,
+  ChatCreditBalance,
   CreditStats,
   BillingHistory,
   LeadProfile,
@@ -2059,6 +2060,10 @@ class ApiService {
   // Billing API methods
   async getCredits(): Promise<ApiResponse<CreditBalance>> {
     return this.request<CreditBalance>(API_ENDPOINTS.BILLING.CREDITS);
+  }
+
+  async getChatCredits(): Promise<ApiResponse<ChatCreditBalance>> {
+    return this.request<ChatCreditBalance>(API_ENDPOINTS.BILLING.CHAT_CREDITS);
   }
 
   async getCreditStats(): Promise<ApiResponse<CreditStats>> {

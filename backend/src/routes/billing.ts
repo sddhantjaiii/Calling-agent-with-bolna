@@ -3,6 +3,7 @@ import { BillingController } from '../controllers/billingController';
 import { authenticateToken, requireAuth, AuthenticatedRequest } from '../middleware/auth';
 import { body, query, validationResult } from 'express-validator';
 import { configService } from '../services/configService';
+import { chatCreditsService } from '../services/chatCreditsService';
 
 const router = Router();
 
@@ -52,9 +53,60 @@ router.use(authenticateToken, requireAuth);
 
 /**
  * GET /api/billing/credits
- * Get user's current credit balance
+ * Get user's current credit balance (Call credits from main server)
  */
 router.get('/credits', (req: Request, res: Response) => BillingController.getCredits(req as AuthenticatedRequest, res));
+
+/**
+ * GET /api/billing/chat-credits
+ * Get user's chat credits from Chat Agent Server (microservice)
+ */
+router.get('/chat-credits', async (req: Request, res: Response) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const userId = authReq.userId;
+    
+    if (!userId) {
+      res.status(401).json({
+        success: false,
+        error: 'Unauthorized',
+        message: 'User ID not found',
+      });
+      return;
+    }
+    
+    const result = await chatCreditsService.getCredits(userId);
+    
+    if (result.success && result.data) {
+      res.status(200).json({
+        success: true,
+        data: {
+          credits: result.data.remaining_credits,
+          totalUsed: result.data.total_used,
+          lastUpdated: result.data.last_updated,
+        },
+        message: result.message,
+      });
+    } else {
+      res.status(200).json({
+        success: true,
+        data: {
+          credits: 0,
+          totalUsed: 0,
+          lastUpdated: new Date().toISOString(),
+        },
+        message: result.message || 'Chat credits unavailable',
+      });
+    }
+  } catch (error) {
+    console.error('Error fetching chat credits:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal Server Error',
+      message: 'Failed to fetch chat credits',
+    });
+  }
+});
 
 /**
  * GET /api/billing/stats

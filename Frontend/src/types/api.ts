@@ -824,6 +824,13 @@ export interface CreditBalance {
   userId?: string;
 }
 
+export interface ChatCreditBalance {
+  credits: number;
+  totalUsed: number;
+  lastUpdated: string;
+  message?: string;
+}
+
 export interface CreditStats {
   currentBalance: number;
   totalPurchased: number;
