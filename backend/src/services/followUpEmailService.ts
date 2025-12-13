@@ -149,12 +149,34 @@ class FollowUpEmailService {
       const promptId = settings.openai_followup_email_prompt_id || 
         await this.getUserFollowupPromptId(callData.userId);
       
-      if (promptId && callData.transcript) {
+      // Always call OpenAI when prompt is configured - even for calls without transcripts
+      // (busy, no-answer, voicemail, etc.) - the AI will generate appropriate content based on call status
+      if (promptId) {
+        logger.info('Generating personalized email via OpenAI', {
+          callId: callData.callId,
+          promptId,
+          callStatus: callData.callStatus,
+          hasTranscript: !!callData.transcript && callData.transcript.length > 0
+        });
+        
         personalizedContent = await this.generatePersonalizedContent(
           promptId,
-          callData.transcript,
-          variables
+          callData.transcript || '', // Empty string if no transcript
+          variables,
+          callData.callStatus // Pass call status for context
         );
+        
+        logger.info('OpenAI personalization result', {
+          callId: callData.callId,
+          hasSubject: !!personalizedContent.subject,
+          hasBody: !!personalizedContent.body,
+          subjectPreview: personalizedContent.subject?.substring(0, 50)
+        });
+      } else {
+        logger.info('No OpenAI prompt configured, using template', {
+          callId: callData.callId,
+          callStatus: callData.callStatus
+        });
       }
 
       // Apply template with variables
@@ -364,13 +386,17 @@ class FollowUpEmailService {
   private async generatePersonalizedContent(
     promptId: string,
     transcript: string,
-    variables: EmailTemplateVariables
+    variables: EmailTemplateVariables,
+    callStatus?: string
   ): Promise<{ subject?: string; body?: string }> {
     try {
       if (!this.apiKey) {
         logger.warn('OpenAI API key not configured for email personalization');
         return {};
       }
+
+      // Determine call outcome description for AI context
+      const callOutcomeDescription = this.getCallOutcomeDescription(callStatus);
 
       // Use OpenAI Responses API with prompt templates
       // This API is used for stored prompts (pmpt_...) that can be managed in OpenAI Dashboard
@@ -379,11 +405,15 @@ class FollowUpEmailService {
         {
           prompt: { id: promptId },
           input: JSON.stringify({
-            transcript: transcript.substring(0, 4000), // Limit transcript length
+            transcript: transcript ? transcript.substring(0, 4000) : '', // Limit transcript length, empty if no transcript
+            has_transcript: !!transcript && transcript.length > 0,
+            call_status: callStatus || 'unknown',
+            call_outcome: callOutcomeDescription,
             lead_name: variables.lead_name,
             company: variables.company,
             call_date: variables.call_date,
-            lead_status: variables.lead_status
+            lead_status: variables.lead_status,
+            sender_name: variables.sender_name
           })
         },
         {
@@ -419,6 +449,29 @@ class FollowUpEmailService {
         error: error instanceof Error ? error.message : 'Unknown error'
       });
       return {};
+    }
+  }
+
+  /**
+   * Get human-readable description of call outcome for AI context
+   */
+  private getCallOutcomeDescription(callStatus?: string): string {
+    switch (callStatus) {
+      case 'completed':
+        return 'The call was successfully completed and we had a conversation with the lead.';
+      case 'busy':
+        return 'The lead was busy and could not take the call. We should offer to reschedule.';
+      case 'no-answer':
+      case 'no_answer':
+        return 'The lead did not answer the call. We should acknowledge this and offer alternative contact methods.';
+      case 'voicemail':
+        return 'We left a voicemail for the lead. We should reference the voicemail and encourage them to call back.';
+      case 'failed':
+        return 'The call could not be connected. We should apologize and offer alternative ways to reach us.';
+      case 'canceled':
+        return 'The call was canceled before connecting.';
+      default:
+        return 'Follow-up after a call attempt.';
     }
   }
 
