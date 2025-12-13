@@ -90,6 +90,9 @@ const Integrations = () => {
   const [showEmbedCode, setShowEmbedCode] = useState<string | null>(null);
   const [webchatPrimaryColor, setWebchatPrimaryColor] = useState("#3B82F6");
   const [webchatSecondaryColor, setWebchatSecondaryColor] = useState("#EFF6FF");
+  // Two-step widget creation: step 1 = create, step 2 = customize colors
+  const [webchatCreationStep, setWebchatCreationStep] = useState<"create" | "customize">("create");
+  const [baseEmbedCode, setBaseEmbedCode] = useState<string | null>(null);
 
   // New state for enhanced Add Lead form
   const [newLeadData, setNewLeadData] = useState({
@@ -434,7 +437,7 @@ const Integrations = () => {
     }
   };
 
-  // Create webchat widget
+  // Create webchat widget - Step 1: Create the widget
   const handleCreateWebchatWidget = async () => {
     if (!webchatWidgetName.trim()) {
       toast.error("Please enter a widget name");
@@ -459,12 +462,8 @@ const Integrations = () => {
         name: string; 
         agent_id?: string; 
         prompt_id?: string;
-        primary_color?: string;
-        secondary_color?: string;
       } = {
         name: webchatWidgetName.trim(),
-        primary_color: webchatPrimaryColor,
-        secondary_color: webchatSecondaryColor,
       };
 
       if (webchatCreationType === "agent") {
@@ -487,20 +486,14 @@ const Integrations = () => {
 
       if (response.ok) {
         const data = await response.json();
-        toast.success("Webchat widget created successfully!");
-        setShowWebchatModal(false);
-        setWebchatWidgetName("");
-        setSelectedWebchatAgent("");
-        setWebchatPromptId("");
-        setWebchatCreationType("agent");
-        setWebchatPrimaryColor("#3B82F6");
-        setWebchatSecondaryColor("#EFF6FF");
-        // Refresh the channels list
-        await fetchWebchatChannels();
-        // Show embed code
+        toast.success("Widget created! Now customize the colors.");
+        // Store base embed code and move to customize step
         if (data.data?.embed_code) {
-          setShowEmbedCode(data.data.embed_code);
+          setBaseEmbedCode(data.data.embed_code);
+          setWebchatCreationStep("customize");
         }
+        // Refresh the channels list in background
+        fetchWebchatChannels();
       } else {
         const error = await response.json();
         toast.error(error.message || "Failed to create webchat widget");
@@ -554,9 +547,59 @@ const Integrations = () => {
     }
   };
 
+  // Generate customized embed code with user's color choices
+  const getCustomizedEmbedCode = () => {
+    if (!baseEmbedCode) return "";
+    
+    // Replace color values in the embed code
+    let customized = baseEmbedCode;
+    // Replace primary-color attribute value
+    customized = customized.replace(
+      /primary-color="[^"]*"/,
+      `primary-color="${webchatPrimaryColor}"`
+    );
+    // Replace secondary-color attribute value
+    customized = customized.replace(
+      /secondary-color="[^"]*"/,
+      `secondary-color="${webchatSecondaryColor}"`
+    );
+    return customized;
+  };
+
+  // Finalize widget creation and copy embed code
+  const handleFinalizeWidget = () => {
+    const finalEmbedCode = getCustomizedEmbedCode();
+    copyToClipboard(finalEmbedCode);
+    
+    // Reset modal state
+    setShowWebchatModal(false);
+    setWebchatCreationStep("create");
+    setBaseEmbedCode(null);
+    setWebchatWidgetName("");
+    setSelectedWebchatAgent("");
+    setWebchatPromptId("");
+    setWebchatCreationType("agent");
+    setWebchatPrimaryColor("#3B82F6");
+    setWebchatSecondaryColor("#EFF6FF");
+  };
+
+  // Close modal and reset state
+  const handleCloseWebchatModal = () => {
+    setShowWebchatModal(false);
+    setWebchatCreationStep("create");
+    setBaseEmbedCode(null);
+    setWebchatWidgetName("");
+    setSelectedWebchatAgent("");
+    setWebchatPromptId("");
+    setWebchatCreationType("agent");
+    setWebchatPrimaryColor("#3B82F6");
+    setWebchatSecondaryColor("#EFF6FF");
+  };
+
   // Open webchat modal and fetch agents
   const openWebchatModal = () => {
     setShowWebchatModal(true);
+    setWebchatCreationStep("create");
     fetchWebchatAgents();
   };
 
@@ -1509,7 +1552,7 @@ const Integrations = () => {
       </div>
 
       {/* Create Webchat Widget Modal */}
-      <Dialog open={showWebchatModal} onOpenChange={setShowWebchatModal}>
+      <Dialog open={showWebchatModal} onOpenChange={handleCloseWebchatModal}>
         <DialogContent
           className={`max-w-2xl max-h-[90vh] overflow-y-auto ${
             theme === "dark"
@@ -1524,10 +1567,12 @@ const Integrations = () => {
               }`}
             >
               <Globe className="w-5 h-5 mr-2" />
-              Create Webchat Widget
+              {webchatCreationStep === "create" ? "Create Webchat Widget" : "Customize Widget Colors"}
             </DialogTitle>
           </DialogHeader>
 
+          {/* Step 1: Create Widget */}
+          {webchatCreationStep === "create" && (
           <div className="py-4 space-y-4">
             {/* Widget Name */}
             <div>
@@ -1700,6 +1745,48 @@ const Integrations = () => {
               </div>
             </div>
 
+            {/* Step 1 Action Buttons */}
+            <div className="flex justify-end space-x-2 pt-4">
+              <Button
+                variant="outline"
+                onClick={handleCloseWebchatModal}
+                className={
+                  theme === "dark"
+                    ? "bg-gray-700 border-gray-600 text-slate-300 hover:bg-gray-600"
+                    : ""
+                }
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCreateWebchatWidget}
+                disabled={creatingWidget}
+                style={{ backgroundColor: "#1A6262" }}
+                className="hover:opacity-90 text-white"
+              >
+                {creatingWidget ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Creating...
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Create Widget
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+          )}
+
+          {/* Step 2: Customize Colors */}
+          {webchatCreationStep === "customize" && (
+          <div className="py-4 space-y-4">
+            <p className={`text-sm ${theme === "dark" ? "text-slate-400" : "text-gray-600"}`}>
+              Widget created! Customize the colors below and copy the embed code when you're done.
+            </p>
+
             {/* Color Customization */}
             <div>
               <label
@@ -1862,47 +1949,52 @@ const Integrations = () => {
               </div>
             </div>
 
-            {/* Action Buttons */}
+            {/* Embed Code Preview */}
+            <div>
+              <label
+                className={`text-sm font-medium mb-2 block ${
+                  theme === "dark" ? "text-slate-300" : "text-gray-700"
+                }`}
+              >
+                Embed Code Preview
+              </label>
+              <div
+                className={`p-3 rounded-lg font-mono text-xs overflow-x-auto ${
+                  theme === "dark"
+                    ? "bg-gray-900 border border-gray-700"
+                    : "bg-gray-100 border border-gray-200"
+                }`}
+              >
+                <pre className={`whitespace-pre-wrap break-all ${theme === "dark" ? "text-green-400" : "text-gray-800"}`}>
+                  {getCustomizedEmbedCode()}
+                </pre>
+              </div>
+            </div>
+
+            {/* Step 2 Action Buttons */}
             <div className="flex justify-end space-x-2 pt-4">
               <Button
                 variant="outline"
-                onClick={() => {
-                  setShowWebchatModal(false);
-                  setWebchatWidgetName("");
-                  setSelectedWebchatAgent("");
-                  setWebchatPromptId("");
-                  setWebchatCreationType("agent");
-                  setWebchatPrimaryColor("#3B82F6");
-                  setWebchatSecondaryColor("#EFF6FF");
-                }}
+                onClick={handleCloseWebchatModal}
                 className={
                   theme === "dark"
                     ? "bg-gray-700 border-gray-600 text-slate-300 hover:bg-gray-600"
                     : ""
                 }
               >
-                Cancel
+                Close
               </Button>
               <Button
-                onClick={handleCreateWebchatWidget}
-                disabled={creatingWidget}
+                onClick={handleFinalizeWidget}
                 style={{ backgroundColor: "#1A6262" }}
                 className="hover:opacity-90 text-white"
               >
-                {creatingWidget ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Creating...
-                  </>
-                ) : (
-                  <>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Create Widget
-                  </>
-                )}
+                <Copy className="w-4 h-4 mr-2" />
+                Copy Embed Code
               </Button>
             </div>
           </div>
+          )}
         </DialogContent>
       </Dialog>
 

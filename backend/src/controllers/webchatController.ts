@@ -43,7 +43,7 @@ export const listChatAgents = async (req: Request, res: Response) => {
  * Create a new webchat channel
  * POST /api/integrations/webchat/channels
  * 
- * Body: { name, prompt_id? | agent_id?, primary_color?, secondary_color? }
+ * Body: { name, prompt_id? | agent_id? }
  */
 export const createWebchatChannel = async (req: Request, res: Response) => {
   try {
@@ -57,7 +57,7 @@ export const createWebchatChannel = async (req: Request, res: Response) => {
       });
     }
 
-    const { name, prompt_id, agent_id, primary_color, secondary_color } = req.body;
+    const { name, prompt_id, agent_id } = req.body;
 
     // Validation
     if (!name) {
@@ -89,8 +89,6 @@ export const createWebchatChannel = async (req: Request, res: Response) => {
       name,
       prompt_id,
       agent_id,
-      primary_color,
-      secondary_color,
     });
 
     return res.status(201).json(response);
