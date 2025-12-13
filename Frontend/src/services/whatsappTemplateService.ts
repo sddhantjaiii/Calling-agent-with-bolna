@@ -41,7 +41,7 @@ export interface TemplateVariable {
   variable_name: string;
   position: number;
   component_type: ComponentType;
-  extraction_field?: string; // Maps to Contact field (e.g., "name", "email")
+  dashboard_mapping?: string; // Dashboard's identifier for this variable (e.g., "name", "email", "meetingLink", "meetingTime")
   default_value?: string;
   sample_value?: string;
   description?: string;
@@ -528,7 +528,16 @@ class WhatsAppTemplateService {
 
   /**
    * Resolve template variables from contact data
-   * Uses extraction_field mapping to auto-fill variables
+   * Uses dashboard_mapping to auto-fill variables from contact fields
+   * 
+   * Dashboard is the source of truth for all variable resolution.
+   * Mapping options include:
+   * - Contact fields: name, phone_number, email, company, city, country, business_context, notes, tags
+   * - Meeting fields: meetingLink, meetingTime, meetingDate, meetingDateTime, meetingDetails
+   * 
+   * @param variables - Array of template variables with dashboard_mapping
+   * @param contact - Contact data object (can include meeting data)
+   * @returns Record mapping position to resolved value
    */
   resolveVariables(
     variables: TemplateVariable[],
@@ -536,13 +545,56 @@ class WhatsAppTemplateService {
   ): Record<string, string> {
     const resolved: Record<string, string> = {};
 
+    // Contact field mappings (supports both snake_case and camelCase)
+    const contactFieldMap: Record<string, () => string | undefined> = {
+      'name': () => contact.name,
+      'phone_number': () => contact.phone_number || contact.phone || contact.phoneNumber,
+      'email': () => contact.email,
+      'company': () => contact.company,
+      'city': () => contact.city,
+      'country': () => contact.country,
+      'business_context': () => contact.business_context || contact.businessContext,
+      'notes': () => contact.notes,
+      'tags': () => Array.isArray(contact.tags) ? contact.tags.join(', ') : contact.tags,
+    };
+
+    // Meeting field mappings
+    const meetingFieldMap: Record<string, () => string | undefined> = {
+      'meetingLink': () => contact.meetingLink || contact.meeting_link,
+      'meetingTime': () => contact.meetingTime || contact.meeting_time,
+      'meetingDate': () => contact.meetingDate || contact.meeting_date,
+      'meetingDateTime': () => contact.meetingDateTime || contact.meeting_datetime,
+      'meetingDetails': () => contact.meetingDetails || contact.meeting_details,
+    };
+
     for (const variable of variables) {
       const position = variable.position.toString();
 
-      // Priority 1: Use extraction_field mapping
-      if (variable.extraction_field && contact[variable.extraction_field]) {
-        resolved[position] = String(contact[variable.extraction_field]);
-        continue;
+      // Priority 1: Use dashboard_mapping to get value from contact data
+      if (variable.dashboard_mapping) {
+        // Check contact fields
+        if (variable.dashboard_mapping in contactFieldMap) {
+          const value = contactFieldMap[variable.dashboard_mapping]();
+          if (value) {
+            resolved[position] = String(value);
+            continue;
+          }
+        }
+        
+        // Check meeting fields
+        if (variable.dashboard_mapping in meetingFieldMap) {
+          const value = meetingFieldMap[variable.dashboard_mapping]();
+          if (value) {
+            resolved[position] = String(value);
+            continue;
+          }
+        }
+        
+        // Try direct property access as fallback
+        if (contact[variable.dashboard_mapping]) {
+          resolved[position] = String(contact[variable.dashboard_mapping]);
+          continue;
+        }
       }
 
       // Priority 2: Try direct match with variable_name
@@ -557,10 +609,8 @@ class WhatsAppTemplateService {
         continue;
       }
 
-      // Priority 4: Use sample_value as last resort
-      if (variable.sample_value) {
-        resolved[position] = variable.sample_value;
-      }
+      // Priority 4: Empty string (don't use sample_value - that's for Meta template preview only)
+      resolved[position] = '';
     }
 
     return resolved;

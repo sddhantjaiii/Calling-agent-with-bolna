@@ -78,9 +78,58 @@ interface WhatsAppTemplate {
   variables: Array<{
     position: number;
     variable_name: string;
+    dashboard_mapping?: string; // Dashboard's identifier for this variable (e.g., "name", "email", "meetingLink")
     default_value?: string;
     sample_value?: string;
   }>;
+}
+
+/**
+ * Resolve a variable value from contact data using dashboard_mapping
+ * Dashboard is the source of truth for all variable resolution.
+ * For campaigns with CSV upload, variables are resolved per-contact at send time.
+ * If mapping not found or value is empty, returns empty string.
+ */
+function resolveVariableFromContactData(
+  dashboardMapping: string | undefined,
+  contactData: Record<string, any>
+): string {
+  if (!dashboardMapping || !contactData) return '';
+
+  // Contact fields (from contacts table or CSV columns)
+  const contactFieldMap: Record<string, string | undefined> = {
+    'name': contactData.name,
+    'phone_number': contactData.phone_number || contactData.phone || contactData.phoneNumber,
+    'email': contactData.email,
+    'company': contactData.company,
+    'city': contactData.city,
+    'country': contactData.country,
+    'business_context': contactData.business_context || contactData.businessContext,
+    'notes': contactData.notes,
+    'tags': Array.isArray(contactData.tags) ? contactData.tags.join(', ') : contactData.tags,
+  };
+
+  // Meeting fields (resolved at send time from calendar_meetings if available)
+  const meetingFieldMap: Record<string, string | undefined> = {
+    'meetingLink': contactData.meetingLink || contactData.meeting_link,
+    'meetingTime': contactData.meetingTime || contactData.meeting_time,
+    'meetingDate': contactData.meetingDate || contactData.meeting_date,
+    'meetingDateTime': contactData.meetingDateTime || contactData.meeting_datetime,
+    'meetingDetails': contactData.meetingDetails || contactData.meeting_details,
+  };
+
+  // Check contact fields first
+  if (dashboardMapping in contactFieldMap) {
+    return contactFieldMap[dashboardMapping] || '';
+  }
+
+  // Check meeting fields
+  if (dashboardMapping in meetingFieldMap) {
+    return meetingFieldMap[dashboardMapping] || '';
+  }
+
+  // No mapping found
+  return '';
 }
 
 /**
@@ -993,15 +1042,14 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
       if (pendingCampaignData.type === 'whatsapp-csv' || pendingCampaignData.type === 'whatsapp-contacts') {
         setIsUploading(true);
         
+        // Get the selected template to access dashboard_mapping for variable resolution
+        const selectedTemplate = whatsappTemplates.find(t => t.template_id === pendingCampaignData.template_id);
+        
         // For WhatsApp campaigns, we need to get phone numbers from contacts or CSV
-        // For now, we'll send the campaign data - the backend will handle the phone number extraction
         let recipients: Array<{ phone_number: string; variables?: Record<string, string> }> = [];
         
         if (pendingCampaignData.type === 'whatsapp-contacts' && pendingCampaignData.contact_ids) {
-          // We need to fetch contact details to get phone numbers
-          // For pre-selected contacts, we'll pass the contact_ids and let the service fetch them
-          // Or we can fetch them here. For simplicity, let's assume the external service can handle contact_ids
-          // Actually, we need phone numbers, so let's fetch the contacts first
+          // Fetch contact details to resolve variables per-contact using dashboard_mapping
           try {
             const response = await authenticatedFetch('/api/contacts');
             if (response.ok) {
@@ -1010,10 +1058,41 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
               const selectedContacts = allContacts.filter((c: any) => 
                 pendingCampaignData.contact_ids.includes(c.id)
               );
-              recipients = selectedContacts.map((c: any) => ({
-                phone_number: c.phone || c.phone_number || c.phoneNumber,
-                variables: pendingCampaignData.template_variables || {},
-              }));
+              
+              recipients = selectedContacts.map((c: any) => {
+                // Resolve variables using dashboard_mapping for this contact
+                const resolvedVariables: Record<string, string> = {};
+                
+                if (selectedTemplate?.variables) {
+                  selectedTemplate.variables.forEach(v => {
+                    const position = v.position.toString();
+                    
+                    // Check if user provided an override in templateVariables
+                    const userOverride = pendingCampaignData.template_variables?.[v.variable_name];
+                    if (userOverride && userOverride.trim()) {
+                      resolvedVariables[position] = userOverride;
+                      return;
+                    }
+                    
+                    // Use dashboard_mapping to resolve from contact data
+                    if (v.dashboard_mapping) {
+                      const resolvedValue = resolveVariableFromContactData(v.dashboard_mapping, c);
+                      if (resolvedValue) {
+                        resolvedVariables[position] = resolvedValue;
+                        return;
+                      }
+                    }
+                    
+                    // Fall back to default_value or empty
+                    resolvedVariables[position] = v.default_value || '';
+                  });
+                }
+                
+                return {
+                  phone_number: c.phone || c.phone_number || c.phoneNumber,
+                  variables: resolvedVariables,
+                };
+              });
             }
           } catch (err) {
             console.error('Failed to fetch contacts for WhatsApp campaign:', err);
@@ -1026,7 +1105,7 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
             return;
           }
         } else if (pendingCampaignData.type === 'whatsapp-csv' && pendingCampaignData.csvFile) {
-          // Parse CSV to get phone numbers
+          // Parse CSV to get phone numbers and contact data for variable resolution
           try {
             const arrayBuffer = await pendingCampaignData.csvFile.arrayBuffer();
             const workbook = XLSX.read(arrayBuffer, { type: 'array', raw: false });
@@ -1042,14 +1121,54 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
                 ['phone', 'phone_number', 'mobile', 'cell', 'phonenumber'].includes(h)
               );
               
+              // Get the selected template to access dashboard_mapping
+              const selectedTemplate = whatsappTemplates.find(t => t.template_id === pendingCampaignData.template_id);
+              
               if (phoneIndex !== -1) {
                 for (let i = 1; i < jsonData.length; i++) {
                   const row = jsonData[i];
                   const phone = row[phoneIndex]?.toString().trim();
                   if (phone) {
+                    // Build contact data object from CSV row
+                    const contactData: Record<string, any> = {};
+                    headers.forEach((header: string, idx: number) => {
+                      if (row[idx] !== undefined && row[idx] !== null) {
+                        contactData[header] = row[idx].toString().trim();
+                      }
+                    });
+                    
+                    // Resolve variables using dashboard_mapping for this contact
+                    // Priority: dashboard_mapping from contact data > user override > default_value > empty
+                    const resolvedVariables: Record<string, string> = {};
+                    
+                    if (selectedTemplate?.variables) {
+                      selectedTemplate.variables.forEach(v => {
+                        const position = v.position.toString();
+                        
+                        // Check if user provided an override in templateVariables
+                        const userOverride = pendingCampaignData.template_variables?.[v.variable_name];
+                        if (userOverride && userOverride.trim()) {
+                          resolvedVariables[position] = userOverride;
+                          return;
+                        }
+                        
+                        // Use dashboard_mapping to resolve from contact data
+                        if (v.dashboard_mapping) {
+                          const resolvedValue = resolveVariableFromContactData(v.dashboard_mapping, contactData);
+                          if (resolvedValue) {
+                            resolvedVariables[position] = resolvedValue;
+                            return;
+                          }
+                        }
+                        
+                        // Fall back to default_value or empty
+                        resolvedVariables[position] = v.default_value || '';
+                      });
+                    }
+                    
                     recipients.push({
                       phone_number: phone,
-                      variables: pendingCampaignData.template_variables || {},
+                      variables: resolvedVariables,
                     });
                   }
                 }
@@ -1359,49 +1478,190 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
           {/* Template Variables - Only for WhatsApp campaigns with selected template */}
           {campaignType === 'whatsapp' && selectedTemplateId && (
             <>
-              {/* Template Preview */}
+              {/* Template Preview with Mapping Info */}
               {(() => {
                 const selectedTemplate = whatsappTemplates.find(t => t.template_id === selectedTemplateId);
                 if (selectedTemplate?.components?.body?.text) {
                   let previewText = selectedTemplate.components.body.text;
-                  // Replace variables with their values
-                  Object.entries(templateVariables).forEach(([key, value]) => {
+                  
+                  // Build variable info for the legend
+                  const variableInfo: Array<{ position: number; mappedTo: string; userValue?: string }> = [];
+                  
+                  // Replace variables with descriptive placeholders showing what will be mapped
+                  selectedTemplate.variables?.forEach(v => {
+                    const position = v.position;
+                    const userValue = templateVariables[v.variable_name]?.trim();
+                    
+                    // Determine what will be used for this variable
+                    let mappingLabel = '';
+                    let mappingSource = '';
+                    
+                    if (userValue) {
+                      // User provided a value override
+                      mappingLabel = userValue;
+                      mappingSource = 'custom value';
+                    } else if (v.dashboard_mapping) {
+                      // Will be auto-mapped from contact data
+                      const friendlyNames: Record<string, string> = {
+                        'name': 'Contact Name',
+                        'phone_number': 'Phone Number',
+                        'email': 'Email',
+                        'company': 'Company',
+                        'city': 'City',
+                        'country': 'Country',
+                        'business_context': 'Business Context',
+                        'notes': 'Notes',
+                        'tags': 'Tags',
+                        'meetingLink': 'Meeting Link',
+                        'meetingTime': 'Meeting Time',
+                        'meetingDate': 'Meeting Date',
+                        'meetingDateTime': 'Meeting Date & Time',
+                        'meetingDetails': 'Meeting Details',
+                      };
+                      mappingLabel = `[${friendlyNames[v.dashboard_mapping] || v.dashboard_mapping}]`;
+                      mappingSource = `auto-mapped from ${friendlyNames[v.dashboard_mapping] || v.dashboard_mapping}`;
+                    } else if (v.default_value) {
+                      // Will use default value
+                      mappingLabel = v.default_value;
+                      mappingSource = 'default value';
+                    } else {
+                      // No mapping - will be empty
+                      mappingLabel = `[${v.variable_name}]`;
+                      mappingSource = 'not mapped';
+                    }
+                    
+                    variableInfo.push({ 
+                      position, 
+                      mappedTo: mappingSource,
+                      userValue: userValue || undefined
+                    });
+                    
+                    // Replace {{position}} with the descriptive label
                     previewText = previewText.replace(
-                      new RegExp(`{{${key}}}`, 'g'),
-                      value || `{{${key}}}`
+                      new RegExp(`\\{\\{${position}\\}\\}`, 'g'),
+                      mappingLabel
                     );
                   });
+                  
                   return (
-                    <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
-                      <Label className="text-xs text-green-700 dark:text-green-400 mb-1 block">Message Preview</Label>
-                      <p className="text-sm text-green-800 dark:text-green-300 whitespace-pre-wrap">{previewText}</p>
+                    <div className="space-y-2">
+                      <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+                        <Label className="text-xs text-green-700 dark:text-green-400 mb-1 block">Message Preview</Label>
+                        <p className="text-sm text-green-800 dark:text-green-300 whitespace-pre-wrap">{previewText}</p>
+                      </div>
+                      
+                      {/* Variable Mapping Legend */}
+                      {selectedTemplate.variables && selectedTemplate.variables.length > 0 && (
+                        <div className="p-2 bg-gray-50 dark:bg-gray-800/50 rounded border text-xs">
+                          <p className="font-medium text-muted-foreground mb-1">Variable Mappings:</p>
+                          <div className="space-y-1">
+                            {selectedTemplate.variables.map(v => {
+                              const info = variableInfo.find(i => i.position === v.position);
+                              return (
+                                <div key={v.position} className="flex items-center gap-2">
+                                  <span className="text-muted-foreground">{{'{{'}{v.position}{'}}'}}:</span>
+                                  <span className={info?.userValue ? 'text-blue-600 dark:text-blue-400' : 'text-foreground'}>
+                                    {info?.mappedTo || 'not mapped'}
+                                  </span>
+                                  {info?.userValue && (
+                                    <Badge variant="outline" className="text-[10px] py-0 px-1">override</Badge>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 }
                 return null;
               })()}
 
-              {/* Variable inputs */}
-              {Object.keys(templateVariables).length > 0 && (
-                <div className="space-y-2">
-                  <Label className="text-xs text-muted-foreground">Template Variables (Optional - will use defaults if empty)</Label>
-                  {Object.entries(templateVariables).map(([varName, value]) => (
-                    <div key={varName}>
-                      <Label htmlFor={`var-${varName}`} className="text-xs">{varName}</Label>
-                      <Input
-                        id={`var-${varName}`}
-                        value={value}
-                        onChange={(e) => setTemplateVariables(prev => ({
-                          ...prev,
-                          [varName]: e.target.value
-                        }))}
-                        placeholder={`Enter ${varName}`}
-                        className="mt-1"
-                      />
+              {/* Variable Override Inputs */}
+              {(() => {
+                const selectedTemplate = whatsappTemplates.find(t => t.template_id === selectedTemplateId);
+                if (!selectedTemplate?.variables || selectedTemplate.variables.length === 0) return null;
+                
+                const friendlyNames: Record<string, string> = {
+                  'name': 'Contact Name',
+                  'phone_number': 'Phone Number',
+                  'email': 'Email',
+                  'company': 'Company',
+                  'city': 'City',
+                  'country': 'Country',
+                  'business_context': 'Business Context',
+                  'notes': 'Notes',
+                  'tags': 'Tags',
+                  'meetingLink': 'Meeting Link',
+                  'meetingTime': 'Meeting Time',
+                  'meetingDate': 'Meeting Date',
+                  'meetingDateTime': 'Meeting Date & Time',
+                  'meetingDetails': 'Meeting Details',
+                };
+                
+                return (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs text-muted-foreground">
+                        Override Variable Values (Optional)
+                      </Label>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <HelpCircle className="w-4 h-4 text-muted-foreground" />
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs">
+                            <p>Leave empty to auto-map from contact data. Enter a value to use the same text for all recipients.</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </div>
-                  ))}
-                </div>
-              )}
+                    {selectedTemplate.variables.map(v => {
+                      const autoMapping = v.dashboard_mapping 
+                        ? friendlyNames[v.dashboard_mapping] || v.dashboard_mapping
+                        : null;
+                      const hasDefault = !!v.default_value;
+                      
+                      return (
+                        <div key={v.variable_name} className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor={`var-${v.variable_name}`} className="text-xs font-medium">
+                              {v.variable_name}
+                            </Label>
+                            {autoMapping && (
+                              <Badge variant="secondary" className="text-[10px] py-0 px-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
+                                → {autoMapping}
+                              </Badge>
+                            )}
+                            {!autoMapping && hasDefault && (
+                              <Badge variant="secondary" className="text-[10px] py-0 px-1">
+                                default: {v.default_value}
+                              </Badge>
+                            )}
+                          </div>
+                          <Input
+                            id={`var-${v.variable_name}`}
+                            value={templateVariables[v.variable_name] || ''}
+                            onChange={(e) => setTemplateVariables(prev => ({
+                              ...prev,
+                              [v.variable_name]: e.target.value
+                            }))}
+                            placeholder={
+                              autoMapping 
+                                ? `Auto-mapped from ${autoMapping} (override here)`
+                                : hasDefault 
+                                  ? `Default: ${v.default_value}`
+                                  : `Enter ${v.variable_name}`
+                            }
+                            className="mt-1"
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </>
           )}
 

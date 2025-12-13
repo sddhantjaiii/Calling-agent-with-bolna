@@ -25,7 +25,7 @@ interface TemplateVariable {
   variable_name: string;
   position: number;
   component_type: string;
-  extraction_field?: string;
+  dashboard_mapping?: string; // Dashboard's identifier for this variable (e.g., "name", "email", "meetingLink", "meetingTime")
   default_value?: string;
   sample_value?: string;
 }

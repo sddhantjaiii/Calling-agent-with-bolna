@@ -32,19 +32,38 @@ import whatsappTemplateService, {
   ButtonType,
 } from '@/services/whatsappTemplateService';
 
-// Variable mapping options - shows friendly names in UI but uses DB column names for API
+/**
+ * Variable mapping options for WhatsApp templates
+ * 
+ * These map to:
+ * 1. Contact table columns (name, email, phone_number, company, city, country, business_context, notes)
+ * 2. Meeting data from calendar_meetings table (meetingLink, meetingTime, meetingDate, meetingDetails)
+ * 3. Custom static values
+ * 
+ * Values use camelCase for frontend consistency but map to snake_case DB columns where applicable.
+ * Dashboard is the source of truth for all variable resolution.
+ */
 const VARIABLE_MAPPING_OPTIONS = [
-  { label: 'Name', value: 'name' },
-  { label: 'Phone Number', value: 'phoneNumber' },
-  { label: 'Email', value: 'email' },
-  { label: 'Company', value: 'company' },
-  { label: 'City', value: 'city' },
-  { label: 'Country', value: 'country' },
-  { label: 'Business Context', value: 'businessContext' },
-  { label: 'Notes', value: 'notes' },
-  { label: 'Meeting Link', value: 'meetingLink' },
-  { label: 'Meeting Details', value: 'meetingDetails' },
-  { label: 'Custom Value', value: 'custom' },
+  // Contact fields (from contacts table)
+  { label: 'Name', value: 'name', description: 'Contact name' },
+  { label: 'Phone Number', value: 'phone_number', description: 'Contact phone number' },
+  { label: 'Email', value: 'email', description: 'Contact email address' },
+  { label: 'Company', value: 'company', description: 'Company/Organization name' },
+  { label: 'City', value: 'city', description: 'City location' },
+  { label: 'Country', value: 'country', description: 'Country location' },
+  { label: 'Business Context', value: 'business_context', description: 'Industry/sector description' },
+  { label: 'Notes', value: 'notes', description: 'Contact notes' },
+  { label: 'Tags', value: 'tags', description: 'Contact tags (comma separated)' },
+  
+  // Meeting fields (from calendar_meetings table - resolved at send time)
+  { label: 'Meeting Link', value: 'meetingLink', description: 'Google Meet/calendar link' },
+  { label: 'Meeting Date', value: 'meetingDate', description: 'Scheduled meeting date' },
+  { label: 'Meeting Time', value: 'meetingTime', description: 'Scheduled meeting time' },
+  { label: 'Meeting Date & Time', value: 'meetingDateTime', description: 'Full meeting date and time' },
+  { label: 'Meeting Details', value: 'meetingDetails', description: 'Meeting title and description' },
+  
+  // Custom value option
+  { label: 'Custom Value', value: 'custom', description: 'Static custom text' },
 ];
 
 const CATEGORY_OPTIONS: { label: string; value: TemplateCategory }[] = [
@@ -280,7 +299,7 @@ const CreateTemplateModal: React.FC<CreateTemplateModalProps> = ({
         variable_name: v.name,
         position: v.position,
         component_type: 'BODY',
-        extraction_field: v.mapping !== 'custom' ? v.mapping : undefined,
+        dashboard_mapping: v.mapping !== 'custom' ? v.mapping : undefined,
         default_value: v.mapping === 'custom' ? v.customValue : undefined,
         sample_value: v.sampleValue,
       }));

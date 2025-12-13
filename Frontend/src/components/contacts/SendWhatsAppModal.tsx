@@ -49,9 +49,58 @@ interface WhatsAppTemplate {
   variables: Array<{
     position: number;
     variable_name: string;
+    dashboard_mapping?: string; // Dashboard's identifier for this variable (e.g., "name", "email", "meetingLink")
     default_value?: string;
     sample_value?: string;
   }>;
+}
+
+/**
+ * Resolve a variable value from contact data using dashboard_mapping
+ * Dashboard is the source of truth for all variable resolution.
+ * If mapping not found or value is empty, returns empty string (pass empty to API).
+ */
+function resolveVariableFromContact(
+  dashboardMapping: string | undefined,
+  contact: Contact | null,
+  meetingData?: { meetingLink?: string; meetingTime?: string; meetingDate?: string; meetingDateTime?: string; meetingDetails?: string }
+): string {
+  if (!dashboardMapping || !contact) return '';
+
+  // Handle contact fields (from contacts table)
+  const contactFieldMap: Record<string, string | undefined> = {
+    'name': contact.name,
+    'phone_number': (contact as any).phone_number || (contact as any).phone || contact.phoneNumber,
+    'email': contact.email,
+    'company': contact.company,
+    'city': (contact as any).city,
+    'country': (contact as any).country,
+    'business_context': (contact as any).business_context || (contact as any).businessContext,
+    'notes': contact.notes,
+    'tags': Array.isArray((contact as any).tags) ? (contact as any).tags.join(', ') : (contact as any).tags,
+  };
+
+  // Handle meeting fields (if meeting data is available)
+  const meetingFieldMap: Record<string, string | undefined> = {
+    'meetingLink': meetingData?.meetingLink,
+    'meetingTime': meetingData?.meetingTime,
+    'meetingDate': meetingData?.meetingDate,
+    'meetingDateTime': meetingData?.meetingDateTime,
+    'meetingDetails': meetingData?.meetingDetails,
+  };
+
+  // Check contact fields first
+  if (dashboardMapping in contactFieldMap) {
+    return contactFieldMap[dashboardMapping] || '';
+  }
+
+  // Check meeting fields
+  if (dashboardMapping in meetingFieldMap) {
+    return meetingFieldMap[dashboardMapping] || '';
+  }
+
+  // No mapping found
+  return '';
 }
 
 interface SendWhatsAppModalProps {
@@ -104,19 +153,32 @@ export function SendWhatsAppModal({
     }
   }, [selectedPhoneNumberId]);
 
-  // Reset variable values when template changes
+  // Reset variable values when template changes - use dashboard_mapping for auto-fill
   useEffect(() => {
     if (selectedTemplateId) {
       const template = templates.find(t => t.template_id === selectedTemplateId);
       if (template?.variables) {
         const initialValues: Record<string, string> = {};
         template.variables.forEach(v => {
-          // Pre-fill with contact name if variable is for customer_name
-          if (v.variable_name.toLowerCase().includes('name') && contact?.name) {
-            initialValues[v.position.toString()] = contact.name;
-          } else {
-            initialValues[v.position.toString()] = v.default_value || '';
+          const position = v.position.toString();
+          
+          // Priority 1: Use dashboard_mapping to auto-fill from contact data
+          if (v.dashboard_mapping) {
+            const resolvedValue = resolveVariableFromContact(v.dashboard_mapping, contact);
+            if (resolvedValue) {
+              initialValues[position] = resolvedValue;
+              return;
+            }
           }
+          
+          // Priority 2: Use default_value if dashboard_mapping didn't resolve
+          if (v.default_value) {
+            initialValues[position] = v.default_value;
+            return;
+          }
+          
+          // Priority 3: Pass empty string (don't use sample_value - that's just for preview)
+          initialValues[position] = '';
         });
         setVariableValues(initialValues);
       }
@@ -277,14 +339,49 @@ export function SendWhatsAppModal({
   const selectedTemplate = templates.find(t => t.template_id === selectedTemplateId);
   const selectedPhone = phoneNumbers.find(p => p.id === selectedPhoneNumberId);
 
-  // Get preview of template with variables filled in
+  // Friendly names for dashboard_mapping values
+  const friendlyMappingNames: Record<string, string> = {
+    'name': 'Contact Name',
+    'phone_number': 'Phone Number',
+    'email': 'Email',
+    'company': 'Company',
+    'city': 'City',
+    'country': 'Country',
+    'business_context': 'Business Context',
+    'notes': 'Notes',
+    'tags': 'Tags',
+    'meetingLink': 'Meeting Link',
+    'meetingTime': 'Meeting Time',
+    'meetingDate': 'Meeting Date',
+    'meetingDateTime': 'Meeting Date & Time',
+    'meetingDetails': 'Meeting Details',
+  };
+
+  // Get preview of template with variables filled in - show actual values that will be sent
   const getTemplatePreview = () => {
     if (!selectedTemplate?.components?.body?.text) return '';
     
     let preview = selectedTemplate.components.body.text;
-    Object.entries(variableValues).forEach(([position, value]) => {
-      preview = preview.replace(`{{${position}}}`, value || `{{${position}}}`);
+    
+    // Replace each variable position with the actual resolved value or descriptive placeholder
+    selectedTemplate.variables?.forEach(v => {
+      const position = v.position.toString();
+      const currentValue = variableValues[position];
+      
+      let displayValue = '';
+      if (currentValue && currentValue.trim()) {
+        // User has entered/auto-filled a value
+        displayValue = currentValue;
+      } else if (v.default_value) {
+        displayValue = v.default_value;
+      } else {
+        // Show what it would map to
+        displayValue = `[${v.variable_name}]`;
+      }
+      
+      preview = preview.replace(`{{${position}}}`, displayValue);
     });
+    
     return preview;
   };
 
@@ -383,22 +480,51 @@ export function SendWhatsAppModal({
             )}
           </div>
 
-          {/* Template Variables */}
+          {/* Template Variables with Mapping Info */}
           {selectedTemplate?.variables && selectedTemplate.variables.length > 0 && (
             <div className="space-y-3">
-              <Label>Template Variables</Label>
-              {selectedTemplate.variables.map((variable) => (
-                <div key={variable.position} className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">
-                    {variable.variable_name} (Position {variable.position})
-                  </Label>
-                  <Input
-                    value={variableValues[variable.position.toString()] || ''}
-                    onChange={(e) => handleVariableChange(variable.position.toString(), e.target.value)}
-                    placeholder={variable.sample_value || variable.default_value || `Enter ${variable.variable_name}`}
-                  />
-                </div>
-              ))}
+              <Label className="flex items-center gap-2">
+                Template Variables
+                <span className="text-xs text-muted-foreground font-normal">(auto-filled from contact)</span>
+              </Label>
+              {selectedTemplate.variables.map((variable) => {
+                const mapping = variable.dashboard_mapping;
+                const mappingLabel = mapping ? friendlyMappingNames[mapping] || mapping : null;
+                const currentValue = variableValues[variable.position.toString()] || '';
+                const isAutoFilled = mappingLabel && currentValue && currentValue.trim() !== '';
+                
+                return (
+                  <div key={variable.position} className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <Label className="text-xs font-medium">
+                        {variable.variable_name}
+                      </Label>
+                      {mappingLabel && (
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+                          isAutoFilled 
+                            ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' 
+                            : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                        }`}>
+                          → {mappingLabel}
+                        </span>
+                      )}
+                      {isAutoFilled && (
+                        <span className="text-[10px] text-green-600 dark:text-green-400">✓ auto-filled</span>
+                      )}
+                    </div>
+                    <Input
+                      value={currentValue}
+                      onChange={(e) => handleVariableChange(variable.position.toString(), e.target.value)}
+                      placeholder={
+                        mappingLabel 
+                          ? `From ${mappingLabel}` 
+                          : variable.default_value || `Enter ${variable.variable_name}`
+                      }
+                      className={isAutoFilled ? 'border-green-300 dark:border-green-700' : ''}
+                    />
+                  </div>
+                );
+              })}
             </div>
           )}
 
@@ -406,7 +532,7 @@ export function SendWhatsAppModal({
           {selectedTemplate && (
             <div className="space-y-2">
               <Label>Message Preview</Label>
-              <div className="p-3 border rounded-md bg-green-50 dark:bg-green-950/20 text-sm whitespace-pre-wrap">
+              <div className="p-3 border rounded-md bg-green-50 dark:bg-green-950/20 text-sm whitespace-pre-wrap text-green-800 dark:text-green-300">
                 {getTemplatePreview() || 'No message body'}
               </div>
             </div>
