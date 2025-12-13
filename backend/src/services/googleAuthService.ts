@@ -203,9 +203,25 @@ class GoogleAuthService {
       // Exchange authorization code for tokens
       const { tokens } = await this.oauth2Client.getToken(code);
 
+      // Log the scopes received from Google to verify gmail.send is included
+      logger.info('📝 OAuth tokens received from Google', {
+        userId,
+        hasAccessToken: !!tokens.access_token,
+        hasRefreshToken: !!tokens.refresh_token,
+        scopeReceived: tokens.scope,
+        hasGmailScope: tokens.scope?.includes('gmail.send') || false,
+        expiryDate: tokens.expiry_date
+      });
+
       if (!tokens.access_token || !tokens.refresh_token) {
+        logger.error('❌ Missing tokens from Google OAuth', {
+          userId,
+          hasAccessToken: !!tokens.access_token,
+          hasRefreshToken: !!tokens.refresh_token,
+          hint: 'If refresh_token is missing, user may need to revoke app access at https://myaccount.google.com/permissions'
+        });
         throw new OAuthError(
-          'Failed to obtain access or refresh token',
+          'Failed to obtain access or refresh token. If reconnecting, please revoke app access at https://myaccount.google.com/permissions first.',
           'TOKEN_MISSING'
         );
       }
@@ -401,14 +417,28 @@ class GoogleAuthService {
         throw new OAuthError('User not found', 'USER_NOT_FOUND', { userId });
       }
 
-      // Revoke token with Google if we have access token
+      // Revoke BOTH access token and refresh token with Google
+      // This ensures when user reconnects, they get a completely new token with new scopes
+      if (user.google_refresh_token) {
+        try {
+          await this.oauth2Client.revokeToken(user.google_refresh_token);
+          logger.info('✅ Google refresh token revoked', { userId });
+        } catch (revokeError) {
+          // Log but don't fail - we still want to clear our database
+          logger.warn('⚠️ Failed to revoke Google refresh token', {
+            userId,
+            error: revokeError instanceof Error ? revokeError.message : 'Unknown'
+          });
+        }
+      }
+      
       if (user.google_access_token) {
         try {
           await this.oauth2Client.revokeToken(user.google_access_token);
-          logger.info('✅ Google token revoked', { userId });
+          logger.info('✅ Google access token revoked', { userId });
         } catch (revokeError) {
           // Log but don't fail - we still want to clear our database
-          logger.warn('⚠️ Failed to revoke Google token', {
+          logger.warn('⚠️ Failed to revoke Google access token', {
             userId,
             error: revokeError instanceof Error ? revokeError.message : 'Unknown'
           });

@@ -98,8 +98,8 @@ export const sanitizeObject = (obj: any, config: SecurityConfig = defaultSecurit
 
   if (typeof obj === 'object') {
     const sanitized: any = {};
-    // Fields that should NOT be sanitized (e.g., HTML email templates)
-    const UNSANITIZED_FIELDS = ['body_template', 'subject_template'];
+    // Fields that should NOT be sanitized (e.g., HTML email templates, base64 content)
+    const UNSANITIZED_FIELDS = ['body_template', 'subject_template', 'content', 'bodyHtml', 'bodyText'];
     
     for (const [key, value] of Object.entries(obj)) {
       // Check whitelist BEFORE sanitizing the key

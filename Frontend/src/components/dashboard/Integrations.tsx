@@ -165,13 +165,14 @@ const Integrations = () => {
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
+          // API returns flat structure: { success, connected, hasGmailScope, ... }
           setGmailStatus({
-            connected: data.data.connected,
-            hasGmailScope: data.data.hasGmailScope,
+            connected: data.connected,
+            hasGmailScope: data.hasGmailScope,
             loading: false,
-            requiresReconnect: data.data.requiresReconnect,
-            email: data.data.email,
-            message: data.data.message,
+            requiresReconnect: data.requiresReconnect,
+            email: data.email,
+            message: data.message,
           });
         } else {
           setGmailStatus({

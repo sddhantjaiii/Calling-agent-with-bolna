@@ -90,35 +90,70 @@ class GmailService {
         };
       }
 
-      // Check if user has Gmail scope by testing token
-      // We can't reliably check stored scope, so we'll try to use the API
-      // If it fails with scope error, we need reconnect
+      // Check if user has Gmail scope by verifying the token with Google's tokeninfo API
+      // Note: gmail.send scope ONLY allows sending, NOT reading profile, so we can't use getProfile
       try {
         // Get valid access token (refreshes if needed)
+        logger.info('📧 Checking Gmail status - getting valid token', { userId });
         const accessToken = await googleAuthService.ensureValidToken(userId);
         
-        // Create OAuth client and test Gmail API access
-        const oauth2Client = new google.auth.OAuth2(
-          this.clientId,
-          this.clientSecret
+        // Verify token has gmail.send scope using Google's tokeninfo endpoint
+        logger.info('📧 Verifying Gmail scope via tokeninfo API', { userId });
+        const axios = require('axios');
+        const tokenInfoResponse = await axios.get(
+          `https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=${accessToken}`
         );
-        oauth2Client.setCredentials({ access_token: accessToken });
-
-        const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
         
-        // Try to get user's profile - this is a lightweight check
-        await gmail.users.getProfile({ userId: 'me' });
-
-        return {
-          connected: true,
-          hasGmailScope: true,
-          email: user.google_email,
-          requiresReconnect: false,
-          message: 'Gmail connected and ready'
-        };
+        const scopes = tokenInfoResponse.data.scope || '';
+        const hasGmailSendScope = scopes.includes('gmail.send');
+        
+        if (hasGmailSendScope) {
+          logger.info('✅ Gmail connected and ready (gmail.send scope verified)', { 
+            userId, 
+            email: user.google_email,
+            scopes 
+          });
+          return {
+            connected: true,
+            hasGmailScope: true,
+            email: user.google_email,
+            requiresReconnect: false,
+            message: 'Gmail connected and ready'
+          };
+        } else {
+          logger.warn('⚠️ Gmail scope not in token', { userId, scopes });
+          return {
+            connected: true,
+            hasGmailScope: false,
+            email: user.google_email,
+            requiresReconnect: true,
+            message: 'Gmail permission not granted. Please reconnect your Google account to enable email sending.'
+          };
+        }
       } catch (error: any) {
-        // Check if error is due to missing scope
-        if (error.code === 403 || error.message?.includes('insufficient') || error.message?.includes('scope')) {
+        // Log the full error for debugging
+        logger.error('❌ Gmail status check error:', {
+          userId,
+          errorCode: error.code,
+          errorMessage: error.message,
+          errorName: error.name,
+          errorResponse: error.response?.data,
+          errorStatus: error.response?.status,
+          fullError: JSON.stringify(error, Object.getOwnPropertyNames(error))
+        });
+
+        // Check if error is due to missing scope (403 Forbidden with specific messages)
+        const errorMessage = error.message?.toLowerCase() || '';
+        const errorCode = error.code;
+        const responseStatus = error.response?.status;
+        
+        // Gmail API returns 403 with specific error when scope is missing
+        if (errorCode === 403 || responseStatus === 403 || 
+            errorMessage.includes('insufficient') || 
+            errorMessage.includes('scope') ||
+            errorMessage.includes('gmail api has not been used') ||
+            errorMessage.includes('access not configured')) {
+          logger.warn('⚠️ Gmail scope not granted - requires reconnect', { userId });
           return {
             connected: true,
             hasGmailScope: false,
@@ -128,8 +163,24 @@ class GmailService {
           };
         }
         
-        // Other error - might be token issue
-        logger.error('Error checking Gmail status:', error);
+        // Check if it's a token-related error that requires reconnection
+        if (error.code === 'CALENDAR_NOT_CONNECTED' || 
+            error.code === 'TOKEN_REFRESH_ERROR' ||
+            errorMessage.includes('invalid_grant') ||
+            errorMessage.includes('token has been expired or revoked')) {
+          logger.warn('⚠️ Token invalid - requires reconnect', { userId });
+          return {
+            connected: true,
+            hasGmailScope: false,
+            email: user.google_email,
+            requiresReconnect: true,
+            message: 'Your Google token has expired. Please reconnect your Google account.'
+          };
+        }
+        
+        // For other errors (network, temporary issues), don't force reconnect
+        // Just report the error and let user retry
+        logger.error('❌ Temporary Gmail connection issue:', error);
         return {
           connected: true,
           hasGmailScope: false,
@@ -154,6 +205,20 @@ class GmailService {
    */
   async sendEmail(userId: string, options: SendGmailOptions): Promise<GmailSendResult> {
     try {
+      // Log attachment info for debugging
+      if (options.attachments && options.attachments.length > 0) {
+        logger.info('📎 Email attachments received:', {
+          count: options.attachments.length,
+          attachments: options.attachments.map(att => ({
+            filename: att.filename,
+            contentType: att.contentType,
+            contentLength: att.content?.length || 0,
+            // Approx decoded size (base64 is ~4/3 of original)
+            approxDecodedSize: Math.round((att.content?.length || 0) * 3 / 4)
+          }))
+        });
+      }
+
       // First check Gmail status
       const status = await this.getGmailStatus(userId);
       
@@ -291,7 +356,10 @@ class GmailService {
         message += `Content-Type: ${attachment.contentType || 'application/octet-stream'}; name="${attachment.filename}"\r\n`;
         message += `Content-Disposition: attachment; filename="${attachment.filename}"\r\n`;
         message += 'Content-Transfer-Encoding: base64\r\n\r\n';
-        message += attachment.content + '\r\n';
+        
+        // Base64 content must have line breaks every 76 characters for MIME compliance
+        const base64Content = attachment.content.replace(/(.{76})/g, '$1\r\n');
+        message += base64Content + '\r\n';
       }
 
       message += `--${boundary}--`;

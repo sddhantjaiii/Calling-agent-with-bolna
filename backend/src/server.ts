@@ -20,7 +20,6 @@ import {
 
   inputSanitization,
   requestSizeLimit,
-  sanitizeRequest,
   requestLogger,
   setupGlobalErrorHandlers,
   logger
@@ -240,10 +239,8 @@ app.use(express.urlencoded({
   parameterLimit: 100 // Limit number of parameters
 }));
 
-// Input sanitization middleware (applied after body parsing)
-app.use(sanitizeRequest);
-
-// Input validation and sanitization for security
+// Input validation and sanitization for security (SQL injection, XSS protection)
+// Note: sanitizeRequest from validation.ts removed - using only inputSanitization() to avoid double processing
 app.use(inputSanitization());
 
 // Timezone detection middleware (detects from IP/browser)

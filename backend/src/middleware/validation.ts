@@ -238,8 +238,8 @@ export const validateRegistration = (req: Request, res: Response, next: NextFunc
 
 // Request sanitization middleware
 export const sanitizeRequest = (req: Request, res: Response, next: NextFunction): void => {
-  // Fields that should NOT be sanitized (preserve HTML)
-  const UNSANITIZED_FIELDS = ['body_template', 'subject_template'];
+  // Fields that should NOT be sanitized (preserve HTML, base64 content, email body)
+  const UNSANITIZED_FIELDS = ['body_template', 'subject_template', 'content', 'bodyHtml', 'bodyText'];
   
   // Helper function to check if a field should allow long text
   const shouldAllowLongText = (key: string, parentKeys: string[] = []): boolean => {

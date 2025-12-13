@@ -83,7 +83,14 @@ export function SendEmailModal({
       const data = await response.json();
       
       if (data.success) {
-        setGmailStatus(data.data);
+        // API returns flat structure: { success, connected, hasGmailScope, ... }
+        setGmailStatus({
+          connected: data.connected,
+          hasGmailScope: data.hasGmailScope,
+          requiresReconnect: data.requiresReconnect,
+          email: data.email,
+          message: data.message
+        });
       } else {
         setGmailStatus({
           connected: false,
@@ -178,6 +185,13 @@ export function SendEmailModal({
         const result = reader.result as string;
         // Remove data:*/*;base64, prefix
         const base64 = result.split(',')[1];
+        console.log('📎 FileReader result:', {
+          filename: file.name,
+          fileSize: file.size,
+          dataUrlLength: result.length,
+          base64Length: base64?.length || 0,
+          expectedBase64Length: Math.ceil(file.size * 4 / 3),
+        });
         resolve(base64);
       };
       reader.onerror = error => reject(error);
@@ -232,6 +246,17 @@ export function SendEmailModal({
           size: att.size,
         }))
       );
+
+      // Debug: Log attachment sizes before sending
+      console.log('📤 Sending email with attachments:', {
+        count: attachmentData.length,
+        attachments: attachmentData.map(att => ({
+          filename: att.filename,
+          contentType: att.contentType,
+          originalSize: att.size,
+          base64Length: att.content?.length || 0,
+        })),
+      });
 
       // Parse CC and BCC emails (comma-separated)
       const ccEmails = cc
