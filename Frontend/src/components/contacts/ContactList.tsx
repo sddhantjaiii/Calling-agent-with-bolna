@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   Table,
@@ -40,6 +41,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { useContacts } from '@/hooks/useContacts';
@@ -99,6 +105,8 @@ export const ContactList: React.FC<ContactListProps> = ({
   const [selectedCity, setSelectedCity] = useState<string>('all');
   const [selectedCountry, setSelectedCountry] = useState<string>('all');
   const [editingNotes, setEditingNotes] = useState<{ contactId: string; notes: string } | null>(null);
+  const [editingNotesPopover, setEditingNotesPopover] = useState<{ contactId: string; notes: string } | null>(null);
+  const [editingBusinessContext, setEditingBusinessContext] = useState<{ contactId: string; businessContext: string } | null>(null);
   
   // Bulk selection state
   const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(new Set());
@@ -412,6 +420,64 @@ export const ContactList: React.FC<ContactListProps> = ({
 
   const handleNotesCancel = () => {
     setEditingNotes(null);
+  };
+
+  const handleNotesPopoverSave = async (contactId: string, notes: string) => {
+    try {
+      await updateContact(contactId, { notes });
+      
+      // Update local state immediately for infinite scroll
+      if (enableInfiniteScroll) {
+        setAllLoadedContacts(prev => 
+          prev.map(contact => 
+            contact.id === contactId 
+              ? { ...contact, notes, updatedAt: new Date().toISOString() }
+              : contact
+          )
+        );
+      }
+      
+      setEditingNotesPopover(null);
+      toast({
+        title: 'Success',
+        description: 'Notes updated successfully',
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to update notes',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleBusinessContextSave = async (contactId: string, businessContext: string) => {
+    try {
+      await updateContact(contactId, { businessContext });
+      
+      // Update local state immediately for infinite scroll
+      if (enableInfiniteScroll) {
+        setAllLoadedContacts(prev => 
+          prev.map(contact => 
+            contact.id === contactId 
+              ? { ...contact, businessContext, updatedAt: new Date().toISOString() }
+              : contact
+          )
+        );
+      }
+      
+      setEditingBusinessContext(null);
+      toast({
+        title: 'Success',
+        description: 'Business context updated successfully',
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to update business context',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleCreateCampaign = () => {
@@ -858,13 +924,105 @@ export const ContactList: React.FC<ContactListProps> = ({
                               </Button>
                             </div>
                           ) : (
-                            <div
-                              className="text-sm cursor-pointer hover:text-blue-600 transition-colors"
-                              onClick={() => handleNotesClick(contact)}
-                              title="Click to edit notes"
-                            >
-                              {contact.notes || <span className="text-gray-400">Click to add notes...</span>}
-                            </div>
+                            contact.notes ? (
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <div
+                                    className="text-sm cursor-pointer hover:text-blue-600 transition-colors max-w-[180px] truncate"
+                                    title="Click to view/edit notes"
+                                  >
+                                    {contact.notes.length > 50 ? `${contact.notes.substring(0, 50)}...` : contact.notes}
+                                  </div>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-80 max-h-[400px] overflow-y-auto">
+                                  <div className="space-y-3">
+                                    <h4 className="font-semibold text-sm">Notes</h4>
+                                    {editingNotesPopover?.contactId === contact.id ? (
+                                      <>
+                                        <Textarea
+                                          value={editingNotesPopover.notes}
+                                          onChange={(e) => setEditingNotesPopover({ contactId: contact.id, notes: e.target.value })}
+                                          className="min-h-[120px] text-sm"
+                                          placeholder="Enter notes..."
+                                          autoFocus
+                                        />
+                                        <div className="flex justify-end gap-2">
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => setEditingNotesPopover(null)}
+                                          >
+                                            Cancel
+                                          </Button>
+                                          <Button
+                                            size="sm"
+                                            onClick={() => handleNotesPopoverSave(contact.id, editingNotesPopover.notes)}
+                                          >
+                                            Save
+                                          </Button>
+                                        </div>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <p className="text-sm whitespace-pre-wrap break-words bg-muted/50 p-3 rounded-md">{contact.notes}</p>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          className="w-full"
+                                          onClick={() => setEditingNotesPopover({ contactId: contact.id, notes: contact.notes || '' })}
+                                        >
+                                          Edit Notes
+                                        </Button>
+                                      </>
+                                    )}
+                                  </div>
+                                </PopoverContent>
+                              </Popover>
+                            ) : (
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <div
+                                    className="text-sm cursor-pointer hover:text-blue-600 transition-colors"
+                                    title="Click to add notes"
+                                  >
+                                    <span className="text-gray-400">Click to add notes...</span>
+                                  </div>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-80">
+                                  <div className="space-y-3">
+                                    <h4 className="font-semibold text-sm">Add Notes</h4>
+                                    <Textarea
+                                      value={editingNotesPopover?.contactId === contact.id ? editingNotesPopover.notes : ''}
+                                      onChange={(e) => setEditingNotesPopover({ contactId: contact.id, notes: e.target.value })}
+                                      className="min-h-[120px] text-sm"
+                                      placeholder="Enter notes..."
+                                      autoFocus
+                                      onFocus={() => {
+                                        if (editingNotesPopover?.contactId !== contact.id) {
+                                          setEditingNotesPopover({ contactId: contact.id, notes: '' });
+                                        }
+                                      }}
+                                    />
+                                    <div className="flex justify-end gap-2">
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => setEditingNotesPopover(null)}
+                                      >
+                                        Cancel
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        onClick={() => handleNotesPopoverSave(contact.id, editingNotesPopover?.notes || '')}
+                                        disabled={!editingNotesPopover?.notes?.trim()}
+                                      >
+                                        Save
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </PopoverContent>
+                              </Popover>
+                            )
                           )}
                         </td>
                         <td className="p-4 align-middle">
@@ -904,9 +1062,103 @@ export const ContactList: React.FC<ContactListProps> = ({
                         </td>
                         <td className="p-4 align-middle">
                           {contact.businessContext ? (
-                            <span className="text-sm">{contact.businessContext}</span>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <div
+                                  className="text-sm cursor-pointer hover:text-blue-600 transition-colors max-w-[140px] truncate"
+                                  title="Click to view/edit business context"
+                                >
+                                  {contact.businessContext.length > 50 ? `${contact.businessContext.substring(0, 50)}...` : contact.businessContext}
+                                </div>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-80 max-h-[400px] overflow-y-auto">
+                                <div className="space-y-3">
+                                  <h4 className="font-semibold text-sm">Business Context</h4>
+                                  {editingBusinessContext?.contactId === contact.id ? (
+                                    <>
+                                      <Textarea
+                                        value={editingBusinessContext.businessContext}
+                                        onChange={(e) => setEditingBusinessContext({ contactId: contact.id, businessContext: e.target.value })}
+                                        className="min-h-[120px] text-sm"
+                                        placeholder="Enter business context..."
+                                        autoFocus
+                                      />
+                                      <div className="flex justify-end gap-2">
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() => setEditingBusinessContext(null)}
+                                        >
+                                          Cancel
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          onClick={() => handleBusinessContextSave(contact.id, editingBusinessContext.businessContext)}
+                                        >
+                                          Save
+                                        </Button>
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <p className="text-sm whitespace-pre-wrap break-words bg-muted/50 p-3 rounded-md">{contact.businessContext}</p>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="w-full"
+                                        onClick={() => setEditingBusinessContext({ contactId: contact.id, businessContext: contact.businessContext || '' })}
+                                      >
+                                        Edit Business Context
+                                      </Button>
+                                    </>
+                                  )}
+                                </div>
+                              </PopoverContent>
+                            </Popover>
                           ) : (
-                            <span className="text-gray-400">-</span>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <div
+                                  className="text-sm cursor-pointer hover:text-blue-600 transition-colors"
+                                  title="Click to add business context"
+                                >
+                                  <span className="text-gray-400">-</span>
+                                </div>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-80">
+                                <div className="space-y-3">
+                                  <h4 className="font-semibold text-sm">Add Business Context</h4>
+                                  <Textarea
+                                    value={editingBusinessContext?.contactId === contact.id ? editingBusinessContext.businessContext : ''}
+                                    onChange={(e) => setEditingBusinessContext({ contactId: contact.id, businessContext: e.target.value })}
+                                    className="min-h-[120px] text-sm"
+                                    placeholder="Enter business context (industry, sector, etc.)..."
+                                    autoFocus
+                                    onFocus={() => {
+                                      if (editingBusinessContext?.contactId !== contact.id) {
+                                        setEditingBusinessContext({ contactId: contact.id, businessContext: '' });
+                                      }
+                                    }}
+                                  />
+                                  <div className="flex justify-end gap-2">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => setEditingBusinessContext(null)}
+                                    >
+                                      Cancel
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleBusinessContextSave(contact.id, editingBusinessContext?.businessContext || '')}
+                                      disabled={!editingBusinessContext?.businessContext?.trim()}
+                                    >
+                                      Save
+                                    </Button>
+                                  </div>
+                                </div>
+                              </PopoverContent>
+                            </Popover>
                           )}
                         </td>
                         <td className="p-4 align-middle">
