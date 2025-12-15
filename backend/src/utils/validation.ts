@@ -6,7 +6,8 @@ export const isValidEmail = (email: string): boolean => {
 
 export const isValidPhoneNumber = (phone: string): boolean => {
   const phoneRegex = /^\+?[\d\s\-()]+$/;
-  return phoneRegex.test(phone) && phone.replace(/\D/g, '').length >= 10;
+  // Minimum 7 digits for international numbers (Singapore: 8 digits, India: 10, etc.)
+  return phoneRegex.test(phone) && phone.replace(/\D/g, '').length >= 7;
 };
 
 export const sanitizeString = (input: string): string => {

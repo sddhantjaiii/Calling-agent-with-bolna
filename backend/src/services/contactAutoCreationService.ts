@@ -19,28 +19,57 @@ export class ContactAutoCreationService {
    * Takes last 10 digits as number and other digits at front as ISD codes
    */
   private static normalizePhoneNumber(phoneNumber: string): string {
-    // Remove all non-digit characters except +
-    const cleaned = phoneNumber.replace(/[^\d+]/g, '');
-    
-    // Remove leading + to work with digits only
+    const trimmed = phoneNumber.trim();
+    const hasExplicitCountryCode = trimmed.startsWith('+');
+    const cleaned = trimmed.replace(/[^\d+]/g, '');
     const digitsOnly = cleaned.replace(/^\+/, '');
     
-    // Basic validation - should have at least 10 digits
-    if (digitsOnly.length < 10) {
+    // Basic validation - should have at least 7 digits for international numbers
+    if (digitsOnly.length < 7) {
       throw new Error('Invalid phone number format');
     }
     
-    // Take last 10 digits as the main number
-    const mainNumber = digitsOnly.slice(-10);
+    let mainNumber: string;
+    let isdCode: string;
     
-    // Take everything before the last 10 digits as ISD code
-    const isdCode = digitsOnly.slice(0, -10);
+    if (hasExplicitCountryCode) {
+      // User provided explicit country code - extract it
+      const twoDigitCodes = [
+        '91', '92', '93', '94', '95', '98', '60', '61', '62', '63', '64', '65', '66', 
+        '81', '82', '84', '86', '20', '27', '30', '31', '32', '33', '34', '36', '39', 
+        '40', '41', '43', '44', '45', '46', '47', '48', '49', '51', '52', '53', '54', 
+        '55', '56', '57', '58', '70', '71', '72', '73', '74', '75', '76', '77', '78', '79', '80'
+      ];
+      const threeDigitCodes = ['971', '966', '965', '968', '974', '973', '972', '353', '354', '358'];
+      
+      if (digitsOnly.startsWith('1') && digitsOnly.length >= 11) {
+        isdCode = '1';
+        mainNumber = digitsOnly.substring(1);
+      } else if (threeDigitCodes.includes(digitsOnly.substring(0, 3)) && digitsOnly.length >= 10) {
+        isdCode = digitsOnly.substring(0, 3);
+        mainNumber = digitsOnly.substring(3);
+      } else if (twoDigitCodes.includes(digitsOnly.substring(0, 2))) {
+        isdCode = digitsOnly.substring(0, 2);
+        mainNumber = digitsOnly.substring(2);
+      } else {
+        isdCode = digitsOnly.substring(0, 2);
+        mainNumber = digitsOnly.substring(2);
+      }
+    } else {
+      // No explicit + prefix - use length-based defaults
+      if (digitsOnly.length <= 10) {
+        isdCode = '91';
+        mainNumber = digitsOnly;
+      } else if (digitsOnly.length === 11) {
+        isdCode = digitsOnly.substring(0, 1);
+        mainNumber = digitsOnly.substring(1);
+      } else {
+        isdCode = digitsOnly.substring(0, 2);
+        mainNumber = digitsOnly.substring(2);
+      }
+    }
     
-    // If no ISD code found, default to +91 (India)
-    const finalIsdCode = isdCode || '91';
-    
-    // Return formatted as +[ISD] [main number]
-    return `+${finalIsdCode} ${mainNumber}`;
+    return `+${isdCode} ${mainNumber}`;
   }
 
   /**

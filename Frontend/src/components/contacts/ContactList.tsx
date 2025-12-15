@@ -279,6 +279,28 @@ export const ContactList: React.FC<ContactListProps> = ({
     }
   }, [contacts, currentOffset, enableInfiniteScroll, allLoadedContacts.length]);
 
+  // Sync updated contacts from query cache to local state
+  // This handles the case when contacts are edited and the query refetches
+  useEffect(() => {
+    if (!enableInfiniteScroll || allLoadedContacts.length === 0 || contacts.length === 0) return;
+    
+    // Check if any existing contact has been updated (different data than what's in allLoadedContacts)
+    setAllLoadedContacts(prev => {
+      let hasChanges = false;
+      const updated = prev.map(existingContact => {
+        // Find the matching contact in the fresh data
+        const freshContact = contacts.find(c => c.id === existingContact.id);
+        if (freshContact && JSON.stringify(freshContact) !== JSON.stringify(existingContact)) {
+          hasChanges = true;
+          return freshContact;
+        }
+        return existingContact;
+      });
+      
+      return hasChanges ? updated : prev;
+    });
+  }, [contacts, enableInfiniteScroll]);
+
   // Load more contacts
   const loadMoreContacts = useCallback(() => {
     if (!enableInfiniteScroll || isLoadingMore || !hasMore || loading) return;

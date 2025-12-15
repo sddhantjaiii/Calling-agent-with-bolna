@@ -236,7 +236,7 @@ export const useContacts = (initialOptions?: ContactsListOptions): UseContactsRe
       }
     },
     onSuccess: (updatedContact, { id }) => {
-      // Update the cache with the server response instead of invalidating
+      // Update the cache with the server response for immediate UI update
       const currentData = queryClient.getQueryData([...queryKeys.contacts(user?.id), initialOptions]) as { contacts: Contact[]; pagination: any } | undefined;
       
       if (currentData && 'contacts' in currentData) {
@@ -248,6 +248,30 @@ export const useContacts = (initialOptions?: ContactsListOptions): UseContactsRe
           contacts: updatedContacts
         });
       }
+      
+      // Update ALL contact queries in the cache with the updated contact
+      // This handles the case where ContactForm and ContactList use different query options
+      queryClient.setQueriesData(
+        { queryKey: ['contacts', user?.id] },
+        (oldData: any) => {
+          if (!oldData || !oldData.contacts) return oldData;
+          return {
+            ...oldData,
+            contacts: oldData.contacts.map((contact: Contact) =>
+              contact.id === id ? updatedContact : contact
+            )
+          };
+        }
+      );
+      
+      // Force immediate refetch of all contact queries to ensure fresh data everywhere
+      // Using refetchQueries with exact: false ensures ALL queries starting with this key are refetched
+      queryClient.refetchQueries({ 
+        queryKey: ['contacts', user?.id],
+        exact: false, // Match all queries that START with this key
+        type: 'active' // Only refetch active queries (ones currently being displayed)
+      });
+      queryClient.refetchQueries({ queryKey: queryKeys.contactStats(user?.id) });
     },
   });
 

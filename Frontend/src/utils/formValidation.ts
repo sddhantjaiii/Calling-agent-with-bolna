@@ -169,6 +169,8 @@ export const validateEmail = (email: string): string | null => {
 
 /**
  * Phone number validation (international format)
+ * Supports international numbers with minimum 7 digits (e.g., Singapore: 8 digits, India: 10 digits)
+ * Country codes can be 1-4 digits
  */
 export const validatePhone = (phone: string): string | null => {
   if (!phone) return null;
@@ -176,16 +178,17 @@ export const validatePhone = (phone: string): string | null => {
   // Remove all non-digit characters for validation
   const cleanPhone = phone.replace(/\D/g, '');
   
-  if (cleanPhone.length < 10) {
-    return 'Phone number must be at least 10 digits';
+  // Minimum 7 digits for international numbers (some countries like Singapore have 8-digit numbers)
+  if (cleanPhone.length < 7) {
+    return 'Phone number must be at least 7 digits';
   }
   
   if (cleanPhone.length > 15) {
     return 'Phone number must be less than 15 digits';
   }
   
-  // Check for valid international phone number pattern
-  const phoneRegex = /^[+]?[1-9][\d]{9,14}$/;
+  // Check for valid international phone number pattern (7-15 digits)
+  const phoneRegex = /^[+]?[1-9][\d]{6,14}$/;
   if (!phoneRegex.test(cleanPhone)) {
     return 'Please enter a valid phone number';
   }

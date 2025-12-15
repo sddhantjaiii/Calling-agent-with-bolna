@@ -33,17 +33,57 @@ import * as Sentry from '@sentry/node';
 
 /**
  * Normalize phone number format to [ISD code] [space] [rest of the number]
+ * Properly handles explicit country codes (with + prefix) and international numbers
  */
 function normalizePhoneNumber(phoneNumber: string): string {
-  const cleaned = phoneNumber.replace(/[^\d+]/g, '');
+  const trimmed = phoneNumber.trim();
+  const hasExplicitCountryCode = trimmed.startsWith('+');
+  const cleaned = trimmed.replace(/[^\d+]/g, '');
   const digitsOnly = cleaned.replace(/^\+/, '');
   
-  if (digitsOnly.length < 10) {
+  if (digitsOnly.length < 7) {
     throw new Error('Invalid phone number format');
   }
   
-  const mainNumber = digitsOnly.slice(-10);
-  const isdCode = digitsOnly.slice(0, -10) || '91';
+  let mainNumber: string;
+  let isdCode: string;
+  
+  if (hasExplicitCountryCode) {
+    // User provided explicit country code - extract it
+    const twoDigitCodes = [
+      '91', '92', '93', '94', '95', '98', '60', '61', '62', '63', '64', '65', '66', 
+      '81', '82', '84', '86', '20', '27', '30', '31', '32', '33', '34', '36', '39', 
+      '40', '41', '43', '44', '45', '46', '47', '48', '49', '51', '52', '53', '54', 
+      '55', '56', '57', '58', '70', '71', '72', '73', '74', '75', '76', '77', '78', '79', '80'
+    ];
+    const threeDigitCodes = ['971', '966', '965', '968', '974', '973', '972', '353', '354', '358'];
+    
+    if (digitsOnly.startsWith('1') && digitsOnly.length >= 11) {
+      isdCode = '1';
+      mainNumber = digitsOnly.substring(1);
+    } else if (threeDigitCodes.includes(digitsOnly.substring(0, 3)) && digitsOnly.length >= 10) {
+      isdCode = digitsOnly.substring(0, 3);
+      mainNumber = digitsOnly.substring(3);
+    } else if (twoDigitCodes.includes(digitsOnly.substring(0, 2))) {
+      isdCode = digitsOnly.substring(0, 2);
+      mainNumber = digitsOnly.substring(2);
+    } else {
+      isdCode = digitsOnly.substring(0, 2);
+      mainNumber = digitsOnly.substring(2);
+    }
+  } else {
+    // No explicit + prefix - use length-based defaults
+    if (digitsOnly.length <= 10) {
+      isdCode = '91';
+      mainNumber = digitsOnly;
+    } else if (digitsOnly.length === 11) {
+      isdCode = digitsOnly.substring(0, 1);
+      mainNumber = digitsOnly.substring(1);
+    } else {
+      isdCode = digitsOnly.substring(0, 2);
+      mainNumber = digitsOnly.substring(2);
+    }
+  }
   
   return `+${isdCode} ${mainNumber}`;
 }

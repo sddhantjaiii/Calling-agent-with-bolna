@@ -75,11 +75,8 @@ export const useLeadStages = (): UseLeadStagesReturn => {
     queryKey: ['lead-stages', user?.id],
     queryFn: async () => {
       const response = await apiService.get<{
-        success: boolean;
-        data: {
-          stages: LeadStage[];
-          defaults: typeof DEFAULT_LEAD_STAGES;
-        };
+        stages: LeadStage[];
+        defaults: typeof DEFAULT_LEAD_STAGES;
       }>('/lead-stages');
       
       return response.data;
@@ -98,10 +95,7 @@ export const useLeadStages = (): UseLeadStagesReturn => {
   } = useQuery({
     queryKey: ['lead-stages-stats', user?.id],
     queryFn: async () => {
-      const response = await apiService.get<{
-        success: boolean;
-        data: LeadStageStats[];
-      }>('/lead-stages/stats');
+      const response = await apiService.get<LeadStageStats[]>('/lead-stages/stats');
       
       return response.data;
     },
@@ -113,10 +107,7 @@ export const useLeadStages = (): UseLeadStagesReturn => {
   // Add custom stage mutation
   const addStageMutation = useMutation({
     mutationFn: async ({ name, color }: { name: string; color?: string }) => {
-      const response = await apiService.post<{
-        success: boolean;
-        data: CustomLeadStage[];
-      }>('/lead-stages/custom', { name, color });
+      const response = await apiService.post<CustomLeadStage[]>('/lead-stages/custom', { name, color });
       return response.data;
     },
     onSuccess: () => {
@@ -135,10 +126,10 @@ export const useLeadStages = (): UseLeadStagesReturn => {
       newName?: string; 
       color?: string;
     }) => {
-      const response = await apiService.put<{
-        success: boolean;
-        data: CustomLeadStage[];
-      }>(`/lead-stages/custom/${encodeURIComponent(oldName)}`, { newName, color });
+      const response = await apiService.put<CustomLeadStage[]>(
+        `/lead-stages/custom/${encodeURIComponent(oldName)}`,
+        { newName, color }
+      );
       return response.data;
     },
     onSuccess: () => {
@@ -151,10 +142,7 @@ export const useLeadStages = (): UseLeadStagesReturn => {
   // Delete custom stage mutation
   const deleteStageMutation = useMutation({
     mutationFn: async (name: string) => {
-      const response = await apiService.delete<{
-        success: boolean;
-        data: CustomLeadStage[];
-      }>(`/lead-stages/custom/${encodeURIComponent(name)}`);
+      const response = await apiService.delete<CustomLeadStage[]>(`/lead-stages/custom/${encodeURIComponent(name)}`);
       return response.data;
     },
     onSuccess: () => {
@@ -173,11 +161,11 @@ export const useLeadStages = (): UseLeadStagesReturn => {
       contactIds: string[]; 
       stage: string | null;
     }) => {
-      const response = await apiService.post<{
-        success: boolean;
-        data: { updatedCount: number };
-      }>('/lead-stages/bulk-update', { contactIds, stage });
-      return response.data?.updatedCount || 0;
+      const response = await apiService.post<{ updatedCount: number }>(
+        '/lead-stages/bulk-update',
+        { contactIds, stage }
+      );
+      return response.data?.updatedCount ?? 0;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.contacts(user?.id) });

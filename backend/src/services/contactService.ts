@@ -403,28 +403,107 @@ export class ContactService {
    *       before checking for existing contacts
    */
   static normalizePhoneNumber(phoneNumber: string): string {
-    // Remove all non-digit characters except +
-    const cleaned = phoneNumber.replace(/[^\d+]/g, '');
+    // Trim whitespace
+    const trimmed = phoneNumber.trim();
+    
+    // Check if user explicitly provided a country code with + prefix
+    const hasExplicitCountryCode = trimmed.startsWith('+');
+    
+    // Remove all non-digit characters except + for initial parsing
+    const cleaned = trimmed.replace(/[^\d+]/g, '');
     
     // Remove leading + to work with digits only
     const digitsOnly = cleaned.replace(/^\+/, '');
     
-    // Basic validation - should have at least 10 digits
-    if (digitsOnly.length < 10) {
+    // Basic validation - should have at least 7 digits for international numbers
+    // (Some countries like Singapore have 8-digit numbers)
+    if (digitsOnly.length < 7) {
       throw new Error('Invalid phone number format');
     }
     
-    // Take last 10 digits as the main number
-    const mainNumber = digitsOnly.slice(-10);
+    let mainNumber: string;
+    let isdCode: string;
     
-    // Take everything before the last 10 digits as ISD code
-    const isdCode = digitsOnly.slice(0, -10);
-    
-    // If no ISD code found, default to +91 (India)
-    const finalIsdCode = isdCode || '91';
+    // If user explicitly provided + prefix, extract country code from the number
+    if (hasExplicitCountryCode) {
+      // User provided explicit country code - respect it
+      // Country codes are 1-3 digits, most common are 1-2 digits
+      // Try to match known country code patterns
+      
+      // 1-digit country codes: 1 (US/Canada)
+      // 2-digit country codes: 91 (India), 65 (Singapore), 60 (Malaysia), etc.
+      // 3-digit country codes: 971 (UAE), 966 (Saudi), etc.
+      
+      if (digitsOnly.startsWith('1') && digitsOnly.length >= 11) {
+        // US/Canada: +1 followed by 10 digits
+        isdCode = '1';
+        mainNumber = digitsOnly.substring(1);
+      } else if (digitsOnly.length >= 9) {
+        // Try to detect 2-digit country codes for shorter local numbers
+        const twoDigitCC = digitsOnly.substring(0, 2);
+        const threeDigitCC = digitsOnly.substring(0, 3);
+        
+        // Common 3-digit country codes
+        const threeDigitCodes = ['971', '966', '965', '968', '974', '973', '972', '353', '354', '358'];
+        
+        // Common 2-digit country codes (Asia-Pacific, Europe, etc.)
+        const twoDigitCodes = [
+          '91', '92', '93', '94', '95', '98', // South Asia
+          '60', '61', '62', '63', '64', '65', '66', '81', '82', '84', '86', // Asia-Pacific
+          '20', '27', '30', '31', '32', '33', '34', '36', '39', '40', '41', '43', '44', '45', '46', '47', '48', '49', // Europe/Africa
+          '51', '52', '53', '54', '55', '56', '57', '58', // Americas
+          '70', '71', '72', '73', '74', '75', '76', '77', '78', '79', '80', // CIS/Eastern Europe
+        ];
+        
+        if (threeDigitCodes.includes(threeDigitCC) && digitsOnly.length >= 10) {
+          isdCode = threeDigitCC;
+          mainNumber = digitsOnly.substring(3);
+        } else if (twoDigitCodes.includes(twoDigitCC)) {
+          isdCode = twoDigitCC;
+          mainNumber = digitsOnly.substring(2);
+        } else {
+          // Unknown country code pattern - take first 2 digits as country code
+          isdCode = twoDigitCC;
+          mainNumber = digitsOnly.substring(2);
+        }
+      } else {
+        // Very short number with + prefix - take first 1-2 as country code
+        if (digitsOnly.length <= 8) {
+          isdCode = digitsOnly.substring(0, 1);
+          mainNumber = digitsOnly.substring(1);
+        } else {
+          isdCode = digitsOnly.substring(0, 2);
+          mainNumber = digitsOnly.substring(2);
+        }
+      }
+    } else {
+      // No explicit + prefix - apply default logic based on length
+      // Handle different phone number lengths:
+      // - 7-9 digits: Assume local number, default to +91 (India)
+      // - 10 digits: Indian number without code
+      // - 11+ digits: Has country code included
+      
+      if (digitsOnly.length <= 10) {
+        // Local number without country code - default to India (+91)
+        isdCode = '91';
+        mainNumber = digitsOnly;
+      } else if (digitsOnly.length === 11) {
+        // 11 digits - first digit is likely country code (e.g., 1 for US)
+        isdCode = digitsOnly.substring(0, 1);
+        mainNumber = digitsOnly.substring(1);
+      } else if (digitsOnly.length === 12) {
+        // 12 digits - first 2 digits likely country code (e.g., 91 for India)
+        isdCode = digitsOnly.substring(0, 2);
+        mainNumber = digitsOnly.substring(2);
+      } else {
+        // 13+ digits - first 2-3 digits could be country code
+        isdCode = digitsOnly.substring(0, 2);
+        mainNumber = digitsOnly.substring(2);
+      }
+    }
     
     // Return formatted as +[ISD] [main number]
-    return `+${finalIsdCode} ${mainNumber}`;
+    return `+${isdCode} ${mainNumber}`;
   }
 
   /**

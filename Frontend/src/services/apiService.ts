@@ -224,6 +224,62 @@ class ApiService {
     return this.currentAgentId;
   }
 
+  private resolveUrl(pathOrUrl: string): string {
+    if (!pathOrUrl) return API_URL;
+
+    // Absolute URL
+    if (/^https?:\/\//i.test(pathOrUrl)) {
+      return pathOrUrl;
+    }
+
+    // Already includes API prefix
+    if (pathOrUrl.startsWith(API_URL)) {
+      return pathOrUrl;
+    }
+
+    // Relative path
+    if (pathOrUrl.startsWith('/')) {
+      return `${API_URL}${pathOrUrl}`;
+    }
+
+    return `${API_URL}/${pathOrUrl}`;
+  }
+
+  // Generic HTTP methods (used by hooks/components that expect axios-like API)
+  async get<T>(pathOrUrl: string, options: RequestConfig = {}): Promise<ApiResponse<T>> {
+    return this.request<T>(this.resolveUrl(pathOrUrl), { ...options, method: 'GET' });
+  }
+
+  async post<T>(pathOrUrl: string, body?: unknown, options: RequestConfig = {}): Promise<ApiResponse<T>> {
+    const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
+    return this.request<T>(this.resolveUrl(pathOrUrl), {
+      ...options,
+      method: 'POST',
+      ...(body !== undefined
+        ? {
+            body: isFormData ? (body as FormData) : JSON.stringify(body),
+          }
+        : {}),
+    });
+  }
+
+  async put<T>(pathOrUrl: string, body?: unknown, options: RequestConfig = {}): Promise<ApiResponse<T>> {
+    const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
+    return this.request<T>(this.resolveUrl(pathOrUrl), {
+      ...options,
+      method: 'PUT',
+      ...(body !== undefined
+        ? {
+            body: isFormData ? (body as FormData) : JSON.stringify(body),
+          }
+        : {}),
+    });
+  }
+
+  async delete<T>(pathOrUrl: string, options: RequestConfig = {}): Promise<ApiResponse<T>> {
+    return this.request<T>(this.resolveUrl(pathOrUrl), { ...options, method: 'DELETE' });
+  }
+
   // Token refresh interceptor
   private async tokenRefreshInterceptor(config: RequestConfig): Promise<RequestConfig> {
     // Skip token refresh for auth endpoints and requests that don't need auth

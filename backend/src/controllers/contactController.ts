@@ -149,7 +149,18 @@ export class ContactController {
       }
 
       const { id } = req.params;
-      const { name, phone_number, email, company, notes, tags, city, country, business_context } = req.body;
+      const {
+        name,
+        phone_number,
+        email,
+        company,
+        notes,
+        tags,
+        city,
+        country,
+        business_context,
+        lead_stage,
+      } = req.body;
 
       // Validate phone number format if provided
       if (phone_number && !ContactService.validatePhoneNumber(phone_number)) {
@@ -168,6 +179,7 @@ export class ContactController {
       if (city !== undefined) updateData.city = city;
       if (country !== undefined) updateData.country = country;
       if (business_context !== undefined) updateData.business_context = business_context;
+      if (lead_stage !== undefined) updateData.lead_stage = lead_stage;
 
       const contact = await ContactService.updateContact(userId, id, updateData);
 
