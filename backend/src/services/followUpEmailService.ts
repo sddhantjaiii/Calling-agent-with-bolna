@@ -447,6 +447,11 @@ class FollowUpEmailService {
         }
       );
 
+      // Log the FULL response for debugging
+      logger.info('OpenAI API FULL RESPONSE', {
+        fullResponse: JSON.stringify(response.data, null, 2)
+      });
+
       // Log the full response for debugging
       logger.info('OpenAI API response received', {
         hasData: !!response.data,
