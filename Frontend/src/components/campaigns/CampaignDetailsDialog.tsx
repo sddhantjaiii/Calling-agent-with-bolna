@@ -135,7 +135,7 @@ const CampaignDetailsDialog: React.FC<CampaignDetailsDialogProps> = ({
                 <Phone className="w-4 h-4 text-blue-500" />
                 <span className="text-sm text-gray-500">Contacts Handled</span>
               </div>
-              <p className="text-2xl font-bold">{analytics?.handled_calls ?? campaign.completed_calls}</p>
+              <p className="text-2xl font-bold">{analytics?.completed_calls ?? campaign.completed_calls}</p>
             </div>
 
             <div className={`p-4 rounded-lg ${theme === 'dark' ? 'bg-gray-800' : 'bg-green-50'}`}>
