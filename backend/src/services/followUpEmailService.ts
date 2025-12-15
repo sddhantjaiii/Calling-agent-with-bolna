@@ -179,16 +179,38 @@ class FollowUpEmailService {
         });
       }
 
-      // Apply template with variables
-      const subject = this.applyTemplate(
-        personalizedContent.subject || settings.subject_template || DEFAULT_SUBJECT_TEMPLATE,
-        variables
-      );
+      // Use personalized content directly if available, otherwise apply template with variables
+      let subject: string;
+      let body: string;
       
-      const body = this.applyTemplate(
-        personalizedContent.body || settings.body_template || DEFAULT_BODY_TEMPLATE,
-        variables
-      );
+      if (personalizedContent.subject && personalizedContent.body) {
+        // AI generated both subject and body - use them directly without template processing
+        subject = personalizedContent.subject;
+        body = personalizedContent.body;
+        
+        logger.info('Using AI-generated email content without template processing', {
+          callId: callData.callId,
+          subjectLength: subject.length,
+          bodyLength: body.length
+        });
+      } else {
+        // No AI content or partial content - use templates with variable replacement
+        subject = this.applyTemplate(
+          personalizedContent.subject || settings.subject_template || DEFAULT_SUBJECT_TEMPLATE,
+          variables
+        );
+        
+        body = this.applyTemplate(
+          personalizedContent.body || settings.body_template || DEFAULT_BODY_TEMPLATE,
+          variables
+        );
+        
+        logger.info('Using template-based email content with variable replacement', {
+          callId: callData.callId,
+          hasAISubject: !!personalizedContent.subject,
+          hasAIBody: !!personalizedContent.body
+        });
+      }
 
       // Send the email via Gmail API (user's connected Gmail account)
       const gmailResult = await gmailService.sendEmail(callData.userId, {
