@@ -464,7 +464,7 @@ export class LeadIntelligenceController {
             FROM emails e
             LEFT JOIN contacts co ON e.contact_id = co.id
             WHERE e.user_id = $1
-              AND co.phone = $2
+              AND co.phone_number = $2
           ) combined
           ORDER BY interaction_date DESC;
         `;
