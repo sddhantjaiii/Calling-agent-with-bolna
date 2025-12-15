@@ -13,6 +13,7 @@ import {
   UserCheck,
   Target,
   Send,
+  Plug,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -186,7 +187,7 @@ const Sidebar = ({
     {
       id: "integrations",
       label: "Integrations",
-      icon: SettingsIcon,
+      icon: Plug,
     },
     {
       id: "profile",
@@ -227,7 +228,7 @@ const Sidebar = ({
           : "bg-white border-gray-200"
           }`}
       >
-        <div className="p-6 flex-1">
+        <div className="p-6 flex-1 flex flex-col overflow-hidden">
           <div className="flex items-center mb-8">
             <div
               className="w-8 h-8 rounded-lg flex items-center justify-center"
@@ -242,7 +243,7 @@ const Sidebar = ({
               SniperThink
             </h1>
           </div>
-          <nav className="space-y-2">
+          <nav className="space-y-2 overflow-y-auto flex-1 pr-2 scrollbar-hide">
             {/* Admin Panel Link */}
             {isAdmin && (
               <>

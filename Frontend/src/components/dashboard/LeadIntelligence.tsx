@@ -1146,7 +1146,7 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                         </TableCell>
                         
                         {/* Requirements - Expandable text */}
-                        <TableCell className="text-xs text-foreground max-w-[200px]">
+                        <TableCell className="text-xs text-foreground max-w-[200px]" onClick={(e) => e.stopPropagation()}>
                           {interaction.requirements ? (
                             <details className="cursor-pointer group">
                               <summary className="list-none flex items-center gap-1 hover:text-primary">
@@ -1522,7 +1522,7 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                     <span className="text-muted-foreground">-</span>
                   )}
                 </TableCell>
-                <TableCell className="text-xs text-foreground max-w-[240px]">
+                <TableCell className="text-xs text-foreground max-w-[240px]" onClick={(e) => e.stopPropagation()}>
                   {contact.requirements ? (
                     <details className="cursor-pointer group">
                       <summary className="list-none flex items-center gap-1 hover:text-primary">

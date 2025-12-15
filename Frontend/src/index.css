@@ -250,3 +250,15 @@ footer::-webkit-scrollbar {
 .dark .invisible-scrollbar:hover::-webkit-scrollbar-thumb:hover {
   background-color: rgba(255, 255, 255, 0.5);
 }
+
+/* Completely hidden scrollbar - no visibility even on hover */
+.scrollbar-hide {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* Internet Explorer 10+ */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none; /* WebKit */
+  width: 0 !important;
+  height: 0 !important;
+}
