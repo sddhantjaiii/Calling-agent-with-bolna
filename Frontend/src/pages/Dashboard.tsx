@@ -1,7 +1,6 @@
 import { useState } from "react";
 import Sidebar from "@/components/dashboard/Sidebar";
 import ChatAgent from "@/components/dashboard/ChatAgent";
-import CallAgent from "@/components/dashboard/CallAgent";
 import Integrations from "@/components/dashboard/Integrations";
 import Profile from "@/components/dashboard/Profile";
 import TopNavigation from "@/components/dashboard/TopNavigation";
@@ -134,19 +133,6 @@ const DashboardContent = ({
     }
   };
 
-  // Helper function to extract agent ID and type from activeSubTab
-  const getActiveAgentInfo = () => {
-    if (!activeSubTab) return null;
-
-    const match = activeSubTab.match(/^(chat|call)-(.+?)-(.+)$/);
-    if (!match) return null;
-
-    const [, type, agentId, subTab] = match;
-    const agent = agents.find(a => a.id && a.id.toString() === agentId);
-
-    return agent ? { agent, type, subTab } : null;
-  };
-
   // Helper function to get calling agent sub-tab
   const getCallingAgentSubTab = () => {
     if (!activeSubTab?.startsWith("calling-agent")) return null;
@@ -155,14 +141,21 @@ const DashboardContent = ({
     return match ? match[1] : null;
   };
 
+  // Helper function to get chat agent sub-tab
+  const getChatAgentSubTab = () => {
+    if (!activeSubTab?.startsWith("chat-agent")) return null;
+    
+    const match = activeSubTab.match(/^chat-agent-(.+)$/);
+    return match ? match[1] : null;
+  };
+
   const isAgentsTab = activeTab === "agents";
   const isAgentManager = isAgentsTab && activeSubTab === "agent-manager";
   const isCallingAgent = isAgentsTab && activeSubTab?.startsWith("calling-agent");
+  const isChatAgent = isAgentsTab && activeSubTab?.startsWith("chat-agent");
 
-  const activeAgentInfo = getActiveAgentInfo();
-  const isChatAgent = activeAgentInfo?.type === 'chat';
-  const isCallAgent = activeAgentInfo?.type === 'call';
   const callingAgentSubTab = getCallingAgentSubTab();
+  const chatAgentSubTab = getChatAgentSubTab();
 
   const renderContent = () => {
     if (selectedLead) {
@@ -208,7 +201,7 @@ const DashboardContent = ({
       );
     }
     if (isAgentsTab) {
-      if (isAgentManager && !isCallingAgent) {
+      if (isAgentManager && !isCallingAgent && !isChatAgent) {
         return <Agents />;
       }
       // Calling Agent with unified logs and analytics
@@ -226,32 +219,17 @@ const DashboardContent = ({
           />
         );
       }
-      // Chat Agent and sub-sub-tabs (dynamic)
-      if (isChatAgent && activeAgentInfo) {
+      // Chat Agent with unified logs and analytics
+      if (isChatAgent && chatAgentSubTab) {
         return (
           <ChatAgent
-            agent={activeAgentInfo.agent}
-            activeSubTab={activeAgentInfo.subTab}
+            activeSubTab={chatAgentSubTab}
+            activeTab={activeTab}
             setActiveSubTab={(subtab) =>
-              setActiveSubTab(`chat-${activeAgentInfo.agent.id}-${subtab}`)
+              setActiveSubTab(`chat-agent-${subtab}`)
             }
             onOpenProfile={(lead: Lead) =>
               handleOpenProfile(lead, "chat", "data")
-            }
-          />
-        );
-      }
-      // Call Agent and sub-sub-tabs (dynamic) - keeping for backward compatibility
-      if (isCallAgent && activeAgentInfo) {
-        return (
-          <CallAgent
-            agent={activeAgentInfo.agent}
-            activeSubTab={activeAgentInfo.subTab}
-            setActiveSubTab={(subtab) =>
-              setActiveSubTab(`call-${activeAgentInfo.agent.id}-${subtab}`)
-            }
-            onOpenProfile={(lead: Lead) =>
-              handleOpenProfile(lead, "call", "data")
             }
           />
         );

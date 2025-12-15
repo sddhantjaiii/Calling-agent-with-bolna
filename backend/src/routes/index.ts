@@ -36,6 +36,7 @@ import demoRoutes from './demoRoutes';
 import emailSettingsRoutes from './emailSettingsRoutes';
 import whatsappRoutes from './whatsapp';
 import leadStageRoutes from './leadStageRoutes';
+import chatLeadsRoutes from './chatLeads';
 
 // Import rate limiting middleware
 import { generalRateLimit, authRateLimit } from '../middleware/rateLimit';
@@ -104,6 +105,7 @@ router.use('/demos', authenticatedRateLimit, demoRoutes); // Demo schedule manag
 router.use('/email-settings', authenticatedRateLimit, emailSettingsRoutes); // Follow-up email settings
 router.use('/whatsapp', authenticatedRateLimit, whatsappRoutes); // WhatsApp templates with R2 media upload
 router.use('/lead-stages', authenticatedRateLimit, leadStageRoutes); // Lead stage management
+router.use('/chat-leads', authenticatedRateLimit, chatLeadsRoutes); // Chat Agent leads and messages proxy
 
 // Monitoring routes - no rate limiting
 router.use('/monitoring', monitoringRoutes);

@@ -112,7 +112,7 @@ const Sidebar = ({
           subTabs: [
             {
               id: "calling-agent-logs",
-              label: "Unified Call Logs",
+              label: "Call Logs",
               icon: Phone,
             },
             {
@@ -122,29 +122,23 @@ const Sidebar = ({
             },
           ],
         },
-        // Show all chat agents
-        ...chatAgents.map((chatAgent) => ({
-          id: `chat-${chatAgent.id}`,
-          label: chatAgent.name,
+        {
+          id: "chat-agent",
+          label: "Chat Agent",
           icon: MessageSquare,
           subTabs: [
             {
-              id: `chat-${chatAgent.id}-logs`,
+              id: "chat-agent-logs",
               label: "Chat Logs",
               icon: MessageSquare,
             },
             {
-              id: `chat-${chatAgent.id}-analytics`,
+              id: "chat-agent-analytics",
               label: "Analytics",
               icon: BarChart3,
             },
-            {
-              id: `chat-${chatAgent.id}-data`,
-              label: "Data",
-              icon: Database,
-            },
           ],
-        })),
+        },
       ],
     },
     {
@@ -207,14 +201,12 @@ const Sidebar = ({
 
   // Updated handleAgentSubTabClick to default to logs tab for agent selection
   const handleAgentSubTabClick = (subTabId: string) => {
-    // If the clicked tab is a "chat-*" or "call-*" agent, set to the -logs sub-sub-tab by default
-    if (subTabId.startsWith("chat-")) {
-      setActiveSubTab(`${subTabId}-logs`);
-    } else if (subTabId.startsWith("call-")) {
-      setActiveSubTab(`${subTabId}-logs`);
-    } else if (subTabId === "calling-agent") {
-      // For calling agent, default to logs sub-tab
+    // For calling agent, default to logs sub-tab
+    if (subTabId === "calling-agent") {
       setActiveSubTab("calling-agent-logs");
+    } else if (subTabId === "chat-agent") {
+      // For chat agent, default to logs sub-tab
+      setActiveSubTab("chat-agent-logs");
     } else {
       setActiveSubTab(subTabId);
     }

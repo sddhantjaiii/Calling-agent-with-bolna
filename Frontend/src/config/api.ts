@@ -232,6 +232,15 @@ export const API_ENDPOINTS = {
     ANALYTICS: `${API_URL}/customers/analytics`,
   },
 
+  // Chat Leads (Chat Agent Conversations)
+  CHAT_LEADS: {
+    LIST: `${API_URL}/chat-leads`,
+    STATS: `${API_URL}/chat-leads/stats`,
+    GET: (customerPhone: string) => `${API_URL}/chat-leads/${encodeURIComponent(customerPhone)}`,
+    MESSAGES: (customerPhone: string) => `${API_URL}/chat-leads/${encodeURIComponent(customerPhone)}/messages`,
+    MESSAGE_STATUS: (messageId: string) => `${API_URL}/chat-leads/messages/${encodeURIComponent(messageId)}/status`,
+  },
+
   // Email
   EMAIL: {
     SEND_VERIFICATION: `${API_URL}/email/send-verification`,
