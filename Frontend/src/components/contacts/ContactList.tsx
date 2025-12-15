@@ -48,7 +48,7 @@ import {
 } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { LeadStageBadge } from '@/components/LeadStageDropdown';
+import { LeadStageDropdown } from '@/components/LeadStageDropdown';
 import { useContacts } from '@/hooks/useContacts';
 import { useToast } from '@/components/ui/use-toast';
 import DeleteContactDialog from './DeleteContactDialog';
@@ -907,7 +907,14 @@ export const ContactList: React.FC<ContactListProps> = ({
                           )}
                         </td>
                         <td className="p-4 align-middle">
-                          <LeadStageBadge stageName={contact.leadStage} size="sm" />
+                          <LeadStageDropdown
+                            value={contact.leadStage}
+                            onChange={(newStage) => {
+                              updateContact(contact.id, { leadStage: newStage });
+                            }}
+                            size="sm"
+                            showManageOption={false}
+                          />
                         </td>
                         <td className="p-4 align-middle min-w-[200px]">
                           {editingNotes?.contactId === contact.id ? (
