@@ -48,6 +48,7 @@ import {
 } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+import { LeadStageBadge } from '@/components/LeadStageDropdown';
 import { useContacts } from '@/hooks/useContacts';
 import { useToast } from '@/components/ui/use-toast';
 import DeleteContactDialog from './DeleteContactDialog';
@@ -824,6 +825,7 @@ export const ContactList: React.FC<ContactListProps> = ({
                   </th>
                   <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground" style={{ position: 'sticky', top: 0, backgroundColor: 'hsl(var(--background))' }}>Call Type</th>
                   <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground" style={{ position: 'sticky', top: 0, backgroundColor: 'hsl(var(--background))' }}>Last Status</th>
+                  <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground" style={{ position: 'sticky', top: 0, backgroundColor: 'hsl(var(--background))' }}>Lead Stage</th>
                   <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground min-w-[200px]" style={{ position: 'sticky', top: 0, backgroundColor: 'hsl(var(--background))' }}>Notes</th>
                   <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground" style={{ position: 'sticky', top: 0, backgroundColor: 'hsl(var(--background))' }}>Source</th>
                   <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground" style={{ position: 'sticky', top: 0, backgroundColor: 'hsl(var(--background))' }}>Tags</th>
@@ -903,6 +905,9 @@ export const ContactList: React.FC<ContactListProps> = ({
                               Not contacted
                             </Badge>
                           )}
+                        </td>
+                        <td className="p-4 align-middle">
+                          <LeadStageBadge stageName={contact.leadStage} size="sm" />
                         </td>
                         <td className="p-4 align-middle min-w-[200px]">
                           {editingNotes?.contactId === contact.id ? (
