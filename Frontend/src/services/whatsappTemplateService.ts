@@ -501,8 +501,10 @@ class WhatsAppTemplateService {
   }
 
   /**
-   * List phone numbers for a user
-   * GET /api/v1/phone-numbers?user_id=xxx
+   * List phone numbers for a user (WhatsApp only for template features)
+   * GET /api/v1/phone-numbers?user_id=xxx&platform=whatsapp
+   * 
+   * Note: Templates are only supported for WhatsApp, so we filter by platform=whatsapp
    */
   async listPhoneNumbers(userId: string): Promise<Array<{
     id: string;
@@ -517,7 +519,7 @@ class WhatsAppTemplateService {
       platform: string;
       meta_phone_number_id: string;
       display_name: string;
-    }>>(`/api/v1/phone-numbers?user_id=${userId}`);
+    }>>(`/api/v1/phone-numbers?user_id=${userId}&platform=whatsapp`);
 
     if (!result.success) {
       throw new Error(result.message || 'Failed to fetch phone numbers');

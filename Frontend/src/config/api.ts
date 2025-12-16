@@ -214,7 +214,9 @@ export const API_ENDPOINTS = {
 
   // WhatsApp Chat Agent Service (External Service)
   WHATSAPP: {
-    PHONE_NUMBERS: (userId: string) => `${WHATSAPP_API_URL}/phone-numbers?user_id=${userId}`,
+    PHONE_NUMBERS: (userId: string, platform?: string) => `${WHATSAPP_API_URL}/phone-numbers?user_id=${userId}${platform ? `&platform=${platform}` : ''}`,
+    // Convenience method for WhatsApp-only phone numbers (used in template features)
+    WHATSAPP_PHONE_NUMBERS: (userId: string) => `${WHATSAPP_API_URL}/phone-numbers?user_id=${userId}&platform=whatsapp`,
     TEMPLATES: (phoneNumberId: string) => `${WHATSAPP_API_URL}/templates?phone_number_id=${phoneNumberId}`,
     SEND: `${WHATSAPP_API_URL}/send`,
     CAMPAIGN: `${WHATSAPP_API_URL}/campaign`,

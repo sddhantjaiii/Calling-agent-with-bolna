@@ -266,7 +266,8 @@ export function SendWhatsAppModal({
 
     setIsFetchingPhoneNumbers(true);
     try {
-      const response = await fetch(API_ENDPOINTS.WHATSAPP.PHONE_NUMBERS(user.id));
+      // Filter by platform=whatsapp since templates are only for WhatsApp
+      const response = await fetch(API_ENDPOINTS.WHATSAPP.WHATSAPP_PHONE_NUMBERS(user.id));
       
       if (!response.ok) {
         throw new Error('Failed to fetch WhatsApp phone numbers');

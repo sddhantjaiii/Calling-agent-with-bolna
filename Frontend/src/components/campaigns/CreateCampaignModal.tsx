@@ -466,7 +466,8 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
     
     setIsFetchingWhatsAppPhoneNumbers(true);
     try {
-      const response = await fetch(`${WHATSAPP_SERVICE_URL}/api/v1/phone-numbers?user_id=${user.id}`);
+      // Filter by platform=whatsapp since templates are only for WhatsApp
+      const response = await fetch(`${WHATSAPP_SERVICE_URL}/api/v1/phone-numbers?user_id=${user.id}&platform=whatsapp`);
       
       if (!response.ok) {
         throw new Error('Failed to fetch WhatsApp phone numbers');
