@@ -169,11 +169,23 @@ const CallTranscriptViewer: React.FC<CallTranscriptViewerProps> = ({
     setCurrentMatchIndex(0);
   }, [searchQuery, filteredSegments]);
 
-  // Format timestamp
-  const formatTimestamp = (timestamp: number): string => {
-    const minutes = Math.floor(timestamp / 60);
-    const seconds = Math.floor(timestamp % 60);
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  // Format timestamp - handles various input formats
+  const formatTimestamp = (timestamp: number | undefined | null): string => {
+    if (timestamp === undefined || timestamp === null || isNaN(timestamp)) {
+      return '';
+    }
+    // If timestamp looks like milliseconds (very large number), convert to seconds
+    let seconds = timestamp;
+    if (seconds > 86400) { // More than 24 hours in seconds, likely milliseconds
+      seconds = Math.floor(seconds / 1000);
+    }
+    // Still too large? Probably an error, return empty
+    if (seconds > 86400) {
+      return '';
+    }
+    const minutes = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${minutes}:${secs.toString().padStart(2, '0')}`;
   };
 
   // Get speaker icon
@@ -303,41 +315,45 @@ const CallTranscriptViewer: React.FC<CallTranscriptViewerProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className={`max-w-4xl h-[90vh] flex flex-col p-0 ${
+      <DialogContent className={`max-w-3xl h-[85vh] flex flex-col p-0 gap-0 ${
         theme === 'dark' 
           ? 'bg-slate-900 border-slate-800 text-slate-200' 
           : 'bg-white border-gray-200 text-gray-800'
       }`}>
-        {/* Header */}
-        <div className={`p-4 border-b ${theme === 'dark' ? 'border-slate-800' : 'border-gray-200'}`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-medium text-xl ${theme === "dark" ? "bg-slate-700" : "bg-slate-500"}`}>
-                {call?.contactName?.charAt(0) || 'U'}
-              </div>
-              <div>
-                <h2 className="text-lg font-semibold">{call?.contactName || 'Unknown Contact'}</h2>
-                <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>
-                  {call?.phoneNumber}
-                </p>
-              </div>
+        {/* Compact Header */}
+        <div className={`px-4 py-3 border-b ${theme === 'dark' ? 'border-slate-800' : 'border-gray-200'}`}>
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold text-lg flex-shrink-0 ${
+              theme === "dark" ? "bg-emerald-700" : "bg-emerald-600"
+            }`}>
+              {call?.contactName?.charAt(0)?.toUpperCase() || 'U'}
             </div>
-            {/* The user wants the default close button, so this one is removed. */}
-            {/* <Button variant="ghost" size="icon" onClick={onClose} className="rounded-full">
-              <X className="w-4 h-4" />
-            </Button> */}
+            <div className="min-w-0 flex-1">
+              <h2 className="text-base font-semibold truncate">{call?.contactName || 'Unknown Contact'}</h2>
+              <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-gray-500'}`}>
+                {call?.phoneNumber}
+              </p>
+            </div>
           </div>
-          <div className="flex items-center gap-4 mt-4 text-sm">
-            <Badge variant="outline">
-              <Clock className="w-3 h-3 mr-1.5" />
-              Duration: {call?.durationSeconds ? formatTimestamp(call.durationSeconds) : 'N/A'}
+          {/* Compact Badges Row */}
+          <div className="flex items-center gap-2 mt-2 flex-wrap">
+            <Badge variant="outline" className="text-xs py-0.5 px-2">
+              <Clock className="w-3 h-3 mr-1" />
+              {call?.durationSeconds ? formatTimestamp(call.durationSeconds) : '0:00'}
             </Badge>
-            <Badge variant="outline">
-              <Bot className="w-3 h-3 mr-1.5" />
-              Agent: {call?.agentName || 'N/A'}
+            <Badge variant="outline" className="text-xs py-0.5 px-2">
+              <Bot className="w-3 h-3 mr-1" />
+              {call?.agentName || 'N/A'}
             </Badge>
-            <Badge variant="outline">
-              Status: {call?.status}
+            <Badge 
+              variant="outline" 
+              className={`text-xs py-0.5 px-2 ${
+                call?.status === 'completed' 
+                  ? 'border-green-500/50 text-green-600 dark:text-green-400' 
+                  : ''
+              }`}
+            >
+              {call?.status || 'N/A'}
             </Badge>
           </div>
         </div>
@@ -364,39 +380,39 @@ const CallTranscriptViewer: React.FC<CallTranscriptViewerProps> = ({
 
         {transcript && !loading && (
           <>
-            {/* Controls */}
-            <div className={`p-4 border-b ${theme === 'dark' ? 'border-slate-800' : 'border-gray-200'}`}>
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div className="relative flex-1 min-w-[200px]">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+            {/* Compact Search & Controls */}
+            <div className={`px-4 py-2 border-b ${theme === 'dark' ? 'border-slate-800' : 'border-gray-200'}`}>
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1 max-w-sm">
+                  <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <Input
                     placeholder="Search transcript..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10"
+                    className="pl-8 h-8 text-sm"
                   />
                 </div>
                 
                 {searchMatches.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-slate-400">
-                      {currentMatchIndex + 1} / {searchMatches.length}
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs text-slate-400 mr-1">
+                      {currentMatchIndex + 1}/{searchMatches.length}
                     </span>
-                    <Button variant="outline" size="icon" onClick={() => navigateToMatch('prev')} className="w-8 h-8">
+                    <Button variant="ghost" size="icon" onClick={() => navigateToMatch('prev')} className="w-7 h-7">
                       <ChevronUp className="w-4 h-4" />
                     </Button>
-                    <Button variant="outline" size="icon" onClick={() => navigateToMatch('next')} className="w-8 h-8">
+                    <Button variant="ghost" size="icon" onClick={() => navigateToMatch('next')} className="w-7 h-7">
                       <ChevronDown className="w-4 h-4" />
                     </Button>
                   </div>
                 )}
                 
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={copyTranscript}>
-                    <Copy className="w-4 h-4 mr-2" /> Copy
+                <div className="flex items-center gap-1 ml-auto">
+                  <Button variant="ghost" size="sm" onClick={copyTranscript} className="h-8 px-2.5">
+                    <Copy className="w-4 h-4 mr-1.5" /> Copy
                   </Button>
-                  <Button variant="outline" size="sm" onClick={exportTranscript}>
-                    <Download className="w-4 h-4 mr-2" /> Export
+                  <Button variant="ghost" size="sm" onClick={exportTranscript} className="h-8 px-2.5">
+                    <Download className="w-4 h-4 mr-1.5" /> Export
                   </Button>
                 </div>
               </div>
@@ -404,11 +420,11 @@ const CallTranscriptViewer: React.FC<CallTranscriptViewerProps> = ({
 
             {/* Transcript Content */}
             <ScrollArea className="flex-1">
-              <div className="p-4 space-y-4">
+              <div className="p-4 space-y-3">
                 {(!filteredSegments || filteredSegments.length === 0) ? (
                   <div className="text-center py-12 text-slate-400">
-                    <FileText className="w-12 h-12 mx-auto mb-2" />
-                    <p>{speakerFilter === 'all' ? 'No transcript content available' : `No content for ${speakerFilter}`}</p>
+                    <FileText className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">{speakerFilter === 'all' ? 'No transcript content available' : `No content for ${speakerFilter}`}</p>
                   </div>
                 ) : (
                   filteredSegments.map((segment, index) => {
@@ -418,19 +434,35 @@ const CallTranscriptViewer: React.FC<CallTranscriptViewerProps> = ({
                     const displayText = shouldTruncate && !isExpanded ? (segment.text || '').substring(0, 300) + '...' : (segment.text || '');
 
                     return (
-                      <div key={index} id={`segment-${index}`} className={`flex gap-3 ${isAgent ? 'justify-end' : 'justify-start'}`}>
+                      <div key={index} id={`segment-${index}`} className={`flex gap-2 ${isAgent ? 'justify-end' : 'justify-start'}`}>
                         {!isAgent && (
-                           <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-white ${theme === 'dark' ? 'bg-green-800' : 'bg-green-600'}`}>
-                             {segment.speaker.charAt(0)}
-                           </div>
+                          <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold text-white flex-shrink-0 ${
+                            theme === 'dark' ? 'bg-slate-600' : 'bg-slate-500'
+                          }`}>
+                            u
+                          </div>
                         )}
-                        <div className={`max-w-xl p-3 rounded-lg ${isAgent ? (theme === 'dark' ? 'bg-emerald-900/50' : 'bg-emerald-100') : (theme === 'dark' ? 'bg-slate-800' : 'bg-gray-100')}`}>
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-xs font-bold">{segment.speaker}</span>
-                            {showTimestamps && <span className="text-xs text-slate-400">{formatTimestamp(segment.timestamp)}</span>}
+                        <div className={`max-w-[75%] px-3 py-2 rounded-2xl ${
+                          isAgent 
+                            ? (theme === 'dark' ? 'bg-emerald-900/60 rounded-br-md' : 'bg-emerald-100 rounded-br-md') 
+                            : (theme === 'dark' ? 'bg-slate-800 rounded-bl-md' : 'bg-gray-100 rounded-bl-md')
+                        }`}>
+                          <div className="flex items-center justify-between gap-3 mb-0.5">
+                            <span className={`text-[11px] font-medium ${
+                              isAgent 
+                                ? (theme === 'dark' ? 'text-emerald-400' : 'text-emerald-700') 
+                                : (theme === 'dark' ? 'text-slate-400' : 'text-gray-600')
+                            }`}>
+                              {segment.speaker}
+                            </span>
+                            {showTimestamps && segment.timestamp !== undefined && formatTimestamp(segment.timestamp) && (
+                              <span className={`text-[10px] ${theme === 'dark' ? 'text-slate-500' : 'text-gray-400'}`}>
+                                {formatTimestamp(segment.timestamp)}
+                              </span>
+                            )}
                           </div>
                           <p 
-                            className="text-sm"
+                            className={`text-sm leading-relaxed ${theme === 'dark' ? 'text-slate-200' : 'text-gray-800'}`}
                             dangerouslySetInnerHTML={{ __html: highlightSearchMatches(displayText, index) }}
                           />
                           {shouldTruncate && (
@@ -440,14 +472,16 @@ const CallTranscriptViewer: React.FC<CallTranscriptViewerProps> = ({
                               onClick={() => toggleSegmentExpansion(index)}
                               className="p-0 h-auto text-xs mt-1"
                             >
-                              {isExpanded ? 'Show Less' : 'Show More'}
+                              {isExpanded ? 'Show less' : 'Show more'}
                             </Button>
                           )}
                         </div>
-                         {isAgent && (
-                           <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-white ${theme === 'dark' ? 'bg-emerald-800' : 'bg-emerald-600'}`}>
+                        {isAgent && (
+                          <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold text-white flex-shrink-0 ${
+                            theme === 'dark' ? 'bg-emerald-700' : 'bg-emerald-600'
+                          }`}>
                             A
-                           </div>
+                          </div>
                         )}
                       </div>
                     );

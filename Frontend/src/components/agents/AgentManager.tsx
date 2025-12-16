@@ -13,6 +13,11 @@ import {
   Eye,
   ChevronUp,
   Wifi,
+  Phone,
+  MessageCircle,
+  MessageSquare,
+  Send,
+  Globe,
 } from "lucide-react";
 import {
   Tooltip,
@@ -20,6 +25,70 @@ import {
   TooltipTrigger,
   TooltipProvider,
 } from "@/components/ui/tooltip";
+
+// Platform icons and colors configuration
+const PLATFORM_CONFIG: Record<string, { 
+  icon: React.ReactNode; 
+  label: string; 
+  bgColor: string; 
+  textColor: string;
+  logoUrl?: string;
+}> = {
+  whatsapp: {
+    icon: <MessageCircle className="w-4 h-4" />,
+    label: 'WhatsApp',
+    bgColor: 'bg-green-100',
+    textColor: 'text-green-600',
+    logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg',
+  },
+  telegram: {
+    icon: <Send className="w-4 h-4" />,
+    label: 'Telegram',
+    bgColor: 'bg-blue-100',
+    textColor: 'text-blue-500',
+    logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/8/82/Telegram_logo.svg',
+  },
+  messenger: {
+    icon: <MessageSquare className="w-4 h-4" />,
+    label: 'Messenger',
+    bgColor: 'bg-blue-100',
+    textColor: 'text-blue-600',
+    logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/b/be/Facebook_Messenger_logo_2020.svg',
+  },
+  instagram: {
+    icon: <MessageCircle className="w-4 h-4" />,
+    label: 'Instagram',
+    bgColor: 'bg-gradient-to-r from-purple-100 to-pink-100',
+    textColor: 'text-pink-600',
+    logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/e/e7/Instagram_logo_2016.svg',
+  },
+  website: {
+    icon: <Globe className="w-4 h-4" />,
+    label: 'Website',
+    bgColor: 'bg-cyan-100',
+    textColor: 'text-cyan-600',
+    logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/c/c4/Globe_icon.svg',
+  },
+  webchat: {
+    icon: <Globe className="w-4 h-4" />,
+    label: 'Web Chat',
+    bgColor: 'bg-cyan-100',
+    textColor: 'text-cyan-600',
+    logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/c/c4/Globe_icon.svg',
+  },
+  sms: {
+    icon: <MessageSquare className="w-4 h-4" />,
+    label: 'SMS',
+    bgColor: 'bg-purple-100',
+    textColor: 'text-purple-600',
+  },
+  bolna: {
+    icon: <Phone className="w-4 h-4" />,
+    label: 'Bolna Voice',
+    bgColor: 'bg-blue-100',
+    textColor: 'text-blue-600',
+  },
+};
 
 // No mock data - use real agents from API
 
@@ -29,6 +98,11 @@ const agentStatusOptions = [
   { value: "active", label: "Active" },
 ];
 
+const agentTypeOptions = [
+  { value: "all", label: "All Types" },
+  { value: "CallAgent", label: "Call Agents" },
+  { value: "ChatAgent", label: "Chat Agents" },
+];
 
 
 export default function AgentManager() {
@@ -61,6 +135,7 @@ export default function AgentManager() {
   const [deleteAgentState, setDeleteAgentState] = useState<Agent | null>(null);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("all");
+  const [agentType, setAgentType] = useState("all");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [viewDetails, setViewDetails] = useState<Record<string, boolean>>({});
 
@@ -105,6 +180,7 @@ export default function AgentManager() {
   const handleClearFilters = () => {
     setSearch("");
     setStatus("all");
+    setAgentType("all");
   };
 
   const handleTestConnection = async () => {
@@ -151,7 +227,52 @@ export default function AgentManager() {
     }));
   };
 
+  // Helper to determine agent type
+  const getAgentType = (agent: Agent): 'CallAgent' | 'ChatAgent' => {
+    if (agent.type === 'ChatAgent' || agent.agentType === 'chat' || agent.id?.startsWith('chat_')) {
+      return 'ChatAgent';
+    }
+    return 'CallAgent';
+  };
 
+  // Check if agent is a chat agent (from Chat Agent Server)
+  const isChatAgent = (agent: Agent): boolean => {
+    return getAgentType(agent) === 'ChatAgent';
+  };
+
+  // Get platform config for an agent
+  const getPlatformConfig = (agent: Agent) => {
+    if (!isChatAgent(agent)) {
+      return PLATFORM_CONFIG.bolna;
+    }
+    const platform = agent.platform?.toLowerCase() || 'whatsapp';
+    return PLATFORM_CONFIG[platform] || PLATFORM_CONFIG.whatsapp;
+  };
+
+  // Platform logo component
+  const PlatformBadge = ({ agent }: { agent: Agent }) => {
+    const config = getPlatformConfig(agent);
+    const isChat = isChatAgent(agent);
+    
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${config.bgColor} ${config.textColor}`}>
+            {config.logoUrl ? (
+              <img src={config.logoUrl} alt={config.label} className="w-4 h-4" />
+            ) : (
+              config.icon
+            )}
+            <span className="hidden sm:inline">{config.label}</span>
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="top">
+          <p>{isChat ? `Chat Agent - ${config.label}` : 'Voice Call Agent'}</p>
+          {agent.phoneDisplay && <p className="text-xs text-muted-foreground">{agent.phoneDisplay}</p>}
+        </TooltipContent>
+      </Tooltip>
+    );
+  };
 
   const filteredAgents = displayAgents.filter((agent) => {
     const searchText = search.toLowerCase();
@@ -159,8 +280,13 @@ export default function AgentManager() {
       agent.name?.toLowerCase().includes(searchText) ||
       agent.description?.toLowerCase().includes(searchText);
     const matchesStatus = status === "all" || agent.status === status;
-    return matchesSearch && matchesStatus;
+    const matchesType = agentType === "all" || getAgentType(agent) === agentType;
+    return matchesSearch && matchesStatus && matchesType;
   });
+
+  // Count agents by type
+  const callAgentsCount = displayAgents.filter(a => getAgentType(a) === 'CallAgent').length;
+  const chatAgentsCount = displayAgents.filter(a => getAgentType(a) === 'ChatAgent').length;
 
   return (
     <TooltipProvider>
@@ -171,48 +297,20 @@ export default function AgentManager() {
             <h2 className="text-2xl md:text-3xl font-bold text-foreground">
               Your Agents
             </h2>
-            <div className="text-muted-foreground mt-1 mb-2 text-sm">
-              Create and manage your AI calling agents
+            <div className="text-muted-foreground mt-1 mb-2 text-sm flex items-center gap-4">
+              <span>Create and manage your AI agents</span>
+              <div className="flex items-center gap-3 text-xs">
+                <span className="flex items-center gap-1 bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                  <Phone className="w-3 h-3" />
+                  {callAgentsCount} Call
+                </span>
+                <span className="flex items-center gap-1 bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                  <MessageCircle className="w-3 h-3" />
+                  {chatAgentsCount} Chat
+                </span>
+              </div>
             </div>
           </div>
-          {isAdminUser() && (
-          <div className="flex items-center gap-3">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={handleTestConnection}
-                  disabled={testingConnection}
-                  className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2"
-                >
-                  {testingConnection ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white/30 border-t-white"></div>
-                      Testing...
-                    </>
-                  ) : (
-                    <>
-                      <Wifi className="w-4 h-4" />
-                      Test Connection
-                    </>
-                  )}
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="max-w-xs">
-                <p>Test the connection to ElevenLabs API to ensure your agents can function properly</p>
-              </TooltipContent>
-            </Tooltip>
-            <button
-              onClick={() => {
-                setModalOpen(true);
-                setEditAgent(null);
-              }}
-              className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2"
-            >
-              <span className="text-lg">+</span>
-              Create Agent
-            </button>
-          </div>
-          )}
         </div>
 
         {/* FILTERS */}
@@ -234,7 +332,27 @@ export default function AgentManager() {
               autoComplete="off"
             />
           </div>
-          <div className="w-full md:w-1/3 mt-2 md:mt-0">
+          <div className="w-full md:w-1/4 mt-2 md:mt-0">
+            <label
+              className="text-xs font-semibold text-muted-foreground"
+              htmlFor="agent-type"
+            >
+              Type
+            </label>
+            <select
+              id="agent-type"
+              value={agentType}
+              onChange={(e) => setAgentType(e.target.value)}
+              className="w-full mt-1 px-4 py-2 border border-border rounded bg-background text-sm"
+            >
+              {agentTypeOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="w-full md:w-1/4 mt-2 md:mt-0">
             <label
               className="text-xs font-semibold text-muted-foreground"
               htmlFor="agent-status"
@@ -254,7 +372,7 @@ export default function AgentManager() {
               ))}
             </select>
           </div>
-          <div className="w-full md:w-1/3 flex md:justify-end mt-2 md:mt-0">
+          <div className="w-full md:w-auto flex md:justify-end mt-2 md:mt-0 items-end">
             <button
               onClick={handleClearFilters}
               className="text-sm font-medium text-primary hover:underline px-2 py-2 rounded"
@@ -314,24 +432,29 @@ export default function AgentManager() {
                     No description provided
                   </span>
                 );
+                const isAgentChatType = isChatAgent(agent);
+                const platformConfig = getPlatformConfig(agent);
                 return (
                   <div
                     key={agent.id}
                     className={`bg-card border border-border rounded-lg shadow-md p-6 flex flex-col justify-between transition-all duration-300 hover:shadow-lg ${isViewingDetails ? "min-h-[320px]" : "min-h-[200px]"
                       }`}
                   >
-                    {/* Title */}
-                    <div className="flex items-center gap-2 mb-1">
+                    {/* Title with Platform Badge */}
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      {/* Platform Badge with Logo */}
+                      <PlatformBadge agent={agent} />
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <span className="font-semibold text-lg text-foreground truncate max-w-[75%] cursor-help">
+                          <span className="font-semibold text-lg text-foreground truncate max-w-[55%] cursor-help">
                             {agent.name}
                           </span>
                         </TooltipTrigger>
                         <TooltipContent side="top" className="max-w-xs">
                           <p>
-                            You can rename agents and add descriptions. Click the
-                            edit button to modify agent details.
+                            {isAgentChatType 
+                              ? 'This is a Chat Agent from your WhatsApp integration.'
+                              : 'You can rename agents and add descriptions. Click the edit button to modify agent details.'}
                           </p>
                         </TooltipContent>
                       </Tooltip>
@@ -390,6 +513,19 @@ export default function AgentManager() {
                     <div className="flex flex-col gap-0.5 text-[13px] text-foreground/80 mb-2 mt-2">
                       <div className="flex items-center gap-2">
                         <span className="w-24 text-muted-foreground font-semibold">
+                          Platform:
+                        </span>
+                        <span className="flex items-center gap-1">
+                          {platformConfig.logoUrl ? (
+                            <img src={platformConfig.logoUrl} alt={platformConfig.label} className="w-4 h-4" />
+                          ) : (
+                            platformConfig.icon
+                          )}
+                          {platformConfig.label}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="w-24 text-muted-foreground font-semibold">
                           Type:
                         </span>
                         <span>
@@ -410,6 +546,14 @@ export default function AgentManager() {
                         </span>
                         <span>{agent.conversations ?? 0}</span>
                       </div>
+                      {agent.phoneDisplay && (
+                        <div className="flex items-center gap-2">
+                          <span className="w-24 text-muted-foreground font-semibold">
+                            Phone:
+                          </span>
+                          <span>{agent.phoneDisplay}</span>
+                        </div>
+                      )}
                       <div className="flex items-center gap-2">
                         <span className="w-24 text-muted-foreground font-semibold">
                           Created:
@@ -477,31 +621,67 @@ export default function AgentManager() {
                         )}
                       </button>
                       <div className="flex gap-3">
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <button
-                              className="text-blue-600 hover:bg-blue-50 rounded p-1"
-                              onClick={() => {
-                                setModalOpen(true);
-                                setEditAgent(agent);
-                              }}
-                              title="Edit"
-                            >
-                              <Pencil className="w-4 h-4" />
-                            </button>
-                          </TooltipTrigger>
-                          <TooltipContent side="top">
-                            <p>Edit agent name and description</p>
-                          </TooltipContent>
-                        </Tooltip>
-                        <button
-                          className="text-red-600 hover:bg-red-50 rounded p-1"
-                          onClick={() => handleDeleteAgent(agent)}
-                          title="Delete"
-                          disabled={deleting}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {/* Edit button - disabled for chat agents */}
+                        {isAgentChatType ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                className="text-gray-400 cursor-not-allowed rounded p-1"
+                                disabled
+                                title="Edit in Chat Agent Server"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                              <p>Chat agents are managed in the Chat Agent Server</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        ) : (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                className="text-blue-600 hover:bg-blue-50 rounded p-1"
+                                onClick={() => {
+                                  setModalOpen(true);
+                                  setEditAgent(agent);
+                                }}
+                                title="Edit"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                              <p>Edit agent name and description</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        )}
+                        {/* Delete button - disabled for chat agents */}
+                        {isAgentChatType ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                className="text-gray-400 cursor-not-allowed rounded p-1"
+                                disabled
+                                title="Delete in Chat Agent Server"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                              <p>Chat agents are managed in the Chat Agent Server</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        ) : (
+                          <button
+                            className="text-red-600 hover:bg-red-50 rounded p-1"
+                            onClick={() => handleDeleteAgent(agent)}
+                            title="Delete"
+                            disabled={deleting}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>

@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { agentService } from '../services/agentService';
+import { chatAgentService } from '../services/chatAgentService';
 import { logger } from '../utils/logger';
 import { queryCache } from '../services/queryCacheService';
 
@@ -308,6 +309,127 @@ export class AgentController {
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : 'Failed to update agent status',
+      });
+    }
+  }
+
+  /**
+   * Get chat agents from the Chat Agent Server (WhatsApp microservice)
+   * This proxies the request to the Chat Agent Server
+   */
+  async getChatAgents(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const userId = req.user!.id;
+
+      logger.info('🔄 Fetching chat agents for user', { userId });
+
+      const response = await chatAgentService.getChatAgents(userId);
+
+      if (!response.success) {
+        res.status(500).json({
+          success: false,
+          error: response.error || 'Failed to fetch chat agents',
+          message: response.message,
+        });
+        return;
+      }
+
+      // Transform chat agents to match the frontend Agent interface
+      const chatAgents = (response.data || []).map((agent) => ({
+        id: `chat_${agent.id}`, // Prefix to distinguish from call agents
+        userId: userId,
+        bolnaAgentId: '', // Not applicable for chat agents
+        name: agent.name,
+        agentType: 'chat',
+        isActive: agent.status === 'active',
+        createdAt: agent.created_at || new Date().toISOString(),
+        updatedAt: agent.updated_at || new Date().toISOString(),
+        // Frontend-specific fields
+        status: agent.status || 'active',
+        type: 'ChatAgent' as const,
+        conversations: agent.conversations || 0,
+        language: agent.language || 'en',
+        description: agent.description || '',
+        // Chat agent specific
+        phoneNumberId: agent.phone_number_id,
+        businessAccountId: agent.business_account_id,
+        // Platform info
+        platform: (agent as any).platform || 'whatsapp',
+        phoneDisplay: (agent as any).phone_display,
+      }));
+
+      res.json({
+        success: true,
+        data: chatAgents,
+        message: response.message,
+      });
+    } catch (error) {
+      logger.error('Error fetching chat agents:', error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to fetch chat agents',
+      });
+    }
+  }
+
+  /**
+   * Get all agents (both call agents and chat agents combined)
+   */
+  async getAllAgents(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const userId = req.user!.id;
+
+      logger.info('🔄 Fetching all agents (call + chat) for user', { userId });
+
+      // Fetch both types in parallel
+      const [callAgentsResult, chatAgentsResponse] = await Promise.all([
+        queryCache.wrapQuery(
+          queryCache.generateKey('agents:list', { userId }),
+          () => agentService.listAgentsForFrontend(userId),
+          2 * 60 * 1000
+        ),
+        chatAgentService.getChatAgents(userId),
+      ]);
+
+      // Transform chat agents to match the frontend Agent interface
+      const chatAgents = (chatAgentsResponse.data || []).map((agent) => ({
+        id: `chat_${agent.id}`,
+        userId: userId,
+        bolnaAgentId: '',
+        name: agent.name,
+        agentType: 'chat',
+        isActive: agent.status === 'active',
+        createdAt: agent.created_at || new Date().toISOString(),
+        updatedAt: agent.updated_at || new Date().toISOString(),
+        status: agent.status || 'active',
+        type: 'ChatAgent' as const,
+        conversations: agent.conversations || 0,
+        language: agent.language || 'en',
+        description: agent.description || '',
+        phoneNumberId: agent.phone_number_id,
+        businessAccountId: agent.business_account_id,
+        // Platform info
+        platform: (agent as any).platform || 'whatsapp',
+        phoneDisplay: (agent as any).phone_display,
+      }));
+
+      // Combine both types of agents
+      const allAgents = [...callAgentsResult, ...chatAgents];
+
+      res.json({
+        success: true,
+        data: allAgents,
+        meta: {
+          callAgentsCount: callAgentsResult.length,
+          chatAgentsCount: chatAgents.length,
+          totalCount: allAgents.length,
+        },
+      });
+    } catch (error) {
+      logger.error('Error fetching all agents:', error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to fetch agents',
       });
     }
   }

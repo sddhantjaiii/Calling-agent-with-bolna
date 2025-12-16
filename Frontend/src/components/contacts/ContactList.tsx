@@ -37,6 +37,8 @@ import {
   Settings2,
   Check,
   X,
+  LayoutGrid,
+  Kanban,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -54,6 +56,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { LeadStageDropdown } from '@/components/LeadStageDropdown';
 import { useContacts } from '@/hooks/useContacts';
+import { useLeadStages } from '@/hooks/useLeadStages';
 import { useToast } from '@/components/ui/use-toast';
 import DeleteContactDialog from './DeleteContactDialog';
 import BulkContactUpload from './BulkContactUpload';
@@ -63,6 +66,7 @@ import { SendWhatsAppModal } from './SendWhatsAppModal';
 import { SendEmailModal } from './SendEmailModal';
 import CreateCampaignModal from '@/components/campaigns/CreateCampaignModal';
 import type { Contact, ContactsListOptions } from '@/types';
+import { cn } from '@/lib/utils';
 
 // Column filter interface for Excel-like filtering
 interface ColumnFilters {
@@ -149,6 +153,8 @@ const ExcelColumnFilter = ({ title, options, selectedValues, onSelectionChange, 
   );
 };
 
+type DisplayMode = 'table' | 'pipeline';
+
 interface ContactListProps {
   onContactSelect?: (contact: Contact) => void;
   onContactEdit?: (contact: Contact) => void;
@@ -156,6 +162,8 @@ interface ContactListProps {
   useLazyLoading?: boolean;
   initialPageSize?: number;
   enableInfiniteScroll?: boolean;
+  displayMode?: DisplayMode;
+  onDisplayModeChange?: (mode: DisplayMode) => void;
 }
 
 // Constants
@@ -169,8 +177,11 @@ export const ContactList: React.FC<ContactListProps> = ({
   useLazyLoading = false,
   initialPageSize = 100,
   enableInfiniteScroll = true,
+  displayMode,
+  onDisplayModeChange,
 }) => {
   const { toast } = useToast();
+  const { stages, bulkUpdateLeadStage, bulkUpdating } = useLeadStages();
   
   // State
   const [searchTerm, setSearchTerm] = useState('');
@@ -188,6 +199,7 @@ export const ContactList: React.FC<ContactListProps> = ({
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [isBulkLeadStageUpdating, setIsBulkLeadStageUpdating] = useState(false);
   
   // New column filters state (Excel-like multi-select)
   const [columnFilters, setColumnFilters] = useState<ColumnFilters>({
@@ -642,6 +654,62 @@ export const ContactList: React.FC<ContactListProps> = ({
     setIsCampaignModalOpen(true);
   };
 
+  const handleBulkLeadStageChange = async (newStage: string | null) => {
+    const selected = Array.from(selectedContactIds);
+    if (selected.length === 0) {
+      toast({
+        title: 'No contacts selected',
+        description: 'Please select at least one contact',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsBulkLeadStageUpdating(true);
+    try {
+      const result = await bulkUpdateLeadStage(selected, newStage);
+      
+      if (result !== null && result > 0) {
+        // Update local state immediately for infinite scroll
+        if (enableInfiniteScroll) {
+          setAllLoadedContacts(prev => 
+            prev.filter(c => c != null).map(contact => 
+              selected.includes(contact.id)
+                ? { ...contact, leadStage: newStage || undefined, updatedAt: new Date().toISOString() }
+                : contact
+            )
+          );
+        }
+        
+        toast({
+          title: 'Success',
+          description: `Updated lead stage for ${result} contact(s) to "${newStage || 'Unassigned'}"`,
+        });
+        
+        // Clear selection after successful update
+        setSelectedContactIds(new Set());
+        
+        // Refresh to get updated data
+        refreshContacts(contactsOptions);
+      } else {
+        toast({
+          title: 'Error',
+          description: 'Failed to update lead stage',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error('Error bulk updating lead stage:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update lead stage',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsBulkLeadStageUpdating(false);
+    }
+  };
+
   const handleSortChange = (newSortBy: 'name' | 'phone_number' | 'created_at') => {
     if (sortBy === newSortBy) {
       setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
@@ -766,12 +834,100 @@ export const ContactList: React.FC<ContactListProps> = ({
   return (
     <div className="h-full flex flex-col">
       <Card className="flex-1 flex flex-col overflow-hidden">
-        {/* Fixed Header */}
-        <CardHeader className="flex-shrink-0 border-b">
-          <div className="flex items-center justify-between mb-4">
-            <CardTitle>Contacts ({totalContacts})</CardTitle>
-            <div className="flex gap-2">
-              {selectedContactIds.size > 0 && (
+        {/* Fixed Header - All on single line */}
+        <CardHeader className="flex-shrink-0 border-b py-3">
+          <div className="flex items-center gap-3">
+            {/* View Mode Toggle */}
+            {displayMode && onDisplayModeChange && (
+              <div className="flex items-center rounded-lg border bg-muted p-1">
+                <Button
+                  variant={displayMode === 'table' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className={cn(
+                    'h-7 px-2',
+                    displayMode === 'table' && 'shadow-sm'
+                  )}
+                  onClick={() => onDisplayModeChange('table')}
+                >
+                  <LayoutGrid className="h-4 w-4 mr-1" />
+                  Table
+                </Button>
+                <Button
+                  variant={displayMode === 'pipeline' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className={cn(
+                    'h-7 px-2',
+                    displayMode === 'pipeline' && 'shadow-sm'
+                  )}
+                  onClick={() => onDisplayModeChange('pipeline')}
+                >
+                  <Kanban className="h-4 w-4 mr-1" />
+                  Pipeline
+                </Button>
+              </div>
+            )}
+
+            {/* Title */}
+            <CardTitle className="text-base whitespace-nowrap">Contacts ({totalContacts})</CardTitle>
+
+            {/* Search Input */}
+            <div className="relative flex-1 min-w-[150px] max-w-[300px]">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Input
+                placeholder="Search contacts..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 h-9"
+              />
+            </div>
+
+            {/* Clear All Column Filters Button */}
+            {hasActiveColumnFilters && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearAllColumnFilters}
+                className="h-9"
+              >
+                <X className="w-4 h-4 mr-1" />
+                Clear
+              </Button>
+            )}
+
+            {/* Spacer */}
+            <div className="flex-1" />
+
+            {/* Action Buttons */}
+            {selectedContactIds.size > 0 && (
+              <>
+                {/* Bulk Lead Stage Change */}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground whitespace-nowrap">
+                    Change Stage:
+                  </span>
+                  <Select
+                    onValueChange={(value) => handleBulkLeadStageChange(value === 'unassigned' ? null : value)}
+                    disabled={isBulkLeadStageUpdating}
+                  >
+                    <SelectTrigger className="w-[160px] h-9">
+                      <SelectValue placeholder={isBulkLeadStageUpdating ? "Updating..." : "Select stage"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="unassigned">Unassigned</SelectItem>
+                      {stages.map((stage) => (
+                        <SelectItem key={stage.name} value={stage.name}>
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="w-3 h-3 rounded-full"
+                              style={{ backgroundColor: stage.color }}
+                            />
+                            {stage.name}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <Button
                   onClick={handleCreateCampaign}
                   variant="default"
@@ -779,125 +935,95 @@ export const ContactList: React.FC<ContactListProps> = ({
                 >
                   Create Campaign ({selectedContactIds.size})
                 </Button>
-              )}
-              <Button
-                onClick={() => setIsLeadStageCustomizerOpen(true)}
-                variant="outline"
-                size="sm"
-              >
-                <Settings2 className="w-4 h-4 mr-2" />
-                Lead Stages
-              </Button>
-              <Button
-                onClick={() => setIsBulkUploadOpen(true)}
-                variant="outline"
-                size="sm"
-              >
-                <Upload className="w-4 h-4 mr-2" />
-                Upload CSV
-              </Button>
-              <Button
-                onClick={onContactCreate}
-                size="sm"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add Contact
-              </Button>
-            </div>
-          </div>
-
-          {/* Search and Active Filters Summary */}
-          <div className="space-y-3">
-            {/* Search and Clear Filters */}
-            <div className="flex gap-2 flex-wrap items-center">
-              {/* Search Input */}
-              <div className="relative flex-1 min-w-[200px]">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <Input
-                  placeholder="Search contacts..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 h-9"
-                />
-              </div>
-
-              {/* Clear All Column Filters Button */}
-              {hasActiveColumnFilters && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={clearAllColumnFilters}
-                  className="h-9"
-                >
-                  <X className="w-4 h-4 mr-2" />
-                  Clear Filters
-                </Button>
-              )}
-            </div>
-
-            {/* Active Column Filters Summary */}
-            {hasActiveColumnFilters && (
-              <div className="flex flex-wrap gap-2 items-center">
-                <span className="text-sm text-muted-foreground">Active filters:</span>
-                {columnFilters.tags.length > 0 && (
-                  <Badge variant="secondary" className="text-xs">
-                    Tags: {columnFilters.tags.join(', ')}
-                    <button onClick={() => updateColumnFilter('tags', [])} className="ml-1 hover:text-destructive">
-                      <X className="w-3 h-3" />
-                    </button>
-                  </Badge>
-                )}
-                {columnFilters.lastStatus.length > 0 && (
-                  <Badge variant="secondary" className="text-xs">
-                    Status: {columnFilters.lastStatus.join(', ')}
-                    <button onClick={() => updateColumnFilter('lastStatus', [])} className="ml-1 hover:text-destructive">
-                      <X className="w-3 h-3" />
-                    </button>
-                  </Badge>
-                )}
-                {columnFilters.callType.length > 0 && (
-                  <Badge variant="secondary" className="text-xs">
-                    Call Type: {columnFilters.callType.join(', ')}
-                    <button onClick={() => updateColumnFilter('callType', [])} className="ml-1 hover:text-destructive">
-                      <X className="w-3 h-3" />
-                    </button>
-                  </Badge>
-                )}
-                {columnFilters.source.length > 0 && (
-                  <Badge variant="secondary" className="text-xs">
-                    Source: {columnFilters.source.join(', ')}
-                    <button onClick={() => updateColumnFilter('source', [])} className="ml-1 hover:text-destructive">
-                      <X className="w-3 h-3" />
-                    </button>
-                  </Badge>
-                )}
-                {columnFilters.city.length > 0 && (
-                  <Badge variant="secondary" className="text-xs">
-                    City: {columnFilters.city.join(', ')}
-                    <button onClick={() => updateColumnFilter('city', [])} className="ml-1 hover:text-destructive">
-                      <X className="w-3 h-3" />
-                    </button>
-                  </Badge>
-                )}
-                {columnFilters.country.length > 0 && (
-                  <Badge variant="secondary" className="text-xs">
-                    Country: {columnFilters.country.join(', ')}
-                    <button onClick={() => updateColumnFilter('country', [])} className="ml-1 hover:text-destructive">
-                      <X className="w-3 h-3" />
-                    </button>
-                  </Badge>
-                )}
-                {columnFilters.leadStage.length > 0 && (
-                  <Badge variant="secondary" className="text-xs">
-                    Lead Stage: {columnFilters.leadStage.join(', ')}
-                    <button onClick={() => updateColumnFilter('leadStage', [])} className="ml-1 hover:text-destructive">
-                      <X className="w-3 h-3" />
-                    </button>
-                  </Badge>
-                )}
-              </div>
+              </>
             )}
+            <Button
+              onClick={() => setIsLeadStageCustomizerOpen(true)}
+              variant="outline"
+              size="sm"
+            >
+              <Settings2 className="w-4 h-4 mr-1" />
+              Lead Stages
+            </Button>
+            <Button
+              onClick={() => setIsBulkUploadOpen(true)}
+              variant="outline"
+              size="sm"
+            >
+              <Upload className="w-4 h-4 mr-1" />
+              Upload CSV
+            </Button>
+            <Button
+              onClick={onContactCreate}
+              size="sm"
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              Add Contact
+            </Button>
           </div>
+
+          {/* Active Column Filters Summary - only shown when filters are active */}
+          {hasActiveColumnFilters && (
+            <div className="flex flex-wrap gap-2 items-center mt-2 pt-2 border-t">
+              <span className="text-sm text-muted-foreground">Active filters:</span>
+              {columnFilters.tags.length > 0 && (
+                <Badge variant="secondary" className="text-xs">
+                  Tags: {columnFilters.tags.join(', ')}
+                  <button onClick={() => updateColumnFilter('tags', [])} className="ml-1 hover:text-destructive">
+                    <X className="w-3 h-3" />
+                  </button>
+                </Badge>
+              )}
+              {columnFilters.lastStatus.length > 0 && (
+                <Badge variant="secondary" className="text-xs">
+                  Status: {columnFilters.lastStatus.join(', ')}
+                  <button onClick={() => updateColumnFilter('lastStatus', [])} className="ml-1 hover:text-destructive">
+                    <X className="w-3 h-3" />
+                  </button>
+                </Badge>
+              )}
+              {columnFilters.callType.length > 0 && (
+                <Badge variant="secondary" className="text-xs">
+                  Call Type: {columnFilters.callType.join(', ')}
+                  <button onClick={() => updateColumnFilter('callType', [])} className="ml-1 hover:text-destructive">
+                    <X className="w-3 h-3" />
+                  </button>
+                </Badge>
+              )}
+              {columnFilters.source.length > 0 && (
+                <Badge variant="secondary" className="text-xs">
+                  Source: {columnFilters.source.join(', ')}
+                  <button onClick={() => updateColumnFilter('source', [])} className="ml-1 hover:text-destructive">
+                    <X className="w-3 h-3" />
+                  </button>
+                </Badge>
+              )}
+              {columnFilters.city.length > 0 && (
+                <Badge variant="secondary" className="text-xs">
+                  City: {columnFilters.city.join(', ')}
+                  <button onClick={() => updateColumnFilter('city', [])} className="ml-1 hover:text-destructive">
+                    <X className="w-3 h-3" />
+                  </button>
+                </Badge>
+              )}
+              {columnFilters.country.length > 0 && (
+                <Badge variant="secondary" className="text-xs">
+                  Country: {columnFilters.country.join(', ')}
+                  <button onClick={() => updateColumnFilter('country', [])} className="ml-1 hover:text-destructive">
+                    <X className="w-3 h-3" />
+                  </button>
+                </Badge>
+              )}
+              {columnFilters.leadStage.length > 0 && (
+                <Badge variant="secondary" className="text-xs">
+                  Lead Stage: {columnFilters.leadStage.join(', ')}
+                  <button onClick={() => updateColumnFilter('leadStage', [])} className="ml-1 hover:text-destructive">
+                    <X className="w-3 h-3" />
+                  </button>
+                </Badge>
+              )}
+            </div>
+          )}
         </CardHeader>
 
         {/* Scrollable Content Area */}
@@ -929,11 +1055,10 @@ export const ContactList: React.FC<ContactListProps> = ({
           {/* Contacts Table with Scrollable Body */}
           <div className="h-full overflow-auto">
             <table className="w-full min-w-max">
-              <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
-                <tr className="border-b" style={{ backgroundColor: 'hsl(var(--background))' }}>
+              <thead className="sticky top-0 z-20 bg-background">
+                <tr className="border-b bg-background">
                   <th
-                    className="h-12 px-4 text-left align-middle font-medium text-muted-foreground w-12 bg-background"
-                    style={{ position: 'sticky', left: 0, zIndex: 20 }}
+                    className="h-12 px-4 text-left align-middle font-medium text-muted-foreground w-12 bg-background sticky left-0 z-30"
                   >
                     <Checkbox
                       checked={selectedContactIds.size === filteredContacts.length && filteredContacts.length > 0}
@@ -941,8 +1066,7 @@ export const ContactList: React.FC<ContactListProps> = ({
                     />
                   </th>
                   <th
-                    className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background min-w-[220px]"
-                    style={{ position: 'sticky', left: 48, zIndex: 20 }}
+                    className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background min-w-[220px] sticky left-[48px] z-30"
                   >
                     <button
                       onClick={() => handleSortChange('name')}
@@ -953,12 +1077,11 @@ export const ContactList: React.FC<ContactListProps> = ({
                     </button>
                   </th>
                   <th
-                    className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background min-w-[180px]"
-                    style={{ position: 'sticky', left: 48 + 220, zIndex: 20 }}
+                    className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background min-w-[180px] sticky left-[268px] z-30"
                   >
                     Contact Details
                   </th>
-                  <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground" style={{ position: 'sticky', top: 0, backgroundColor: 'hsl(var(--background))' }}>
+                  <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background">
                     <ExcelColumnFilter
                       title="Call Type"
                       options={allUniqueCallTypes}
@@ -967,7 +1090,7 @@ export const ContactList: React.FC<ContactListProps> = ({
                       showAllLabel="All Call Types"
                     />
                   </th>
-                  <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground" style={{ position: 'sticky', top: 0, backgroundColor: 'hsl(var(--background))' }}>
+                  <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background">
                     <ExcelColumnFilter
                       title="Last Status"
                       options={allUniqueStatuses}
@@ -976,7 +1099,7 @@ export const ContactList: React.FC<ContactListProps> = ({
                       showAllLabel="All Status"
                     />
                   </th>
-                  <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground" style={{ position: 'sticky', top: 0, backgroundColor: 'hsl(var(--background))' }}>
+                  <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background">
                     <ExcelColumnFilter
                       title="Lead Stage"
                       options={allUniqueLeadStages}
@@ -985,8 +1108,8 @@ export const ContactList: React.FC<ContactListProps> = ({
                       showAllLabel="All Stages"
                     />
                   </th>
-                  <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground min-w-[200px]" style={{ position: 'sticky', top: 0, backgroundColor: 'hsl(var(--background))' }}>Notes</th>
-                  <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground" style={{ position: 'sticky', top: 0, backgroundColor: 'hsl(var(--background))' }}>
+                  <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground min-w-[200px] bg-background">Notes</th>
+                  <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background">
                     <ExcelColumnFilter
                       title="Source"
                       options={allUniqueSources}
@@ -995,7 +1118,7 @@ export const ContactList: React.FC<ContactListProps> = ({
                       showAllLabel="All Sources"
                     />
                   </th>
-                  <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground" style={{ position: 'sticky', top: 0, backgroundColor: 'hsl(var(--background))' }}>
+                  <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background">
                     <ExcelColumnFilter
                       title="Tags"
                       options={allUniqueTags}
@@ -1004,7 +1127,7 @@ export const ContactList: React.FC<ContactListProps> = ({
                       showAllLabel="All Tags"
                     />
                   </th>
-                  <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground" style={{ position: 'sticky', top: 0, backgroundColor: 'hsl(var(--background))' }}>
+                  <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <button className="flex items-center gap-1 hover:text-primary transition-colors font-medium text-muted-foreground">
@@ -1088,13 +1211,13 @@ export const ContactList: React.FC<ContactListProps> = ({
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </th>
-                  <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground min-w-[150px]" style={{ position: 'sticky', top: 0, backgroundColor: 'hsl(var(--background))' }}>Business Context</th>
-                  <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground" style={{ position: 'sticky', top: 0, backgroundColor: 'hsl(var(--background))' }}>Last Contact</th>
-                  <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground" style={{ position: 'sticky', top: 0, backgroundColor: 'hsl(var(--background))' }}>Call Attempted</th>
-                  <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground" style={{ position: 'sticky', top: 0, backgroundColor: 'hsl(var(--background))' }}>
+                  <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground min-w-[150px] bg-background">Business Context</th>
+                  <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background">Last Contact</th>
+                  <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background">Call Attempted</th>
+                  <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background">
                     Created
                   </th>
-                  <th className="h-12 px-4 text-right align-middle font-medium text-muted-foreground" style={{ position: 'sticky', top: 0, backgroundColor: 'hsl(var(--background))' }}>Actions</th>
+                  <th className="h-12 px-4 text-right align-middle font-medium text-muted-foreground bg-background">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -1109,8 +1232,7 @@ export const ContactList: React.FC<ContactListProps> = ({
                     <React.Fragment key={contact.id}>
                       <tr className="border-b transition-colors hover:bg-muted/50">
                         <td
-                          className="p-4 align-middle bg-background"
-                          style={{ position: 'sticky', left: 0, zIndex: 10 }}
+                          className="p-4 align-middle bg-background sticky left-0 z-10"
                         >
                           <Checkbox
                             checked={selectedContactIds.has(contact.id)}
@@ -1118,8 +1240,7 @@ export const ContactList: React.FC<ContactListProps> = ({
                           />
                         </td>
                         <td
-                          className="p-4 align-middle bg-background min-w-[220px]"
-                          style={{ position: 'sticky', left: 48, zIndex: 10 }}
+                          className="p-4 align-middle bg-background min-w-[220px] sticky left-[48px] z-10"
                         >
                           <div>
                             <div className="font-medium text-foreground">{contact.name}</div>
@@ -1129,8 +1250,7 @@ export const ContactList: React.FC<ContactListProps> = ({
                           </div>
                         </td>
                         <td
-                          className="p-4 align-middle bg-background min-w-[180px]"
-                          style={{ position: 'sticky', left: 48 + 220, zIndex: 10 }}
+                          className="p-4 align-middle bg-background min-w-[180px] sticky left-[268px] z-10"
                         >
                           <div>
                             <div className="text-sm">{contact.phoneNumber}</div>

@@ -151,37 +151,7 @@ export const ContactManager: React.FC = () => {
         
         return (
           <div className="h-full flex flex-col">
-            {/* View Toggle Header for Table View */}
-            <div className="flex-shrink-0 px-6 py-3 border-b bg-background flex items-center justify-end gap-2">
-              <div className="flex items-center rounded-lg border bg-muted p-1">
-                <Button
-                  variant={displayMode === 'table' ? 'secondary' : 'ghost'}
-                  size="sm"
-                  className={cn(
-                    'h-8 px-3',
-                    displayMode === 'table' && 'shadow-sm'
-                  )}
-                  onClick={() => setDisplayMode('table')}
-                >
-                  <LayoutGrid className="h-4 w-4 mr-2" />
-                  Table
-                </Button>
-                <Button
-                  variant={displayMode === 'pipeline' ? 'secondary' : 'ghost'}
-                  size="sm"
-                  className={cn(
-                    'h-8 px-3',
-                    displayMode === 'pipeline' && 'shadow-sm'
-                  )}
-                  onClick={() => setDisplayMode('pipeline')}
-                >
-                  <Kanban className="h-4 w-4 mr-2" />
-                  Pipeline
-                </Button>
-              </div>
-            </div>
-            
-            {/* Table View */}
+            {/* Table View - toggle is inside ContactList header */}
             <div className="flex-1 overflow-hidden">
               <ContactList
                 onContactSelect={handleContactSelect}
@@ -189,6 +159,8 @@ export const ContactManager: React.FC = () => {
                 onContactCreate={handleContactCreate}
                 enableInfiniteScroll={true}
                 initialPageSize={20}
+                displayMode={displayMode}
+                onDisplayModeChange={setDisplayMode}
               />
             </div>
           </div>

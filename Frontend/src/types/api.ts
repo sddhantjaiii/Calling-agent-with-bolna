@@ -204,6 +204,11 @@ export interface Agent {
   // Performance metrics
   successRate?: number;
   avgDuration?: string;
+  // Chat agent specific fields
+  platform?: 'whatsapp' | 'telegram' | 'messenger' | 'sms' | 'bolna' | string;
+  phoneDisplay?: string;
+  phoneNumberId?: string;
+  businessAccountId?: string;
 }
 
 export interface CreateAgentRequest {

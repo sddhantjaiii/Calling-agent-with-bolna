@@ -863,6 +863,30 @@ class ApiService {
     return this.request<Agent[]>(API_ENDPOINTS.AGENTS.LIST);
   }
 
+  /**
+   * Get all agents (both call agents and chat agents combined)
+   */
+  async getAllAgents(): Promise<ApiResponse<Agent[]>> {
+    const user = this.getCurrentUser();
+    if (!user) {
+      throw createApiError('User must be authenticated to access agents', 401, 'UNAUTHORIZED');
+    }
+
+    return this.request<Agent[]>(API_ENDPOINTS.AGENTS.ALL);
+  }
+
+  /**
+   * Get only chat agents from the Chat Agent Server
+   */
+  async getChatAgents(): Promise<ApiResponse<Agent[]>> {
+    const user = this.getCurrentUser();
+    if (!user) {
+      throw createApiError('User must be authenticated to access chat agents', 401, 'UNAUTHORIZED');
+    }
+
+    return this.request<Agent[]>(API_ENDPOINTS.AGENTS.CHAT);
+  }
+
   async getAgent(id: string): Promise<ApiResponse<Agent>> {
     // Validate user context and agent ownership before making request
     await this.validateAgentOwnership(id);

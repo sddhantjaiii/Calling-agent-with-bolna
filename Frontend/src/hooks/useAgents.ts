@@ -122,7 +122,7 @@ export const useAgents = (): UseAgentsReturn => {
     return errorMessage;
   };
 
-  // Query for agents with caching (user-specific)
+  // Query for all agents (call + chat) with caching (user-specific)
   const {
     data: agents = [],
     isLoading: loading,
@@ -134,13 +134,15 @@ export const useAgents = (): UseAgentsReturn => {
       // Validate user context before making API call
       validateUserAuthentication();
 
-      const response = await apiService.getAgents();
+      // Fetch all agents (call + chat combined)
+      const response = await apiService.getAllAgents();
       const agentsList = response.data || (response as unknown as Agent[]);
 
-      // Normalize elevenlabsAgentId across snake/camel cases
+      // Normalize agent data across snake/camel cases
       const normalized = (agentsList as any[]).map((a) => ({
         ...a,
         elevenlabsAgentId: a.elevenlabsAgentId || a.elevenlabs_agent_id,
+        bolnaAgentId: a.bolnaAgentId || a.bolna_agent_id,
       }));
 
       // Validate that all returned agents belong to current user

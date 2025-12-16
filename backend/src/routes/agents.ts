@@ -11,6 +11,8 @@ router.use(authenticateToken, requireAuth);
 
 // Agent management routes (no agent ownership validation needed)
 router.get('/', (req: Request, res: Response) => agentController.getAgents(req as AuthenticatedRequest, res));
+router.get('/all', (req: Request, res: Response) => agentController.getAllAgents(req as AuthenticatedRequest, res));
+router.get('/chat', (req: Request, res: Response) => agentController.getChatAgents(req as AuthenticatedRequest, res));
 router.post('/', (req: Request, res: Response) => agentController.createAgent(req as AuthenticatedRequest, res));
 router.get('/voices', (req: Request, res: Response) => agentController.getVoices(req as AuthenticatedRequest, res));
 router.get('/test-connection', (req: Request, res: Response) => agentController.testConnection(req as AuthenticatedRequest, res));

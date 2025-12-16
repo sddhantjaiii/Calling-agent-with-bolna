@@ -57,6 +57,8 @@ export const API_ENDPOINTS = {
   // Agents
   AGENTS: {
     LIST: `${API_URL}/agents`,
+    ALL: `${API_URL}/agents/all`,
+    CHAT: `${API_URL}/agents/chat`,
     CREATE: `${API_URL}/agents`,
     GET: (id: string) => `${API_URL}/agents/${id}`,
     UPDATE: (id: string) => `${API_URL}/agents/${id}`,

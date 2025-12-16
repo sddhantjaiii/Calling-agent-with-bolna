@@ -704,9 +704,9 @@ const ChatLogs = ({}: ChatLogsProps) => {
           </div>
 
           {/* Messages */}
-          <div className="flex-1 p-4 space-y-4 overflow-y-auto flex flex-col">
+          <div className="flex-1 px-4 py-3 space-y-3 overflow-y-auto flex flex-col">
             {messagesLoading ? (
-              <div className="space-y-4 flex-1">
+              <div className="space-y-3 flex-1">
                 <MessageSkeleton isAgent={true} />
                 <MessageSkeleton isAgent={false} />
                 <MessageSkeleton isAgent={true} />
@@ -733,24 +733,51 @@ const ChatLogs = ({}: ChatLogsProps) => {
                   const isFailed = message.status === 'failed';
                   const isMeetingJson = tryParseMeetingJson(message.text) !== null;
                   const isTemplate = message.is_template === true;
+                  const isAgent = message.sender === "agent";
                   
                   return (
                     <div
                       key={message.message_id}
-                      className={`flex ${
-                        message.sender === "agent" ? "justify-start" : "justify-end"
-                      }`}
+                      className={`flex ${isAgent ? "justify-start" : "justify-end"}`}
                     >
-                      <div className="flex flex-col">
+                      {/* WhatsApp-style message bubble with tail */}
+                      <div className={`relative max-w-[75%] lg:max-w-[65%] ${isAgent ? "ml-2" : "mr-2"}`}>
+                        {/* Bubble tail */}
                         <div
-                          className={`max-w-xs lg:max-w-md xl:max-w-lg px-4 py-2 rounded-lg ${
+                          className={`absolute top-0 w-3 h-3 ${
+                            isAgent
+                              ? "-left-1.5"
+                              : "-right-1.5"
+                          }`}
+                          style={{
+                            clipPath: isAgent
+                              ? "polygon(100% 0, 100% 100%, 0 0)"
+                              : "polygon(0 0, 100% 0, 0 100%)",
+                            backgroundColor: isFailed
+                              ? "rgb(127 29 29 / 0.5)"
+                              : isTemplate
+                                ? theme === "dark" ? "rgb(120 53 15 / 0.5)" : "rgb(254 243 199)"
+                                : isAgent
+                                  ? isMeetingJson
+                                    ? theme === "dark" ? "rgb(6 78 59 / 0.5)" : "rgb(209 250 229)"
+                                    : theme === "dark" ? "rgb(51 65 85)" : "rgb(229 231 235)"
+                                  : "rgb(5 150 105)"
+                          }}
+                        />
+                        
+                        <div
+                          className={`relative px-3 py-2 shadow-sm ${
+                            isAgent
+                              ? "rounded-tr-xl rounded-br-xl rounded-bl-xl"
+                              : "rounded-tl-xl rounded-bl-xl rounded-br-xl"
+                          } ${
                             isFailed
                               ? "bg-red-900/50 border border-red-500/50 text-red-100"
                               : isTemplate
                                 ? theme === "dark"
                                   ? "bg-amber-900/50 border border-amber-500/40 text-amber-50"
                                   : "bg-amber-50 border border-amber-300 text-amber-900"
-                                : message.sender === "agent"
+                                : isAgent
                                   ? isMeetingJson
                                     ? theme === "dark"
                                       ? "bg-emerald-900/50 border border-emerald-500/30 text-white"
@@ -761,9 +788,9 @@ const ChatLogs = ({}: ChatLogsProps) => {
                                   : "bg-emerald-600 text-white"
                           }`}
                         >
-                          {message.sender === "agent" && (
-                            <p className={`text-xs mb-1 ${
-                              isFailed ? "text-red-300" : isTemplate ? (theme === "dark" ? "text-amber-300" : "text-amber-600") : theme === "dark" ? "text-slate-400" : "text-gray-500"
+                          {isAgent && (
+                            <p className={`text-xs font-medium mb-1 ${
+                              isFailed ? "text-red-300" : isTemplate ? (theme === "dark" ? "text-amber-300" : "text-amber-600") : theme === "dark" ? "text-emerald-400" : "text-emerald-600"
                             }`}>
                               {isTemplate ? "📋" : "🤖"} {message.agent_name}
                             </p>
@@ -772,35 +799,33 @@ const ChatLogs = ({}: ChatLogsProps) => {
                           {/* Render message content - handles meeting JSON formatting */}
                           {renderMessageContent(message, theme)}
                           
-                          <div className="flex items-center justify-between mt-1 gap-2">
-                            <span className={`text-xs ${isFailed ? "text-red-300" : isTemplate ? (theme === "dark" ? "text-amber-300/70" : "text-amber-600/70") : "opacity-70"}`}>
+                          <div className={`flex items-center gap-2 mt-1.5 ${isAgent ? "justify-start" : "justify-end"}`}>
+                            <span className={`text-[11px] ${isFailed ? "text-red-300" : isTemplate ? (theme === "dark" ? "text-amber-300/70" : "text-amber-600/70") : "opacity-60"}`}>
                               {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </span>
-                            <div className="flex items-center gap-1">
-                              {isTemplate && (
-                                <Badge variant="outline" className={`text-xs ${
-                                  theme === "dark" ? "border-amber-500/50 text-amber-300 bg-amber-900/30" : "border-amber-400 text-amber-700 bg-amber-100"
-                                }`}>
-                                  Template
-                                </Badge>
-                              )}
-                              <Badge variant="outline" className={`text-xs ${isFailed ? "border-red-400 text-red-300" : isTemplate ? (theme === "dark" ? "border-amber-500/30 text-amber-300/70" : "border-amber-300 text-amber-600/70") : "opacity-70"}`}>
-                                {message.platform}
+                            {isTemplate && (
+                              <Badge variant="outline" className={`text-[10px] px-1.5 py-0 h-4 ${
+                                theme === "dark" ? "border-amber-500/50 text-amber-300 bg-amber-900/30" : "border-amber-400 text-amber-700 bg-amber-100"
+                              }`}>
+                                Template
                               </Badge>
-                              {isFailed && (
-                                <Badge 
-                                  variant="destructive" 
-                                  className="text-xs bg-red-600 text-white cursor-pointer hover:bg-red-700 transition-colors"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleFailedMessageClick(message.message_id);
-                                  }}
-                                >
-                                  <AlertCircle className="w-3 h-3 mr-1" />
-                                  Failed
-                                </Badge>
-                              )}
-                            </div>
+                            )}
+                            <Badge variant="outline" className={`text-[10px] px-1.5 py-0 h-4 ${isFailed ? "border-red-400 text-red-300" : isTemplate ? (theme === "dark" ? "border-amber-500/30 text-amber-300/70" : "border-amber-300 text-amber-600/70") : "opacity-60"}`}>
+                              {message.platform}
+                            </Badge>
+                            {isFailed && (
+                              <Badge 
+                                variant="destructive" 
+                                className="text-[10px] px-1.5 py-0 h-4 bg-red-600 text-white cursor-pointer hover:bg-red-700 transition-colors"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleFailedMessageClick(message.message_id);
+                                }}
+                              >
+                                <AlertCircle className="w-2.5 h-2.5 mr-0.5" />
+                                Failed
+                              </Badge>
+                            )}
                           </div>
                         </div>
                         
@@ -809,7 +834,7 @@ const ChatLogs = ({}: ChatLogsProps) => {
                           <button
                             onClick={() => handleFailedMessageClick(message.message_id)}
                             className={`flex items-center gap-1 mt-1 text-xs text-red-500 hover:text-red-400 transition-colors cursor-pointer ${
-                              message.sender === "agent" ? "justify-start" : "justify-end"
+                              isAgent ? "justify-start" : "justify-end"
                             }`}
                           >
                             <AlertCircle className="w-3 h-3" />

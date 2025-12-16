@@ -86,20 +86,20 @@ const ExcelColumnFilter = ({ title, options, selectedValues, onSelectionChange, 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="flex items-center gap-2 px-3 py-2 rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground transition-colors">
-          <Filter className={`w-4 h-4 ${hasActiveFilter ? 'text-primary fill-primary/20' : 'text-muted-foreground'}`} />
-          <span className="text-sm">{title}</span>
+        <button className={`flex items-center gap-1.5 px-2.5 py-1.5 h-9 rounded-md border text-sm transition-colors ${hasActiveFilter ? 'border-primary/50 bg-primary/10 text-primary' : 'border-input bg-background hover:bg-accent hover:text-accent-foreground'}`}>
+          <Filter className={`w-3.5 h-3.5 ${hasActiveFilter ? 'text-primary' : 'text-muted-foreground'}`} />
+          <span>{title}</span>
           {hasActiveFilter && (
-            <span className="text-xs bg-primary text-primary-foreground rounded-full px-1.5 py-0.5">
+            <span className="text-[10px] bg-primary text-primary-foreground rounded-full w-4 h-4 flex items-center justify-center font-medium">
               {selectedValues.length}
             </span>
           )}
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-56 max-h-80 overflow-y-auto">
-        <DropdownMenuItem onClick={handleToggleAll} className="flex items-center gap-2">
-          <div className={`w-4 h-4 border rounded flex items-center justify-center ${isAllSelected ? 'bg-primary border-primary' : 'border-input'}`}>
-            {isAllSelected && <Check className="w-3 h-3 text-primary-foreground" />}
+      <DropdownMenuContent align="start" className="w-48 max-h-72 overflow-y-auto">
+        <DropdownMenuItem onClick={handleToggleAll} className="flex items-center gap-2 text-sm">
+          <div className={`w-3.5 h-3.5 border rounded flex items-center justify-center ${isAllSelected ? 'bg-primary border-primary' : 'border-input'}`}>
+            {isAllSelected && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
           </div>
           <span className="font-medium">{showAllLabel}</span>
         </DropdownMenuItem>
@@ -110,10 +110,10 @@ const ExcelColumnFilter = ({ title, options, selectedValues, onSelectionChange, 
             <DropdownMenuItem 
               key={option.value} 
               onClick={() => handleToggleOption(option.value)}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 text-sm"
             >
-              <div className={`w-4 h-4 border rounded flex items-center justify-center ${isSelected ? 'bg-primary border-primary' : 'border-input'}`}>
-                {isSelected && <Check className="w-3 h-3 text-primary-foreground" />}
+              <div className={`w-3.5 h-3.5 border rounded flex items-center justify-center ${isSelected ? 'bg-primary border-primary' : 'border-input'}`}>
+                {isSelected && <Check className="w-2.5 h-2.5 text-primary-foreground" />}
               </div>
               <span>{option.label}</span>
             </DropdownMenuItem>
@@ -122,7 +122,7 @@ const ExcelColumnFilter = ({ title, options, selectedValues, onSelectionChange, 
         {selectedValues.length > 0 && (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleToggleAll} className="text-muted-foreground">
+            <DropdownMenuItem onClick={handleToggleAll} className="text-muted-foreground text-sm">
               Clear filter
             </DropdownMenuItem>
           </>
@@ -668,6 +668,26 @@ const CallLogs: React.FC<CallLogsProps> = ({
     return failedStatuses.includes(lifecycleStatus?.toLowerCase() || '');
   };
 
+  // Normalize hangupBy to user-friendly display
+  const getDisplayHangupBy = (call: Call) => {
+    const hangupBy = call.hangupBy?.toLowerCase() || '';
+    const hangupReason = call.hangupReason?.toLowerCase() || '';
+    
+    // If hangupBy is Plivo/Bolna or hangupReason mentions agent/bolna ending, show "Agent"
+    if (hangupBy === 'plivo' || hangupBy === 'bolna' || hangupBy === 'system') {
+      // Check hangupReason for more context
+      if (hangupReason.includes('end of input') || hangupReason.includes('agent') || hangupReason.includes('bolna')) {
+        return 'Agent';
+      }
+      return 'Agent';
+    }
+    // User/customer hung up
+    if (hangupBy === 'user' || hangupBy === 'customer' || hangupBy === 'caller') {
+      return 'User';
+    }
+    // Default: capitalize the original value
+    return call.hangupBy ? call.hangupBy.charAt(0).toUpperCase() + call.hangupBy.slice(1) : '';
+  };
 
 
   // Handle error state
@@ -686,188 +706,177 @@ const CallLogs: React.FC<CallLogsProps> = ({
 
   return (
     <TooltipProvider>
-      <div className="p-6 space-y-6">
-        {/* Header Section */}
-        <div className="flex items-center justify-between">
-          <h2
-            className={`text-2xl font-bold ${theme === "dark" ? "text-white" : "text-gray-900"
-              }`}
-          >
-            Unified Call Logs
+      <div className="p-4 space-y-3">
+        {/* Compact Header + Search Row */}
+        <div className="flex items-center gap-4 flex-wrap">
+          <h2 className={`text-xl font-bold whitespace-nowrap ${theme === "dark" ? "text-white" : "text-gray-900"}`}>
+            Call Logs
           </h2>
-          <div className="text-sm text-gray-500">
+          <div className="relative flex-1 min-w-[200px] max-w-md">
+            <Search className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 ${theme === "dark" ? "text-slate-400" : "text-gray-500"}`} />
+            <Input
+              type="text"
+              placeholder="Search contacts, phone..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9 h-9"
+            />
+          </div>
+          <div className="text-xs text-gray-500 ml-auto whitespace-nowrap">
             {loading ? 'Loading...' : (
               useLazyLoading 
-                ? `Showing ${filteredCalls.length} calls${totalCalls > 0 ? ` of ${totalCalls} total` : ''}${hasMore ? ' (scroll for more)' : ''}`
-                : `Displaying ${filteredCalls.length} of ${totalCalls} calls`
+                ? `${filteredCalls.length}${totalCalls > 0 ? ` / ${totalCalls}` : ''} calls`
+                : `${filteredCalls.length} / ${totalCalls} calls`
             )}
           </div>
         </div>
 
-        {/* Search and Filter Controls */}
-        <div className={`p-4 rounded-lg border ${theme === 'dark' ? 'bg-slate-900/50 border-slate-800' : 'bg-gray-50 border-gray-200'}`}>
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="relative flex-1 min-w-[250px]">
-              <Search
-                className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 ${theme === "dark" ? "text-slate-400" : "text-gray-500"
-                  }`}
-              />
-              <Input
-                type="text"
-                placeholder="Search by contact, phone, or status..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-
-            <div className="mt-2 flex items-center gap-2 flex-wrap">
-              {/* Agent Filter - Excel-like multi-select */}
-              {agents.length > 0 && (
-                <ExcelColumnFilter
-                  title="Agents"
-                  options={agents.map(agent => ({ value: agent.name, label: agent.name }))}
-                  selectedValues={columnFilters.agents}
-                  onSelectionChange={(values) => {
-                    updateColumnFilter('agents', values);
-                    if (onAgentFilterChange) {
-                      onAgentFilterChange(values);
-                    }
-                  }}
-                  showAllLabel="All Agents"
-                />
-              )}
-
-              {/* Campaign Filter - Excel-like multi-select */}
-              {campaigns.length > 0 && (
-                <ExcelColumnFilter
-                  title="Campaigns"
-                  options={campaigns.map(campaign => ({ value: campaign.id, label: campaign.name }))}
-                  selectedValues={columnFilters.campaigns}
-                  onSelectionChange={(values) => {
-                    updateColumnFilter('campaigns', values);
-                    if (onCampaignFilterChange) {
-                      onCampaignFilterChange(values.length > 0 ? values[0] : null);
-                    }
-                  }}
-                  showAllLabel="All Campaigns"
-                />
-              )}
-
-              {/* Lead Type Filter - Excel-like multi-select */}
-              <ExcelColumnFilter
-                title="Call Type"
-                options={[
-                  { value: 'inbound', label: 'Inbound' },
-                  { value: 'outbound', label: 'Outbound' },
-                ]}
-                selectedValues={columnFilters.leadType}
-                onSelectionChange={(values) => updateColumnFilter('leadType', values)}
-                showAllLabel="All Types"
-              />
-
-              {/* Status Filter - Excel-like multi-select */}
-              <ExcelColumnFilter
-                title="Status"
-                options={[
-                  { value: 'completed', label: 'Completed' },
-                  { value: 'failed', label: 'Failed' },
-                  { value: 'in_progress', label: 'In Progress' },
-                  { value: 'cancelled', label: 'Cancelled' },
-                  { value: 'busy', label: 'Busy' },
-                  { value: 'no-answer', label: 'No Answer' },
-                  { value: 'ringing', label: 'Ringing' },
-                  { value: 'initiated', label: 'Initiated' },
-                ]}
-                selectedValues={columnFilters.status}
-                onSelectionChange={(values) => updateColumnFilter('status', values)}
-                showAllLabel="All Status"
-              />
-
-              <DateRangePicker
-                startDate={startDate}
-                endDate={endDate}
-                onDateChange={(start, end) => {
-                  setStartDate(start);
-                  setEndDate(end);
-                }}
-                placeholder="Filter by date range"
-              />
-
-              <Select value={sortBy} onValueChange={(newVal) => handleSortChange(newVal as any)}>
-                <SelectTrigger className="w-40">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="createdAt">Sort by Latest</SelectItem>
-                  <SelectItem value="durationSeconds">Sort by Duration</SelectItem>
-                  <SelectItem value="contactName">Sort by Contact</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => setSortOrder(sortOrder === 'ASC' ? 'DESC' : 'ASC')}
-                className="w-10 h-10 flex-shrink-0"
-              >
-                {sortOrder === 'ASC' ? '↑' : '↓'}
-              </Button>
-
-              {/* Clear All Filters Button */}
-              {hasActiveColumnFilters && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={clearAllColumnFilters}
-                  className="h-10"
-                >
-                  <X className="w-4 h-4 mr-2" />
-                  Clear Filters
-                </Button>
-              )}
-            </div>
-          </div>
-
-          {/* Active Filters Summary */}
-          {hasActiveColumnFilters && (
-            <div className="flex flex-wrap gap-2 items-center mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-              <span className="text-sm text-muted-foreground">Active filters:</span>
-              {columnFilters.agents.length > 0 && (
-                <Badge variant="secondary" className="text-xs">
-                  Agents: {columnFilters.agents.join(', ')}
-                  <button onClick={() => updateColumnFilter('agents', [])} className="ml-1 hover:text-destructive">
-                    <X className="w-3 h-3" />
-                  </button>
-                </Badge>
-              )}
-              {columnFilters.campaigns.length > 0 && (
-                <Badge variant="secondary" className="text-xs">
-                  Campaigns: {columnFilters.campaigns.map(id => campaigns.find(c => c.id === id)?.name || id).join(', ')}
-                  <button onClick={() => updateColumnFilter('campaigns', [])} className="ml-1 hover:text-destructive">
-                    <X className="w-3 h-3" />
-                  </button>
-                </Badge>
-              )}
-              {columnFilters.leadType.length > 0 && (
-                <Badge variant="secondary" className="text-xs">
-                  Type: {columnFilters.leadType.join(', ')}
-                  <button onClick={() => updateColumnFilter('leadType', [])} className="ml-1 hover:text-destructive">
-                    <X className="w-3 h-3" />
-                  </button>
-                </Badge>
-              )}
-              {columnFilters.status.length > 0 && (
-                <Badge variant="secondary" className="text-xs">
-                  Status: {columnFilters.status.join(', ')}
-                  <button onClick={() => updateColumnFilter('status', [])} className="ml-1 hover:text-destructive">
-                    <X className="w-3 h-3" />
-                  </button>
-                </Badge>
-              )}
-            </div>
+        {/* Compact Filter Row */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Agent Filter */}
+          {agents.length > 0 && (
+            <ExcelColumnFilter
+              title="Agents"
+              options={agents.map(agent => ({ value: agent.name, label: agent.name }))}
+              selectedValues={columnFilters.agents}
+              onSelectionChange={(values) => {
+                updateColumnFilter('agents', values);
+                if (onAgentFilterChange) {
+                  onAgentFilterChange(values);
+                }
+              }}
+              showAllLabel="All Agents"
+            />
           )}
+
+          {/* Campaign Filter */}
+          {campaigns.length > 0 && (
+            <ExcelColumnFilter
+              title="Campaigns"
+              options={campaigns.map(campaign => ({ value: campaign.id, label: campaign.name }))}
+              selectedValues={columnFilters.campaigns}
+              onSelectionChange={(values) => {
+                updateColumnFilter('campaigns', values);
+                if (onCampaignFilterChange) {
+                  onCampaignFilterChange(values.length > 0 ? values[0] : null);
+                }
+              }}
+              showAllLabel="All Campaigns"
+            />
+          )}
+
+          {/* Call Type Filter */}
+          <ExcelColumnFilter
+            title="Type"
+            options={[
+              { value: 'inbound', label: 'Inbound' },
+              { value: 'outbound', label: 'Outbound' },
+            ]}
+            selectedValues={columnFilters.leadType}
+            onSelectionChange={(values) => updateColumnFilter('leadType', values)}
+            showAllLabel="All Types"
+          />
+
+          {/* Status Filter */}
+          <ExcelColumnFilter
+            title="Status"
+            options={[
+              { value: 'completed', label: 'Completed' },
+              { value: 'failed', label: 'Failed' },
+              { value: 'in_progress', label: 'In Progress' },
+              { value: 'cancelled', label: 'Cancelled' },
+              { value: 'busy', label: 'Busy' },
+              { value: 'no-answer', label: 'No Answer' },
+              { value: 'ringing', label: 'Ringing' },
+              { value: 'initiated', label: 'Initiated' },
+            ]}
+            selectedValues={columnFilters.status}
+            onSelectionChange={(values) => updateColumnFilter('status', values)}
+            showAllLabel="All Status"
+          />
+
+          <DateRangePicker
+            startDate={startDate}
+            endDate={endDate}
+            onDateChange={(start, end) => {
+              setStartDate(start);
+              setEndDate(end);
+            }}
+            placeholder="Date range"
+          />
+
+          <div className="flex items-center gap-1 ml-auto">
+            <Select value={sortBy} onValueChange={(newVal) => handleSortChange(newVal as any)}>
+              <SelectTrigger className="w-32 h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="createdAt">Latest</SelectItem>
+                <SelectItem value="durationSeconds">Duration</SelectItem>
+                <SelectItem value="contactName">Contact</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setSortOrder(sortOrder === 'ASC' ? 'DESC' : 'ASC')}
+              className="w-9 h-9 flex-shrink-0"
+            >
+              {sortOrder === 'ASC' ? '↑' : '↓'}
+            </Button>
+
+            {hasActiveColumnFilters && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearAllColumnFilters}
+                className="h-9 text-xs text-muted-foreground hover:text-destructive"
+              >
+                <X className="w-3 h-3 mr-1" />
+                Clear
+              </Button>
+            )}
+          </div>
         </div>
+
+        {/* Active Filters (only when filters are applied) */}
+        {hasActiveColumnFilters && (
+          <div className="flex flex-wrap gap-1.5 items-center">
+            {columnFilters.agents.length > 0 && (
+              <Badge variant="secondary" className="text-xs py-0.5">
+                {columnFilters.agents.join(', ')}
+                <button onClick={() => updateColumnFilter('agents', [])} className="ml-1 hover:text-destructive">
+                  <X className="w-3 h-3" />
+                </button>
+              </Badge>
+            )}
+            {columnFilters.campaigns.length > 0 && (
+              <Badge variant="secondary" className="text-xs py-0.5">
+                {columnFilters.campaigns.map(id => campaigns.find(c => c.id === id)?.name || id).join(', ')}
+                <button onClick={() => updateColumnFilter('campaigns', [])} className="ml-1 hover:text-destructive">
+                  <X className="w-3 h-3" />
+                </button>
+              </Badge>
+            )}
+            {columnFilters.leadType.length > 0 && (
+              <Badge variant="secondary" className="text-xs py-0.5">
+                {columnFilters.leadType.join(', ')}
+                <button onClick={() => updateColumnFilter('leadType', [])} className="ml-1 hover:text-destructive">
+                  <X className="w-3 h-3" />
+                </button>
+              </Badge>
+            )}
+            {columnFilters.status.length > 0 && (
+              <Badge variant="secondary" className="text-xs py-0.5">
+                {columnFilters.status.join(', ')}
+                <button onClick={() => updateColumnFilter('status', [])} className="ml-1 hover:text-destructive">
+                  <X className="w-3 h-3" />
+                </button>
+              </Badge>
+            )}
+          </div>
+        )}
 
         {/* Call Log Cards */}
         <div 
@@ -914,154 +923,188 @@ const CallLogs: React.FC<CallLogsProps> = ({
             filteredCalls.map((call) => (
               <Card
                 key={call.id}
-                className={`p-0 overflow-hidden transition-all duration-200 ${theme === "dark"
-                  ? "bg-slate-900/70 border-slate-800 hover:border-slate-700"
+                className={`overflow-hidden transition-all duration-200 hover:shadow-md ${theme === "dark"
+                  ? "bg-slate-900/70 border-slate-800 hover:border-slate-600"
                   : "bg-white border-gray-200 hover:border-gray-300"
                   }`}
               >
-                <div className="p-4 flex items-center justify-between">
-                  {/* Left side - Contact info */}
-                  <div className="flex items-center space-x-4">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-medium text-lg ${theme === "dark" ? "bg-slate-700" : "bg-slate-500"}`}>
-                      {call.contactName?.charAt(0) || 'U'}
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3
-                          className={`font-semibold cursor-pointer hover:underline ${theme === "dark" ? "text-white" : "text-gray-900"}`}
-                          onClick={() => navigateToLeadIntelligence({ phone: call.phoneNumber })}
-                        >
-                          {call.contactName || 'Unknown Contact'}
-                        </h3>
-                        {/* Campaign Badge */}
-                        {call.campaignName && (
-                          <Badge 
-                            variant="outline" 
-                            className="text-xs border-green-600 text-green-600 dark:border-green-400 dark:text-green-400"
+                {/* Main Content Row */}
+                <div className="p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    {/* Left: Avatar + Contact Info */}
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      {/* Avatar with status indicator */}
+                      <div className="relative flex-shrink-0">
+                        <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold text-lg ${
+                          call.leadType === 'inbound' 
+                            ? 'bg-blue-600' 
+                            : 'bg-emerald-600'
+                        }`}>
+                          {call.contactName?.charAt(0)?.toUpperCase() || 'U'}
+                        </div>
+                        {/* Status dot */}
+                        <span className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 ${theme === 'dark' ? 'border-slate-900' : 'border-white'} ${getStatusColor(call)}`}></span>
+                      </div>
+
+                      {/* Contact Details */}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3
+                            className={`font-semibold text-base cursor-pointer hover:text-emerald-600 transition-colors truncate ${theme === "dark" ? "text-white" : "text-gray-900"}`}
+                            onClick={() => navigateToLeadIntelligence({ phone: call.phoneNumber })}
                           >
-                            {call.campaignName}
+                            {call.contactName || 'Unknown Contact'}
+                          </h3>
+                          {/* Call Type Badge */}
+                          <Badge 
+                            variant="secondary"
+                            className={`text-[10px] px-1.5 py-0 h-5 font-medium ${
+                              call.leadType === 'inbound' 
+                                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' 
+                                : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                            }`}
+                          >
+                            {call.leadType === 'inbound' ? '↓ In' : '↑ Out'}
                           </Badge>
-                        )}
-                      </div>
-                      <p className={`text-sm ${theme === "dark" ? "text-slate-400" : "text-gray-600"}`}>
-                        {call.phoneNumber}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Right side - Action buttons */}
-                  <div className="flex items-center space-x-2">
-                    {!isCallFailed(call) ? (
-                      <>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleShowTranscript(call)}
-                        >
-                          <FileText className="w-4 h-4 mr-2" />
-                          Transcript
-                        </Button>
-                        <Button
-                          variant="default"
-                          size="sm"
-                          onClick={() => handlePlayAudio(call.id)}
-                          className="text-white"
-                          style={{ backgroundColor: '#1A6262' }}
-                        >
-                          <Play className="w-4 h-4 mr-2" />
-                          Play Audio
-                        </Button>
-                      </>
-                    ) : (
-                      <div className="text-sm text-gray-500 italic">
-                        No recording available
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Bottom section - Metadata & Audio Player */}
-                <div className={`px-4 py-3 border-t ${theme === 'dark' ? 'bg-slate-900/50 border-slate-800' : 'bg-gray-50 border-gray-200'}`}>
-                  {playingAudio !== call.id && isAudioLoading !== call.id ? (
-                    <div className="grid grid-cols-2 md:grid-cols-6 gap-4 text-sm">
-                      <div className="space-y-1">
-                        <p className="text-slate-400">Status</p>
-                        <div className="flex items-center">
-                          <span className={`w-2 h-2 rounded-full mr-2 ${getStatusColor(call)}`}></span>
-                          <span className="font-medium">{getDisplayStatus(call)}</span>
+                        </div>
+                        <p className={`text-sm font-medium ${theme === "dark" ? "text-slate-400" : "text-gray-500"}`}>
+                          {call.phoneNumber}
+                        </p>
+                        {/* Quick Info Row */}
+                        <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                          {call.campaignName && (
+                            <span className="inline-flex items-center text-xs text-emerald-600 dark:text-emerald-400">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5"></span>
+                              {call.campaignName}
+                            </span>
+                          )}
+                          <span className={`text-xs ${theme === "dark" ? "text-slate-500" : "text-gray-400"}`}>
+                            {call.createdAt ? (
+                              <>
+                                {new Date(call.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                                {' • '}
+                                {new Date(call.createdAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })}
+                              </>
+                            ) : '—'}
+                          </span>
+                          {call.agentName && (
+                            <span className={`text-xs ${theme === "dark" ? "text-slate-500" : "text-gray-400"}`}>
+                              • {call.agentName}
+                            </span>
+                          )}
                         </div>
                       </div>
-                      <div className="space-y-1">
-                        <p className="text-slate-400">Call Type</p>
-                        <p className="font-medium capitalize">
-                          {call.leadType === 'inbound' ? (
-                            <span className="text-blue-600 dark:text-blue-400">Inbound</span>
-                          ) : call.leadType === 'outbound' ? (
-                            <span className="text-green-600 dark:text-green-400">Outbound</span>
-                          ) : (
-                            'N/A'
-                          )}
+                    </div>
+
+                    {/* Center: Call Stats */}
+                    <div className="hidden md:flex items-center gap-6 flex-shrink-0">
+                      {/* Status */}
+                      <div className="text-center min-w-[70px]">
+                        <p className={`text-[10px] uppercase tracking-wider mb-0.5 ${theme === "dark" ? "text-slate-500" : "text-gray-400"}`}>Status</p>
+                        <p className={`text-sm font-medium ${
+                          getStatusColor(call) === 'bg-green-500' ? 'text-green-600 dark:text-green-400' :
+                          getStatusColor(call) === 'bg-red-500' ? 'text-red-600 dark:text-red-400' :
+                          getStatusColor(call) === 'bg-blue-500' ? 'text-blue-600 dark:text-blue-400' :
+                          'text-gray-600 dark:text-gray-400'
+                        }`}>
+                          {getDisplayStatus(call)}
                         </p>
                       </div>
-                       <div className="space-y-1">
-                        <p className="text-slate-400">Duration</p>
-                        <p className="font-medium">
+                      {/* Duration */}
+                      <div className="text-center min-w-[60px]">
+                        <p className={`text-[10px] uppercase tracking-wider mb-0.5 ${theme === "dark" ? "text-slate-500" : "text-gray-400"}`}>Duration</p>
+                        <p className={`text-sm font-mono font-medium ${theme === "dark" ? "text-white" : "text-gray-900"}`}>
                           {(() => {
                             if (call.durationSeconds && !isNaN(call.durationSeconds)) {
                               const mins = Math.floor(call.durationSeconds / 60);
                               const secs = call.durationSeconds % 60;
                               return `${mins}:${String(secs).padStart(2, '0')}`;
                             }
-                            if (call.displayDuration) {
-                               const parts = call.displayDuration.replace(/ min| sec/g, '').split(' ').filter(Boolean);
-                               if (call.displayDuration.includes('min')) {
-                                 const mins = parts[0] || '0';
-                                 const secs = parts[1] || '0';
-                                 return `${mins}:${String(secs).padStart(2, '0')}`;
-                               }
-                               const secs = parts[0] || '0';
-                               return `0:${String(secs).padStart(2, '0')}`;
-                            }
-                            if (call.durationMinutes && !isNaN(call.durationMinutes)) {
-                              return `${Math.floor(call.durationMinutes)}:${String(Math.round((call.durationMinutes % 1) * 60)).padStart(2, '0')}`;
-                            }
                             return '0:00';
                           })()}
                         </p>
                       </div>
-                      <div className="space-y-1">
-                        <p className="text-slate-400">Agent</p>
-                        <p className="font-medium">{call.agentName || 'N/A'}</p>
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-slate-400">Date & Time</p>
-                        <p className="font-medium">
-                          {call.createdAt ? (
-                            <>
-                              {new Date(call.createdAt).toLocaleDateString('en-GB')}
-                              {' '}
-                              {new Date(call.createdAt).toLocaleTimeString('en-GB', { 
-                                hour: '2-digit', 
-                                minute: '2-digit',
-                                hour12: false 
-                              })}
-                            </>
-                          ) : 'N/A'}
-                        </p>
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-slate-400">Hung Up By</p>
-                        <p className="font-medium capitalize">{call.hangupBy || 'N/A'}</p>
-                        {call.hangupReason && (
-                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{call.hangupReason}</p>
-                        )}
-                      </div>
+                      {/* Hung Up By */}
+                      {call.hangupBy && (
+                        <div className="text-center min-w-[70px]">
+                          <p className={`text-[10px] uppercase tracking-wider mb-0.5 ${theme === "dark" ? "text-slate-500" : "text-gray-400"}`}>Ended By</p>
+                          <p className={`text-sm font-medium ${theme === "dark" ? "text-slate-300" : "text-gray-600"}`}>
+                            {getDisplayHangupBy(call)}
+                          </p>
+                        </div>
+                      )}
                     </div>
-                  ) : (
-                    /* Enhanced Audio Player */
-                     <div
-                      className={`flex items-center space-x-4 w-full`}
-                    >
+
+                    {/* Right: Actions */}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {!isCallFailed(call) ? (
+                        <>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleShowTranscript(call)}
+                                className="h-9 w-9"
+                              >
+                                <FileText className="w-4 h-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>View Transcript</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="default"
+                                size="icon"
+                                onClick={() => handlePlayAudio(call.id)}
+                                className="h-9 w-9 text-white"
+                                style={{ backgroundColor: '#1A6262' }}
+                              >
+                                <Play className="w-4 h-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Play Recording</TooltipContent>
+                          </Tooltip>
+                        </>
+                      ) : (
+                        <Badge variant="outline" className="text-xs text-gray-500 border-gray-300 dark:border-gray-600">
+                          No Recording
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Mobile: Quick Stats Row */}
+                  <div className="flex md:hidden items-center gap-4 mt-3 pt-3 border-t border-gray-100 dark:border-slate-800">
+                    <div className="flex items-center gap-1.5">
+                      <span className={`w-2 h-2 rounded-full ${getStatusColor(call)}`}></span>
+                      <span className={`text-xs font-medium ${theme === "dark" ? "text-slate-300" : "text-gray-600"}`}>
+                        {getDisplayStatus(call)}
+                      </span>
+                    </div>
+                    <span className={`text-xs font-mono ${theme === "dark" ? "text-slate-400" : "text-gray-500"}`}>
+                      {(() => {
+                        if (call.durationSeconds && !isNaN(call.durationSeconds)) {
+                          const mins = Math.floor(call.durationSeconds / 60);
+                          const secs = call.durationSeconds % 60;
+                          return `${mins}:${String(secs).padStart(2, '0')}`;
+                        }
+                        return '0:00';
+                      })()}
+                    </span>
+                    {call.hangupBy && (
+                      <span className={`text-xs ${theme === "dark" ? "text-slate-500" : "text-gray-400"}`}>
+                        • Ended by {getDisplayHangupBy(call)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Audio Player Section (only shows when playing) */}
+                {(playingAudio === call.id || isAudioLoading === call.id) && (
+                  <div className={`px-4 py-3 border-t ${theme === 'dark' ? 'bg-slate-950/50 border-slate-800' : 'bg-gray-50 border-gray-100'}`}>
+                    <div className="flex items-center gap-4">
                       {isAudioLoading === call.id ? (
                         <div className="flex items-center justify-center w-full h-10">
                           <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
@@ -1072,20 +1115,20 @@ const CallLogs: React.FC<CallLogsProps> = ({
                           {/* Play/Pause button */}
                           <button
                             onClick={() => handlePlayAudio(call.id)}
-                             className={`w-10 h-10 rounded-full flex items-center justify-center text-white transition-all duration-200 hover:scale-105 shadow-md ${audioRef.current?.paused ? '' : 'bg-slate-600 hover:bg-slate-500'}`}
-                             style={{ backgroundColor: audioRef.current?.paused ? '#1A6262' : undefined }}
+                            className={`w-10 h-10 rounded-full flex items-center justify-center text-white transition-all duration-200 hover:scale-105 shadow-md flex-shrink-0 ${audioRef.current?.paused ? '' : 'bg-slate-600 hover:bg-slate-500'}`}
+                            style={{ backgroundColor: audioRef.current?.paused ? '#1A6262' : undefined }}
                           >
                             {audioRef.current?.paused ? <Play className="w-5 h-5 ml-0.5" /> : <Pause className="w-5 h-5" />}
                           </button>
 
                           {/* Progress bar and time */}
-                          <div className="flex items-center space-x-3 flex-1">
+                          <div className="flex items-center gap-3 flex-1">
                             <div
                               className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 cursor-pointer"
                               onClick={(e) => handleSeek(e, call.id)}
                             >
                               <div
-                                className="h-1.5 rounded-full"
+                                className="h-1.5 rounded-full transition-all"
                                 style={{ 
                                   backgroundColor: '#1A6262',
                                   width: `${((audioProgressRef.current[call.id]?.current || 0) / (audioProgressRef.current[call.id]?.total || 1)) * 100}%` 
@@ -1109,23 +1152,24 @@ const CallLogs: React.FC<CallLogsProps> = ({
                             </div>
                           </div>
                           
+                          {/* Volume Control */}
                           <div
-                            className="flex items-center space-x-2"
+                            className="flex items-center gap-2 flex-shrink-0"
                             onMouseEnter={() => setShowVolumeControl(true)}
                             onMouseLeave={() => setShowVolumeControl(false)}
                           >
-                            <button onClick={toggleMute} className="p-1 rounded-full transition-colors duration-200 hover:bg-slate-700">
+                            <button onClick={toggleMute} className="p-1.5 rounded-full transition-colors duration-200 hover:bg-slate-100 dark:hover:bg-slate-700">
                               {isMuted || volume === 0 ? (
-                                <VolumeX className="w-5 h-5 text-slate-400" />
+                                <VolumeX className="w-4 h-4 text-slate-400" />
                               ) : volume < 0.5 ? (
-                                <Volume1 className="w-5 h-5 text-slate-400" />
+                                <Volume1 className="w-4 h-4 text-slate-400" />
                               ) : (
-                                <Volume2 className="w-5 h-5 text-slate-400" />
+                                <Volume2 className="w-4 h-4 text-slate-400" />
                               )}
                             </button>
 
                             <div className={`transition-all duration-300 overflow-hidden ${
-                              showVolumeControl ? 'w-24 opacity-100' : 'w-0 opacity-0'
+                              showVolumeControl ? 'w-20 opacity-100' : 'w-0 opacity-0'
                             }`}>
                               <input
                                 type="range"
@@ -1134,25 +1178,24 @@ const CallLogs: React.FC<CallLogsProps> = ({
                                 step="0.05"
                                 value={isMuted ? 0 : volume}
                                 onChange={handleVolumeChange}
-                                className="w-full h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer"
-                                style={{
-                                  accentColor: '#1A6262',
-                                }}
+                                className="w-full h-1 bg-slate-200 dark:bg-slate-600 rounded-lg appearance-none cursor-pointer"
+                                style={{ accentColor: '#1A6262' }}
                               />
                             </div>
                           </div>
 
-                           <button
+                          {/* Close Button */}
+                          <button
                             onClick={handleCloseAudio}
-                            className="p-2 rounded-full transition-colors duration-200 text-slate-400 hover:bg-slate-700 hover:text-slate-200"
+                            className="p-1.5 rounded-full transition-colors duration-200 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-600 dark:hover:text-slate-200 flex-shrink-0"
                           >
                             <X className="w-4 h-4" />
                           </button>
                         </>
                       )}
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
               </Card>
             ))
           )}

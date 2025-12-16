@@ -10,14 +10,6 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
@@ -256,8 +248,9 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
   const { theme } = useTheme();
   const { targetLeadIdentifier, clearTargetLeadId } = useNavigation();
   const { toast } = useToast();
-  const { stages, bulkUpdateLeadStage, getStageColor } = useLeadStages();
+  const { stages, bulkUpdateLeadStage, getStageColor, bulkUpdating } = useLeadStages();
   const [searchTerm, setSearchTerm] = useState("");
+  const [isBulkLeadStageUpdating, setIsBulkLeadStageUpdating] = useState(false);
   
   // Column filters state (Excel-like multi-select)
   const [columnFilters, setColumnFilters] = useState<ColumnFilters>({
@@ -1152,6 +1145,71 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
     fetchLeadIntelligence();
   };
 
+  // Handle bulk lead stage change
+  const handleBulkLeadStageChange = async (newStage: string | null) => {
+    if (selectedContacts.length === 0) {
+      toast({
+        title: "No leads selected",
+        description: "Please select at least one lead to update",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Get contact IDs for selected leads
+    const contactIdsToUpdate = filteredContacts
+      .filter(c => selectedContacts.includes(c.id) && c.contactId)
+      .map(c => c.contactId!);
+
+    if (contactIdsToUpdate.length === 0) {
+      toast({
+        title: "No contacts to update",
+        description: "Selected leads don't have associated contacts",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsBulkLeadStageUpdating(true);
+    try {
+      const result = await bulkUpdateLeadStage(contactIdsToUpdate, newStage);
+      
+      if (result !== null && result > 0) {
+        // Optimistically update local state
+        setContacts(prevContacts => 
+          prevContacts.map(c => 
+            selectedContacts.includes(c.id)
+              ? { ...c, leadStage: newStage || undefined }
+              : c
+          )
+        );
+        
+        toast({
+          title: "Success",
+          description: `Updated lead stage for ${result} lead(s) to "${newStage || 'Unassigned'}"`,
+        });
+        
+        // Clear selection after successful update
+        setSelectedContacts([]);
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to update lead stage",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error bulk updating lead stage:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update lead stage",
+        variant: "destructive",
+      });
+    } finally {
+      setIsBulkLeadStageUpdating(false);
+    }
+  };
+
   if (selectedContact) {
     return (
       <div className="space-y-6">
@@ -1205,57 +1263,57 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
             <CardTitle>Interaction Timeline</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Date & Time</TableHead>
-                    <TableHead>Agent</TableHead>
-                    <TableHead>Platform</TableHead>
-                    <TableHead>Call Type</TableHead>
-                    <TableHead>Hangup By</TableHead>
-                    <TableHead>Lead Status</TableHead>
-                    <TableHead>Smart Summary</TableHead>
-                    <TableHead>Duration</TableHead>
-                    <TableHead>Analytics</TableHead>
-                    <TableHead>CTAs</TableHead>
-                    <TableHead>Requirements</TableHead>
-                    <TableHead>CTA</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Follow-up</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+            <div className="overflow-auto max-h-[500px]">
+              <table className="w-full caption-bottom text-sm">
+                <thead className="sticky top-0 z-20 bg-background [&_tr]:border-b">
+                  <tr className="bg-background border-b">
+                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background">Name</th>
+                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background">Date & Time</th>
+                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background">Agent</th>
+                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background">Platform</th>
+                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background">Call Type</th>
+                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background">Hangup By</th>
+                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background">Lead Status</th>
+                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background">Smart Summary</th>
+                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background">Duration</th>
+                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background">Analytics</th>
+                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background">CTAs</th>
+                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background">Requirements</th>
+                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background">CTA</th>
+                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background">Email</th>
+                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background">Follow-up</th>
+                  </tr>
+                </thead>
+                <tbody className="[&_tr:last-child]:border-0">
                   {timelineLoading ? (
-                    <TableRow>
-                      <TableCell colSpan={15} className="text-center py-8">
+                    <tr className="border-b transition-colors hover:bg-muted/50">
+                      <td colSpan={15} className="p-4 align-middle text-center py-8">
                         <div className="flex items-center justify-center gap-2">
                           <Loader2 className="w-4 h-4 animate-spin" />
                           <span>Loading timeline...</span>
                         </div>
-                      </TableCell>
-                    </TableRow>
+                      </td>
+                    </tr>
                   ) : timeline.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={15} className="text-center py-8 text-muted-foreground">
+                    <tr className="border-b transition-colors hover:bg-muted/50">
+                      <td colSpan={15} className="p-4 align-middle text-center py-8 text-muted-foreground">
                         No interaction history found
-                      </TableCell>
-                    </TableRow>
+                      </td>
+                    </tr>
                   ) : (
                     timeline.map((interaction) => (
-                      <TableRow 
+                      <tr 
                         key={interaction.id}
-                        className="cursor-pointer hover:bg-muted-foreground/10"
+                        className="border-b transition-colors hover:bg-muted/50 cursor-pointer hover:bg-muted-foreground/10"
                         onClick={() => handleInteractionClick(interaction.id)}
                       >
                         {/* Name Column - Show extracted name to see what AI captured */}
-                        <TableCell className="text-foreground font-medium">
+                        <td className="p-4 align-middle text-foreground font-medium">
                           {interaction.leadName || "Anonymous"}
-                        </TableCell>
+                        </td>
                         
                         {/* Date & Time Column - IST */}
-                        <TableCell className="text-foreground">
+                        <td className="p-4 align-middle text-foreground">
                           <div className="text-xs space-y-0.5">
                             <div>{new Date(interaction.interactionDate).toLocaleDateString('en-IN', { 
                               timeZone: 'Asia/Kolkata',
@@ -1272,15 +1330,15 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                               })}
                             </div>
                           </div>
-                        </TableCell>
+                        </td>
                         
                         {/* Agent Column */}
-                        <TableCell className="text-foreground">
+                        <td className="p-4 align-middle text-foreground">
                           {interaction.interactionAgent}
-                        </TableCell>
+                        </td>
                         
                         {/* Platform Column */}
-                        <TableCell className="text-foreground">
+                        <td className="p-4 align-middle text-foreground">
                           {interaction.interactionType === 'email' ? (
                             <div className="flex items-center gap-1.5">
                               <Mail className="w-4 h-4 text-blue-600" />
@@ -1289,10 +1347,10 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                           ) : (
                             interaction.platform || "—"
                           )}
-                        </TableCell>
+                        </td>
                         
                         {/* Call Type (Inbound/Outbound) or Email Status */}
-                        <TableCell className="text-foreground">
+                        <td className="p-4 align-middle text-foreground">
                           {interaction.interactionType === 'email' ? (
                             <Badge
                               variant="outline"
@@ -1311,10 +1369,10 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                           ) : (
                             interaction.callDirection || "—"
                           )}
-                        </TableCell>
+                        </td>
                         
                         {/* Hangup By with Reason - Compact */}
-                        <TableCell>
+                        <td className="p-4 align-middle">
                           {interaction.hangupBy ? (
                             <div className="text-xs space-y-0.5">
                               <div className="capitalize">
@@ -1329,35 +1387,35 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                           ) : (
                             "—"
                           )}
-                        </TableCell>
+                        </td>
                         
                         {/* Lead Status - ONLY place with badges/colors */}
-                        <TableCell>
+                        <td className="p-4 align-middle">
                           <Badge
                             variant="outline"
                             className={getTagColor(interaction.status)}
                           >
                             {interaction.status}
                           </Badge>
-                        </TableCell>
+                        </td>
                         
                         {/* Smart Summary or Email Subject */}
-                        <TableCell className="text-foreground max-w-xs">
+                        <td className="p-4 align-middle text-foreground max-w-xs">
                           <div className="text-xs truncate" title={interaction.interactionType === 'email' ? interaction.emailSubject : interaction.smartNotification || ''}>
                             {interaction.interactionType === 'email' 
                               ? (interaction.emailSubject || "—")
                               : (interaction.smartNotification || "—")
                             }
                           </div>
-                        </TableCell>
+                        </td>
                         
                         {/* Duration */}
-                        <TableCell className="text-foreground text-xs">
+                        <td className="p-4 align-middle text-foreground text-xs">
                           {interaction.interactionType === 'email' ? '—' : (interaction.duration || "—")}
-                        </TableCell>
+                        </td>
                         
                         {/* Analytics - Each on new line */}
-                        <TableCell className="text-xs min-w-[150px]">
+                        <td className="p-4 align-middle text-xs min-w-[150px]">
                           <div className="space-y-1">
                             {interaction.intentLevel && (
                               <div><span className="text-muted-foreground">Intent:</span> {interaction.intentLevel}</div>
@@ -1370,9 +1428,9 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                             )}
                             {(!interaction.intentLevel && !interaction.timelineUrgency && !interaction.budgetConstraint) && "—"}
                           </div>
-                        </TableCell>
+                        </td>
                         {/* CTAs - Compact inline */}
-                        <TableCell className="text-xs">
+                        <td className="p-4 align-middle text-xs">
                           <div className="space-y-0.5">
                             {interaction.ctaPricingClicked && <div>Pricing</div>}
                             {interaction.ctaDemoClicked && <div>Demo</div>}
@@ -1381,10 +1439,10 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                             {interaction.ctaEscalatedToHuman && <div>Escalated</div>}
                             {(!interaction.ctaPricingClicked && !interaction.ctaDemoClicked && !interaction.ctaFollowupClicked && !interaction.ctaSampleClicked && !interaction.ctaEscalatedToHuman) && "—"}
                           </div>
-                        </TableCell>
+                        </td>
                         
                         {/* Requirements - Expandable text */}
-                        <TableCell className="text-xs text-foreground max-w-[200px]" onClick={(e) => e.stopPropagation()}>
+                        <td className="p-4 align-middle text-xs text-foreground max-w-[200px]" onClick={(e) => e.stopPropagation()}>
                           {interaction.requirements ? (
                             <details className="cursor-pointer group">
                               <summary className="list-none flex items-center gap-1 hover:text-primary">
@@ -1402,10 +1460,10 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                           ) : (
                             "—"
                           )}
-                        </TableCell>
+                        </td>
                         
                         {/* CTA - Custom call-to-action as comma-separated badges */}
-                        <TableCell className="text-xs">
+                        <td className="p-4 align-middle text-xs">
                           {interaction.customCta ? (
                             <div className="flex flex-wrap gap-1">
                               {interaction.customCta.split(',').map((cta, idx) => (
@@ -1421,14 +1479,14 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                           ) : (
                             "—"
                           )}
-                        </TableCell>
+                        </td>
                         
                         {/* Email - Show extracted email to see what AI captured */}
-                        <TableCell className="text-xs text-foreground">
+                        <td className="p-4 align-middle text-xs text-foreground">
                           {interaction.extractedEmail || "—"}
-                        </TableCell>
+                        </td>
                         {/* Follow-up - Simple text */}
-                        <TableCell onClick={(e) => e.stopPropagation()}>
+                        <td className="p-4 align-middle" onClick={(e) => e.stopPropagation()}>
                           {interaction.followUpDate ? (
                             <div className="text-xs space-y-0.5">
                               <div className={`font-medium ${interaction.followUpCompleted ? "text-green-700 dark:text-green-400" : "text-blue-700 dark:text-blue-400"}`}>
@@ -1463,12 +1521,12 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                               Schedule
                             </Button>
                           )}
-                        </TableCell>
-                      </TableRow>
+                        </td>
+                      </tr>
                     ))
                   )}
-                </TableBody>
-              </Table>
+                </tbody>
+              </table>
             </div>
           </CardContent>
         </Card>
@@ -1607,13 +1665,43 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
         </div>
         <div className="flex items-center space-x-2">
           {selectedContacts.length > 0 && (
-            <Button 
-              onClick={handleCreateCampaignFromLeads}
-              className="bg-[#1A6262] hover:bg-[#155050] text-white"
-            >
-              <Megaphone className="w-4 h-4 mr-2" />
-              Create Campaign ({selectedContacts.length})
-            </Button>
+            <>
+              {/* Bulk Lead Stage Change */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground whitespace-nowrap">
+                  Change Stage:
+                </span>
+                <Select
+                  onValueChange={(value) => handleBulkLeadStageChange(value === 'unassigned' ? null : value)}
+                  disabled={isBulkLeadStageUpdating}
+                >
+                  <SelectTrigger className="w-[160px] h-9">
+                    <SelectValue placeholder={isBulkLeadStageUpdating ? "Updating..." : "Select stage"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unassigned">Unassigned</SelectItem>
+                    {stages.map((stage) => (
+                      <SelectItem key={stage.name} value={stage.name}>
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-3 h-3 rounded-full"
+                            style={{ backgroundColor: stage.color }}
+                          />
+                          {stage.name}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button 
+                onClick={handleCreateCampaignFromLeads}
+                className="bg-[#1A6262] hover:bg-[#155050] text-white"
+              >
+                <Megaphone className="w-4 h-4 mr-2" />
+                Create Campaign ({selectedContacts.length})
+              </Button>
+            </>
           )}
           {hasActiveColumnFilters && (
             <Button 
@@ -1683,11 +1771,11 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
       )}
 
       {/* Table */}
-      <div className="border rounded-lg overflow-x-auto invisible-scrollbar flex-1 min-h-0 bg-background">
-        <Table className="min-w-[1400px]">
-          <TableHeader>
-            <TableRow>
-              <TableHead className="sticky left-0 z-20 bg-background pl-4 pr-6 whitespace-nowrap">
+      <div className="border rounded-lg overflow-auto invisible-scrollbar flex-1 min-h-0 bg-background">
+        <table className="w-full min-w-[1400px] caption-bottom text-sm">
+          <thead className="sticky top-0 z-20 bg-background [&_tr]:border-b">
+            <tr className="bg-background border-b">
+              <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground sticky left-0 z-30 bg-background pl-4 pr-6 whitespace-nowrap">
                 <div className="flex items-center gap-3">
                   <Checkbox
                     checked={
@@ -1698,8 +1786,8 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                   />
                   <span>Contact</span>
                 </div>
-              </TableHead>
-              <TableHead>
+              </th>
+              <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background">
                 <ExcelColumnFilter
                   title="Lead Stage"
                   options={filterOptions.leadStage.length > 0 ? filterOptions.leadStage : stages.map(s => s.name)}
@@ -1707,9 +1795,9 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                   onSelectionChange={(values) => updateColumnFilter('leadStage', values)}
                   showAllLabel="All Stages"
                 />
-              </TableHead>
-              <TableHead>Lead Type</TableHead>
-              <TableHead>
+              </th>
+              <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background">Lead Type</th>
+              <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background">
                 <ExcelColumnFilter
                   title="Lead Tag"
                   options={filterOptions.leadTag.length > 0 ? filterOptions.leadTag : ['Hot', 'Warm', 'Cold']}
@@ -1717,8 +1805,8 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                   onSelectionChange={(values) => updateColumnFilter('leadTag', values)}
                   showAllLabel="All Tags"
                 />
-              </TableHead>
-              <TableHead>
+              </th>
+              <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background">
                 <ExcelColumnFilter
                   title="Engagement"
                   options={filterOptions.engagement.length > 0 ? filterOptions.engagement : ['High', 'Medium', 'Low']}
@@ -1726,8 +1814,8 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                   onSelectionChange={(values) => updateColumnFilter('engagement', values)}
                   showAllLabel="All Levels"
                 />
-              </TableHead>
-              <TableHead>
+              </th>
+              <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background">
                 <ExcelColumnFilter
                   title="Intent"
                   options={filterOptions.intent.length > 0 ? filterOptions.intent : ['High', 'Medium', 'Low']}
@@ -1735,8 +1823,8 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                   onSelectionChange={(values) => updateColumnFilter('intent', values)}
                   showAllLabel="All Levels"
                 />
-              </TableHead>
-              <TableHead>
+              </th>
+              <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background">
                 <ExcelColumnFilter
                   title="Budget"
                   options={filterOptions.budget.length > 0 ? filterOptions.budget : ['Low', 'Medium', 'High']}
@@ -1744,8 +1832,8 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                   onSelectionChange={(values) => updateColumnFilter('budget', values)}
                   showAllLabel="All"
                 />
-              </TableHead>
-              <TableHead>
+              </th>
+              <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background">
                 <ExcelColumnFilter
                   title="Urgency"
                   options={filterOptions.urgency.length > 0 ? filterOptions.urgency : ['Urgent', 'Soon', 'Flexible']}
@@ -1753,8 +1841,8 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                   onSelectionChange={(values) => updateColumnFilter('urgency', values)}
                   showAllLabel="All"
                 />
-              </TableHead>
-              <TableHead>
+              </th>
+              <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background">
                 <ExcelColumnFilter
                   title="Fit"
                   options={filterOptions.fit.length > 0 ? filterOptions.fit : ['Excellent', 'Good', 'Fair', 'Poor']}
@@ -1762,9 +1850,9 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                   onSelectionChange={(values) => updateColumnFilter('fit', values)}
                   showAllLabel="All"
                 />
-              </TableHead>
-              <TableHead>Requirements</TableHead>
-              <TableHead>
+              </th>
+              <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background">Requirements</th>
+              <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background">
                 <ExcelColumnFilter
                   title="CTA"
                   options={filterOptions.cta}
@@ -1772,28 +1860,28 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                   onSelectionChange={(values) => updateColumnFilter('cta', values)}
                   showAllLabel="All CTAs"
                 />
-              </TableHead>
-              <TableHead>Escalated</TableHead>
-              <TableHead>No. of Interactions</TableHead>
-              <TableHead>Interacted Agents</TableHead>
-              <TableHead>Last Interaction</TableHead>
-              <TableHead>Follow-up Date</TableHead>
-              <TableHead>Follow-up Status</TableHead>
-              <TableHead>Demo Scheduled</TableHead>
-              <TableHead>Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+              </th>
+              <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background">Escalated</th>
+              <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background">No. of Interactions</th>
+              <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background">Interacted Agents</th>
+              <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background">Last Interaction</th>
+              <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background">Follow-up Date</th>
+              <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background">Follow-up Status</th>
+              <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background">Demo Scheduled</th>
+              <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground bg-background">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="[&_tr:last-child]:border-0">
             {filteredContacts.map((contact) => (
-              <TableRow
+              <tr
                 key={contact.id}
                 id={`lead-card-${contact.id}`}
-                className="cursor-pointer hover:bg-muted/50 transition-all"
+                className="cursor-pointer hover:bg-muted/50 transition-all border-b"
                 onClick={() => handleContactClick(contact)}
               >
-                <TableCell
+                <td
                   onClick={(e) => e.stopPropagation()}
-                  className="sticky left-0 z-10 bg-background pl-4 pr-6"
+                  className="p-4 align-middle sticky left-0 z-10 bg-background pl-4 pr-6"
                 >
                   <div className="flex items-center gap-3">
                     <Checkbox
@@ -1828,21 +1916,21 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                       </div>
                     </div>
                   </div>
-                </TableCell>
+                </td>
                 {/* Lead Stage dropdown */}
-                <TableCell onClick={(e) => e.stopPropagation()}>
+                <td className="p-4 align-middle" onClick={(e) => e.stopPropagation()}>
                   {contact.contactId ? (
                     <Select
                       value={contact.leadStage || ""}
                       onValueChange={(value) => handleLeadStageChange(contact, value)}
                       disabled={updatingStageId === contact.id}
                     >
-                      <SelectTrigger className="w-[140px] h-8">
+                      <SelectTrigger className="w-[160px] h-8">
                         <SelectValue placeholder="Select stage">
                           {contact.leadStage ? (
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
                               <div 
-                                className="w-2 h-2 rounded-full" 
+                                className="w-2 h-2 rounded-full flex-shrink-0" 
                                 style={{ backgroundColor: getStageColor(contact.leadStage) }}
                               />
                               <span className="truncate">{contact.leadStage}</span>
@@ -1857,7 +1945,7 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                           <SelectItem key={stage.name} value={stage.name}>
                             <div className="flex items-center gap-2">
                               <div 
-                                className="w-2 h-2 rounded-full" 
+                                className="w-2 h-2 rounded-full flex-shrink-0" 
                                 style={{ backgroundColor: stage.color }}
                               />
                               {stage.name}
@@ -1869,18 +1957,18 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                   ) : (
                     <span className="text-muted-foreground text-sm">-</span>
                   )}
-                </TableCell>
-                <TableCell>
+                </td>
+                <td className="p-4 align-middle">
                   <Badge variant="outline" className="capitalize">
                     {contact.leadType}
                   </Badge>
-                </TableCell>
-                <TableCell>
+                </td>
+                <td className="p-4 align-middle">
                   <Badge variant="outline" className={getTagColor(contact.recentLeadTag)}>
                     {contact.recentLeadTag}
                   </Badge>
-                </TableCell>
-                <TableCell>
+                </td>
+                <td className="p-4 align-middle">
                   {contact.recentEngagementLevel ? (
                     <Badge variant="outline" className={getEngagementColor(contact.recentEngagementLevel)}>
                       {contact.recentEngagementLevel}
@@ -1888,8 +1976,8 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                   ) : (
                     <span className="text-muted-foreground">-</span>
                   )}
-                </TableCell>
-                <TableCell>
+                </td>
+                <td className="p-4 align-middle">
                   {contact.recentIntentLevel ? (
                     <Badge variant="outline" className={getIntentColor(contact.recentIntentLevel)}>
                       {contact.recentIntentLevel}
@@ -1897,8 +1985,8 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                   ) : (
                     <span className="text-muted-foreground">-</span>
                   )}
-                </TableCell>
-                <TableCell>
+                </td>
+                <td className="p-4 align-middle">
                   {contact.recentBudgetConstraint ? (
                     <Badge variant="outline" className={getBudgetColor(contact.recentBudgetConstraint)}>
                       {contact.recentBudgetConstraint}
@@ -1906,8 +1994,8 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                   ) : (
                     <span className="text-muted-foreground">-</span>
                   )}
-                </TableCell>
-                <TableCell>
+                </td>
+                <td className="p-4 align-middle">
                   {contact.recentTimelineUrgency ? (
                     <Badge variant="outline" className={getUrgencyColor(contact.recentTimelineUrgency)}>
                       {contact.recentTimelineUrgency}
@@ -1915,8 +2003,8 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                   ) : (
                     <span className="text-muted-foreground">-</span>
                   )}
-                </TableCell>
-                <TableCell>
+                </td>
+                <td className="p-4 align-middle">
                   {contact.recentFitAlignment ? (
                     <Badge variant="outline" className={getFitColor(contact.recentFitAlignment)}>
                       {contact.recentFitAlignment}
@@ -1924,8 +2012,8 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                   ) : (
                     <span className="text-muted-foreground">-</span>
                   )}
-                </TableCell>
-                <TableCell className="text-xs text-foreground max-w-[240px]" onClick={(e) => e.stopPropagation()}>
+                </td>
+                <td className="p-4 align-middle text-xs text-foreground max-w-[240px]" onClick={(e) => e.stopPropagation()}>
                   {contact.requirements ? (
                     <details className="cursor-pointer group">
                       <summary className="list-none flex items-center gap-1 hover:text-primary">
@@ -1943,9 +2031,9 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                   ) : (
                     <span className="text-muted-foreground">-</span>
                   )}
-                </TableCell>
+                </td>
                 {/* CTA - Custom call-to-action as comma-separated badges */}
-                <TableCell className="text-xs">
+                <td className="p-4 align-middle text-xs">
                   {contact.customCta ? (
                     <div className="flex flex-wrap gap-1">
                       {contact.customCta.split(',').map((cta, idx) => (
@@ -1961,29 +2049,29 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                   ) : (
                     <span className="text-muted-foreground">-</span>
                   )}
-                </TableCell>
-                <TableCell>
+                </td>
+                <td className="p-4 align-middle">
                   <Badge
                     variant={contact.escalatedToHuman ? "destructive" : "secondary"}
                   >
                     {contact.escalatedToHuman ? "Yes" : "No"}
                   </Badge>
-                </TableCell>
-                <TableCell className="text-foreground">
+                </td>
+                <td className="p-4 align-middle text-foreground">
                   {contact.interactions}
-                </TableCell>
-                <TableCell className="text-foreground">
+                </td>
+                <td className="p-4 align-middle text-foreground">
                   {contact.interactedAgents.join(', ')}
-                </TableCell>
-                <TableCell className="text-foreground">
+                </td>
+                <td className="p-4 align-middle text-foreground">
                   {new Date(contact.lastContact).toLocaleDateString('en-US', { 
                     timeZone: 'UTC',
                     year: 'numeric',
                     month: 'short',
                     day: 'numeric'
                   })}
-                </TableCell>
-                <TableCell onClick={(e) => e.stopPropagation()}>
+                </td>
+                <td className="p-4 align-middle" onClick={(e) => e.stopPropagation()}>
                   {contact.followUpScheduled ? (
                     <div className="text-sm space-y-1">
                       <div className={`font-medium ${contact.followUpStatus === 'completed' ? "text-green-700 dark:text-green-400" : "text-blue-700 dark:text-blue-400"}`}>
@@ -2000,8 +2088,8 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                   ) : (
                     <span className="text-muted-foreground">—</span>
                   )}
-                </TableCell>
-                <TableCell onClick={(e) => e.stopPropagation()}>
+                </td>
+                <td className="p-4 align-middle" onClick={(e) => e.stopPropagation()}>
                   {contact.followUpScheduled ? (
                     <div className="flex items-center gap-2">
                       <Switch
@@ -2026,8 +2114,8 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                   ) : (
                     <span className="text-muted-foreground">-</span>
                   )}
-                </TableCell>
-                <TableCell onClick={(e) => e.stopPropagation()}>
+                </td>
+                <td className="p-4 align-middle" onClick={(e) => e.stopPropagation()}>
                   {contact.demoScheduled ? (
                     <div className="flex items-center gap-2">
                       <Button
@@ -2079,8 +2167,8 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                       <span className="text-xs">Schedule</span>
                     </Button>
                   )}
-                </TableCell>
-                <TableCell onClick={(e) => e.stopPropagation()}>
+                </td>
+                <td className="p-4 align-middle" onClick={(e) => e.stopPropagation()}>
                   <Button
                     size="sm"
                     variant="default"
@@ -2090,11 +2178,11 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                     <UserPlus className="w-3 h-3 mr-1" />
                     Convert
                   </Button>
-                </TableCell>
-              </TableRow>
+                </td>
+              </tr>
             ))}
-          </TableBody>
-        </Table>
+          </tbody>
+        </table>
         {filteredContacts.length === 0 && (
           <div className="text-center py-8 text-muted-foreground">
             No contacts found matching your criteria.
