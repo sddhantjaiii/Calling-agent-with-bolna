@@ -51,6 +51,22 @@ router.post(
   AdminController.adjustCredits
 );
 
+// Adjust Chat Agent Credits (WhatsApp/Chat credits via Chat Agent Server)
+router.post(
+  '/users/:userId/chat-credits',
+  requireAdmin,
+  logAdminAction('ADJUST_CHAT_CREDITS', 'user'),
+  AdminController.adjustChatCredits
+);
+
+// Get Chat Agent Credits (WhatsApp/Chat credits via Chat Agent Server)
+router.get(
+  '/users/:userId/chat-credits',
+  requireAdmin,
+  logAdminAction('VIEW_CHAT_CREDITS', 'user'),
+  AdminController.getChatCredits
+);
+
 // User concurrency management
 router.get(
   '/users/:userId/concurrency',
@@ -271,6 +287,14 @@ router.get(
   requireAdmin,
   logAdminAction('AGENT_HEALTH_CHECK', 'agent'),
   AdminController.getAgentHealthCheck
+);
+
+// Single agent Bolna health check (admin access required)
+router.get(
+  '/agents/:agentId/bolna-health',
+  requireAdmin,
+  logAdminAction('SINGLE_AGENT_BOLNA_HEALTH', 'agent'),
+  AdminController.checkBolnaAgentHealth
 );
 
 // Analytics endpoints (admin access required)

@@ -52,6 +52,8 @@ const ADMIN_ENDPOINTS = {
     STATUS: (id: string) => `${ADMIN_API_BASE}/users/${id}/status`,
     CREDITS: {
       ADJUST: (id: string) => `${ADMIN_API_BASE}/users/${id}/credits`,
+      ADJUST_CHAT: (id: string) => `${ADMIN_API_BASE}/users/${id}/chat-credits`,
+      GET_CHAT: (id: string) => `${ADMIN_API_BASE}/users/${id}/chat-credits`,
       HISTORY: (id: string) => `${ADMIN_API_BASE}/users/${id}/credits/history`,
     },
     STATS: (id: string) => `${ADMIN_API_BASE}/users/${id}/stats`,
@@ -65,6 +67,7 @@ const ADMIN_ENDPOINTS = {
     UPDATE: (id: string) => `${ADMIN_API_BASE}/agents/${id}`,
     DELETE: (id: string) => `${ADMIN_API_BASE}/agents/${id}`,
     ASSIGN: (id: string) => `${ADMIN_API_BASE}/agents/${id}/assign`,
+    BOLNA_HEALTH: (id: string) => `${ADMIN_API_BASE}/agents/${id}/bolna-health`,
     BULK_ACTION: `${ADMIN_API_BASE}/agents/bulk`,
     STATS: `${ADMIN_API_BASE}/agents/stats`,
     MONITORING: `${ADMIN_API_BASE}/agents/monitoring`,
@@ -274,6 +277,27 @@ class AdminApiService {
     });
   }
 
+  /**
+   * Adjust Chat Agent Credits (WhatsApp/Chat credits)
+   * This calls the Chat Agent Server via the main backend proxy
+   */
+  async adjustUserChatCredits(request: CreditAdjustmentRequest): Promise<ApiResponse<CreditAdjustmentResponse>> {
+    return adminRequest<CreditAdjustmentResponse>(ADMIN_ENDPOINTS.USERS.CREDITS.ADJUST_CHAT(request.userId), {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  }
+
+  /**
+   * Get Chat Agent Credits for a user
+   * Fetches chat credits from Chat Agent Server via backend proxy
+   */
+  async getUserChatCredits(userId: string): Promise<ApiResponse<{ userId: string; credits: number; totalUsed: number; lastUpdated?: string }>> {
+    return adminRequest<{ userId: string; credits: number; totalUsed: number; lastUpdated?: string }>(
+      ADMIN_ENDPOINTS.USERS.CREDITS.GET_CHAT(userId)
+    );
+  }
+
   async getUserCreditHistory(userId: string, options: AdminListOptions = {}): Promise<PaginatedResponse<unknown>> {
     const queryString = buildQueryString(options as Record<string, unknown>);
     const url = queryString ? 
@@ -352,6 +376,20 @@ class AdminApiService {
 
   async getAgentHealthCheck(): Promise<ApiResponse<AgentHealthCheck>> {
     return adminRequest<AgentHealthCheck>(ADMIN_ENDPOINTS.AGENTS.HEALTH_CHECK);
+  }
+
+  async checkBolnaAgentHealth(agentId: string): Promise<ApiResponse<{
+    agentId: string;
+    agentName: string;
+    bolnaAgentId: string;
+    bolnaStatus: 'healthy' | 'not_found' | 'error';
+    bolnaAgentData?: {
+      id: string;
+      name: string;
+      created_at: string;
+    };
+  }>> {
+    return adminRequest(ADMIN_ENDPOINTS.AGENTS.BOLNA_HEALTH(agentId));
   }
 
   // ============================================================================

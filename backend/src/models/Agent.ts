@@ -130,6 +130,17 @@ export class AgentModel extends BaseModel<AgentInterface> {
   }
 
   /**
+   * Hard delete agent (permanently removes from database)
+   */
+  async hardDeleteAgent(agentId: string): Promise<boolean> {
+    const result = await this.query(
+      'DELETE FROM agents WHERE id = $1 RETURNING id',
+      [agentId]
+    );
+    return result.length > 0;
+  }
+
+  /**
    * Get all agents for admin panel
    */
   async getAllAgentsForAdmin(limit?: number, offset?: number): Promise<{

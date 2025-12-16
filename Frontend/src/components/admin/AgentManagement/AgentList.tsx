@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Filter, MoreHorizontal, Eye, Edit, Trash2, Users, Activity, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Search, Filter, MoreHorizontal, Eye, Edit, Trash2, Users, Activity, AlertTriangle, CheckCircle, Loader2, RefreshCw, ExternalLink } from 'lucide-react';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
 import { Badge } from '../../ui/badge';
@@ -13,6 +13,17 @@ import { EmptyState } from '../../ui/EmptyStateComponents';
 import { adminApiService } from '../../../services/adminApiService';
 import { AgentDetailsModal } from './AgentDetailsModal';
 import { BulkAgentActions } from './BulkAgentActions';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '../../ui/alert-dialog';
+import { toast } from 'sonner';
 import type { AdminAgentListItem } from '../../../types/admin';
 
 interface AgentListProps {
@@ -36,6 +47,9 @@ export const AgentList: React.FC<AgentListProps> = ({ onAgentSelect, onRefresh }
     const [selectedAgent, setSelectedAgent] = useState<AdminAgentListItem | null>(null);
     const [showDetailsModal, setShowDetailsModal] = useState(false);
     const [showBulkActions, setShowBulkActions] = useState(false);
+    const [agentToDelete, setAgentToDelete] = useState<AdminAgentListItem | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [checkingHealthFor, setCheckingHealthFor] = useState<string | null>(null);
 
     const [filters, setFilters] = useState<AgentFilters>({
         search: '',
@@ -69,18 +83,43 @@ export const AgentList: React.FC<AgentListProps> = ({ onAgentSelect, onRefresh }
 
             if (response.success && response.data) {
                 // Handle nested data structure: response.data.agents or response.data directly
-                let agentsData: AdminAgentListItem[] = [];
+                let rawAgentsData: any[] = [];
                 
                 if (Array.isArray(response.data)) {
                     // Direct array format
-                    agentsData = response.data;
+                    rawAgentsData = response.data;
                 } else if (response.data.agents && Array.isArray(response.data.agents)) {
                     // Nested format: { data: { agents: [...] } }
-                    agentsData = response.data.agents;
+                    rawAgentsData = response.data.agents;
                 } else {
                     // Fallback to empty array
-                    agentsData = [];
+                    rawAgentsData = [];
                 }
+                
+                // Transform snake_case backend fields to camelCase frontend fields
+                const agentsData: AdminAgentListItem[] = rawAgentsData.map((agent: any) => ({
+                    id: agent.id,
+                    userId: agent.user_id || agent.userId,
+                    name: agent.name,
+                    type: agent.agent_type || agent.type || 'call',
+                    status: agent.is_active !== undefined 
+                        ? (agent.is_active ? 'active' : 'inactive') 
+                        : (agent.status || 'inactive'),
+                    isActive: agent.is_active ?? agent.isActive ?? false,
+                    agentType: agent.agent_type || agent.agentType || 'call',
+                    bolnaAgentId: agent.bolna_agent_id || agent.bolnaAgentId,
+                    description: agent.description || '',
+                    systemPrompt: agent.system_prompt || agent.systemPrompt,
+                    dynamicInformation: agent.dynamic_information || agent.dynamicInformation,
+                    userEmail: agent.user_email || agent.userEmail || '',
+                    userName: agent.user_name || agent.userName || '',
+                    callCount: parseInt(agent.call_count || agent.callCount || '0', 10),
+                    lastCallAt: agent.last_call_at || agent.lastCallAt,
+                    createdAt: agent.created_at || agent.createdAt,
+                    updatedAt: agent.updated_at || agent.updatedAt,
+                    bolnaStatus: agent.bolna_status || agent.bolnaStatus || 'unknown',
+                    healthStatus: agent.health_status || agent.healthStatus || 'unknown',
+                }));
                 
                 setAgents(agentsData);
                 setPagination(prev => ({
@@ -171,6 +210,73 @@ export const AgentList: React.FC<AgentListProps> = ({ onAgentSelect, onRefresh }
         onRefresh?.();
     };
 
+    // Handle delete agent
+    const handleDeleteAgent = (agent: AdminAgentListItem) => {
+        setAgentToDelete(agent);
+    };
+
+    // Confirm delete agent
+    const confirmDeleteAgent = async () => {
+        if (!agentToDelete) return;
+
+        setIsDeleting(true);
+        try {
+            const response = await adminApiService.deleteAgent(agentToDelete.id);
+            if (response.success) {
+                toast.success('Agent deleted successfully', {
+                    description: `${agentToDelete.name} has been permanently removed.`
+                });
+                loadAgents();
+                onRefresh?.();
+            } else {
+                throw new Error(response.error?.message || 'Failed to delete agent');
+            }
+        } catch (err) {
+            console.error('Failed to delete agent:', err);
+            toast.error('Failed to delete agent', {
+                description: err instanceof Error ? err.message : 'An error occurred while deleting the agent.'
+            });
+        } finally {
+            setIsDeleting(false);
+            setAgentToDelete(null);
+        }
+    };
+
+    // Check Bolna agent health
+    const handleCheckBolnaHealth = async (agent: AdminAgentListItem) => {
+        if (!agent.bolnaAgentId) {
+            toast.error('No Bolna Agent ID', {
+                description: 'This agent does not have a Bolna Agent ID configured.'
+            });
+            return;
+        }
+
+        setCheckingHealthFor(agent.id);
+        try {
+            const response = await adminApiService.checkBolnaAgentHealth(agent.id);
+            if (response.success && response.data) {
+                if (response.data.bolnaStatus === 'healthy') {
+                    toast.success('Bolna Agent Healthy', {
+                        description: `Agent "${response.data.bolnaAgentData?.name || agent.name}" exists in Bolna.`
+                    });
+                } else {
+                    toast.error('Bolna Agent Not Found', {
+                        description: 'This agent was not found in Bolna. It may have been deleted.'
+                    });
+                }
+            } else {
+                throw new Error(response.error?.message || 'Health check failed');
+            }
+        } catch (err) {
+            console.error('Bolna health check error:', err);
+            toast.error('Health Check Failed', {
+                description: err instanceof Error ? err.message : 'Failed to check Bolna agent health.'
+            });
+        } finally {
+            setCheckingHealthFor(null);
+        }
+    };
+
     // Get health status badge
     const getHealthStatusBadge = (status: string) => {
         switch (status) {
@@ -185,8 +291,8 @@ export const AgentList: React.FC<AgentListProps> = ({ onAgentSelect, onRefresh }
         }
     };
 
-    // Get ElevenLabs status badge
-    const getElevenLabsStatusBadge = (status?: string) => {
+    // Get Bolna status badge
+    const getBolnaStatusBadge = (status?: string) => {
         switch (status) {
             case 'active':
                 return <Badge variant="success">Active</Badge>;
@@ -387,7 +493,7 @@ export const AgentList: React.FC<AgentListProps> = ({ onAgentSelect, onRefresh }
                                             <TableHead>Type</TableHead>
                                             <TableHead>Status</TableHead>
                                             <TableHead>Health</TableHead>
-                                            <TableHead>ElevenLabs</TableHead>
+                                            <TableHead>Bolna</TableHead>
                                             <TableHead>Calls</TableHead>
                                             <TableHead>Last Call</TableHead>
                                             <TableHead className="w-12"></TableHead>
@@ -430,7 +536,29 @@ export const AgentList: React.FC<AgentListProps> = ({ onAgentSelect, onRefresh }
                                                     {getHealthStatusBadge(agent.healthStatus)}
                                                 </TableCell>
                                                 <TableCell>
-                                                    {getElevenLabsStatusBadge(agent.elevenlabsStatus)}
+                                                    {agent.bolnaAgentId ? (
+                                                        <div className="flex items-center gap-2">
+                                                            <code className="text-xs bg-muted px-1.5 py-0.5 rounded font-mono truncate max-w-[120px]" title={agent.bolnaAgentId}>
+                                                                {agent.bolnaAgentId.substring(0, 8)}...
+                                                            </code>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="h-6 w-6 p-0"
+                                                                onClick={() => handleCheckBolnaHealth(agent)}
+                                                                disabled={checkingHealthFor === agent.id}
+                                                                title="Check Bolna Health"
+                                                            >
+                                                                {checkingHealthFor === agent.id ? (
+                                                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                                                ) : (
+                                                                    <RefreshCw className="h-3 w-3" />
+                                                                )}
+                                                            </Button>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-muted-foreground text-sm">Not linked</span>
+                                                    )}
                                                 </TableCell>
                                                 <TableCell>
                                                     <div className="text-sm">
@@ -462,7 +590,7 @@ export const AgentList: React.FC<AgentListProps> = ({ onAgentSelect, onRefresh }
                                                                 Edit Agent
                                                             </DropdownMenuItem>
                                                             <DropdownMenuItem
-                                                                onClick={() => {/* Handle delete */ }}
+                                                                onClick={() => handleDeleteAgent(agent)}
                                                                 className="text-red-600"
                                                             >
                                                                 <Trash2 className="w-4 h-4 mr-2" />
@@ -534,6 +662,38 @@ export const AgentList: React.FC<AgentListProps> = ({ onAgentSelect, onRefresh }
                     onComplete={handleBulkActionComplete}
                 />
             )}
+
+            {/* Delete Confirmation Dialog */}
+            <AlertDialog open={!!agentToDelete} onOpenChange={() => setAgentToDelete(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Agent</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Are you sure you want to delete <strong>"{agentToDelete?.name}"</strong>?
+                            <br /><br />
+                            <strong>This action cannot be undone.</strong> The agent will be removed from the database,
+                            but will remain in Bolna. You may need to manually remove it from Bolna if needed.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={confirmDeleteAgent}
+                            disabled={isDeleting}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                            {isDeleting ? (
+                                <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Deleting...
+                                </>
+                            ) : (
+                                'Delete Agent'
+                            )}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 };

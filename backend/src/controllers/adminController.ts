@@ -10,6 +10,7 @@ import { systemMetricsService } from '../services/systemMetricsService';
 import { databaseAnalyticsService } from '../services/databaseAnalyticsService';
 import { monitoringService } from '../services/monitoringService';
 import { configService } from '../services/configService';
+import { chatCreditsService } from '../services/chatCreditsService';
 
 // Admin controller - handles admin panel functionality
 export class AdminController {
@@ -312,7 +313,12 @@ export class AdminController {
         adjustmentAmount = -adjustmentAmount;
       }
       
-      const newBalance = user.credits + adjustmentAmount;
+      // Parse user.credits as number (database may return it as string for DECIMAL columns)
+      const currentCredits = typeof user.credits === 'string' 
+        ? parseFloat(user.credits) 
+        : Number(user.credits);
+      
+      const newBalance = currentCredits + adjustmentAmount;
 
       if (newBalance < 0) {
         res.status(400).json({
@@ -358,7 +364,7 @@ export class AdminController {
           adjustment: {
             amount: adjustmentAmount,
             description: adjustmentReason,
-            previous_balance: user.credits,
+            previous_balance: currentCredits,
             new_balance: newBalance
           }
         },
@@ -371,6 +377,180 @@ export class AdminController {
         error: {
           code: 'ADJUST_CREDITS_ERROR',
           message: 'Failed to adjust user credits',
+          timestamp: new Date(),
+        },
+      });
+    }
+  }
+
+  /**
+   * Adjust Chat Agent Credits for a user
+   * Proxies request to Chat Agent Server
+   * 
+   * This is for WhatsApp/Chat credits, separate from calling credits
+   */
+  static async adjustChatCredits(req: Request, res: Response): Promise<void> {
+    try {
+      const { userId } = req.params;
+      const { amount, type, reason, description } = req.body;
+
+      console.log('Chat credit adjustment request:', { userId, amount, type, reason, description });
+      console.log('Admin user:', req.adminUser?.id);
+
+      // Accept both 'description' and 'reason' for backward compatibility
+      const adjustmentReason = description || reason;
+
+      if (!amount || !adjustmentReason) {
+        res.status(400).json({
+          error: {
+            code: 'MISSING_REQUIRED_FIELDS',
+            message: 'Amount and reason are required',
+            timestamp: new Date(),
+          },
+        });
+        return;
+      }
+
+      // Validate user exists
+      const userModel = new UserModel();
+      const user = await userModel.findById(userId);
+
+      if (!user) {
+        res.status(404).json({
+          error: {
+            code: 'USER_NOT_FOUND',
+            message: 'User not found',
+            timestamp: new Date(),
+          },
+        });
+        return;
+      }
+
+      // Map type to operation for Chat Agent Server API
+      const operation = type === 'subtract' ? 'subtract' : 'add';
+      const adjustmentAmount = Math.abs(parseFloat(amount));
+
+      // Call Chat Agent Server
+      const result = await chatCreditsService.adjustCredits(
+        userId,
+        adjustmentAmount,
+        operation,
+        adjustmentReason
+      );
+
+      if (!result.success) {
+        res.status(400).json({
+          error: {
+            code: 'CHAT_CREDITS_ERROR',
+            message: result.message || 'Failed to adjust chat credits',
+            timestamp: new Date(),
+          },
+        });
+        return;
+      }
+
+      // Log admin action
+      await logAdminActionManual({
+        adminId: req.adminUser?.id || 'unknown',
+        action: 'ADJUST_CHAT_CREDITS',
+        resource: 'users',
+        resourceId: userId,
+        details: {
+          amount: adjustmentAmount,
+          operation,
+          reason: adjustmentReason,
+          newBalance: result.data?.newBalance,
+          previousBalance: result.data?.previousBalance,
+        },
+        ipAddress: req.ip,
+      });
+
+      res.json({
+        success: true,
+        data: {
+          newBalance: result.data?.newBalance,
+          user: {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+          },
+          adjustment: {
+            amount: adjustmentAmount,
+            operation,
+            description: adjustmentReason,
+            previous_balance: result.data?.previousBalance,
+            new_balance: result.data?.newBalance,
+          },
+        },
+        message: 'Chat credits adjusted successfully',
+        timestamp: new Date(),
+      });
+    } catch (error: any) {
+      console.error('Adjust chat credits error:', error);
+      res.status(500).json({
+        error: {
+          code: 'ADJUST_CHAT_CREDITS_ERROR',
+          message: 'Failed to adjust chat credits',
+          timestamp: new Date(),
+        },
+      });
+    }
+  }
+
+  /**
+   * Get Chat Agent Credits for a user
+   * Proxies request to Chat Agent Server
+   */
+  static async getChatCredits(req: Request, res: Response): Promise<void> {
+    try {
+      const { userId } = req.params;
+
+      // Validate user exists
+      const userModel = new UserModel();
+      const user = await userModel.findById(userId);
+
+      if (!user) {
+        res.status(404).json({
+          error: {
+            code: 'USER_NOT_FOUND',
+            message: 'User not found',
+            timestamp: new Date(),
+          },
+        });
+        return;
+      }
+
+      // Call Chat Agent Server to get credits
+      const result = await chatCreditsService.getCredits(userId);
+
+      if (!result.success) {
+        res.status(400).json({
+          error: {
+            code: 'CHAT_CREDITS_ERROR',
+            message: result.message || 'Failed to fetch chat credits',
+            timestamp: new Date(),
+          },
+        });
+        return;
+      }
+
+      res.json({
+        success: true,
+        data: {
+          userId: userId,
+          credits: result.data?.remaining_credits || 0,
+          totalUsed: result.data?.total_used || 0,
+          lastUpdated: result.data?.last_updated,
+        },
+        message: 'Chat credits fetched successfully',
+        timestamp: new Date(),
+      });
+    } catch (error: any) {
+      console.error('Get chat credits error:', error);
+      res.status(500).json({
+        error: {
+          code: 'GET_CHAT_CREDITS_ERROR',
+          message: 'Failed to fetch chat credits',
           timestamp: new Date(),
         },
       });
@@ -1476,6 +1656,70 @@ export class AdminController {
   }
 
   /**
+   * Check single Bolna agent health (admin only)
+   */
+  static async checkBolnaAgentHealth(req: Request, res: Response): Promise<void> {
+    try {
+      const { agentId } = req.params;
+
+      // Get the agent from our database to find the bolna_agent_id
+      const agentModel = new AgentModel();
+      const agent = await agentModel.findById(agentId);
+
+      if (!agent) {
+        res.status(404).json({
+          error: {
+            code: 'AGENT_NOT_FOUND',
+            message: 'Agent not found',
+            timestamp: new Date(),
+          },
+        });
+        return;
+      }
+
+      if (!agent.bolna_agent_id) {
+        res.status(400).json({
+          error: {
+            code: 'NO_BOLNA_AGENT',
+            message: 'Agent does not have a Bolna agent ID',
+            timestamp: new Date(),
+          },
+        });
+        return;
+      }
+
+      // Fetch the agent from Bolna to verify it exists
+      const { bolnaService } = await import('../services/bolnaService');
+      const bolnaAgent = await bolnaService.getAgent(agent.bolna_agent_id);
+
+      res.json({
+        success: true,
+        data: {
+          agentId: agent.id,
+          agentName: agent.name,
+          bolnaAgentId: agent.bolna_agent_id,
+          bolnaStatus: bolnaAgent ? 'healthy' : 'not_found',
+          bolnaAgentData: bolnaAgent ? {
+            id: bolnaAgent.id,
+            name: bolnaAgent.name,
+            created_at: bolnaAgent.created_at,
+          } : null,
+        },
+        timestamp: new Date()
+      });
+    } catch (error: any) {
+      console.error('Check Bolna agent health error:', error);
+      res.status(500).json({
+        error: {
+          code: 'BOLNA_HEALTH_CHECK_ERROR',
+          message: error.message || 'Failed to check Bolna agent health',
+          timestamp: new Date(),
+        },
+      });
+    }
+  }
+
+  /**
    * Create an agent (admin only)
    */
   static async createAgent(req: Request, res: Response): Promise<void> {
@@ -1656,10 +1900,10 @@ export class AdminController {
         return;
       }
 
-      // Delete from database
-      await agentModel.deleteAgent(agentId);
+      // Hard delete from database (permanently remove)
+      await agentModel.hardDeleteAgent(agentId);
 
-      logger.info(`Agent ${agentId} (${agent.name}) deleted from database. Bolna agent ${agent.bolna_agent_id} remains in Bolna.`);
+      logger.info(`Agent ${agentId} (${agent.name}) permanently deleted from database. Bolna agent ${agent.bolna_agent_id} remains in Bolna.`);
 
       res.json({
         success: true,

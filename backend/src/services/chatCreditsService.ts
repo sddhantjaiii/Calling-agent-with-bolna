@@ -177,6 +177,119 @@ class ChatCreditsServiceClient {
       return false;
     }
   }
+
+  /**
+   * Adjust chat credits for a user via Chat Agent Server
+   * This is used by admin panel to add/subtract chat credits
+   * 
+   * API: POST /api/v1/credits/adjust
+   * Headers: x-user-id
+   * Body: { amount, operation: 'add' | 'subtract', reason }
+   */
+  async adjustCredits(userId: string, amount: number, operation: 'add' | 'subtract', reason: string): Promise<{
+    success: boolean;
+    data?: {
+      newBalance: number;
+      previousBalance: number;
+      adjustment: {
+        amount: number;
+        operation: string;
+        reason: string;
+      };
+    };
+    error?: string;
+    message?: string;
+  }> {
+    try {
+      if (!process.env.CHAT_AGENT_SERVER_URL) {
+        logger.error('❌ CHAT_AGENT_SERVER_URL not configured');
+        return {
+          success: false,
+          error: 'Chat Agent Server not configured',
+          message: 'CHAT_AGENT_SERVER_URL environment variable is not set',
+        };
+      }
+
+      logger.info('🔄 Adjusting chat credits via Chat Agent Server', { 
+        userId, 
+        amount, 
+        operation, 
+        reason 
+      });
+
+      const response = await this.client.post('/api/v1/credits/adjust', {
+        amount,
+        operation,
+        reason,
+      }, {
+        headers: {
+          'x-user-id': userId,
+        },
+      });
+
+      logger.info('✅ Chat credits adjusted successfully', {
+        userId,
+        newBalance: response.data?.data?.newBalance || response.data?.newBalance,
+      });
+
+      // Normalize the response format
+      const responseData = response.data?.data || response.data;
+      return {
+        success: true,
+        data: {
+          newBalance: responseData?.newBalance || responseData?.remaining_credits || 0,
+          previousBalance: responseData?.previousBalance || responseData?.previous_balance || 0,
+          adjustment: {
+            amount,
+            operation,
+            reason,
+          },
+        },
+        message: 'Chat credits adjusted successfully',
+      };
+    } catch (error) {
+      const axiosError = error as AxiosError;
+      
+      logger.error('❌ Failed to adjust chat credits', {
+        userId,
+        amount,
+        operation,
+        error: axiosError.response?.data || axiosError.message,
+        status: axiosError.response?.status,
+      });
+
+      // Handle specific error cases
+      if (axiosError.response?.status === 400) {
+        return {
+          success: false,
+          error: 'Bad Request',
+          message: (axiosError.response.data as any)?.message || 'Invalid request to Chat Agent Server',
+        };
+      }
+
+      if (axiosError.response?.status === 404) {
+        return {
+          success: false,
+          error: 'User Not Found',
+          message: 'User not found in Chat Agent Server',
+        };
+      }
+
+      if (axiosError.code === 'ECONNREFUSED' || axiosError.code === 'ENOTFOUND') {
+        return {
+          success: false,
+          error: 'Service Unavailable',
+          message: 'Chat Agent Server is not available. Please try again later.',
+        };
+      }
+
+      return {
+        success: false,
+        error: 'Internal Server Error',
+        message: 'Failed to adjust chat credits. Please try again.',
+      };
+    }
+  }
 }
 
 // Export singleton instance

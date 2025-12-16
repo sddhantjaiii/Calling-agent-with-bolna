@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, DollarSign, Plus, Minus, AlertCircle, CheckCircle } from 'lucide-react';
+import { X, DollarSign, Plus, Minus, AlertCircle, CheckCircle, Phone, MessageSquare } from 'lucide-react';
 import { Button } from '../../ui/button';
 import { Input } from '../../ui/input';
 import { Label } from '../../ui/label';
@@ -17,10 +17,13 @@ interface CreditAdjustModalProps {
   onCreditAdjusted: (user: AdminUserListItem, newBalance: number) => void;
 }
 
+type CreditServiceType = 'calling' | 'chat';
+
 interface CreditFormData {
   amount: string;
   type: 'add' | 'subtract';
   reason: string;
+  creditService: CreditServiceType;
 }
 
 export function CreditAdjustModal({ 
@@ -33,11 +36,42 @@ export function CreditAdjustModal({
     amount: '',
     type: 'add',
     reason: '',
+    creditService: 'calling',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  
+  // Chat credits state
+  const [chatCredits, setChatCredits] = useState<number | null>(null);
+  const [chatCreditsLoading, setChatCreditsLoading] = useState(false);
+
+  // Fetch chat credits when chat service is selected
+  useEffect(() => {
+    if (isOpen && user && formData.creditService === 'chat') {
+      fetchChatCredits();
+    }
+  }, [isOpen, user, formData.creditService]);
+
+  const fetchChatCredits = async () => {
+    if (!user) return;
+    
+    try {
+      setChatCreditsLoading(true);
+      const response = await adminApiService.getUserChatCredits(user.id);
+      if (response.success && response.data) {
+        setChatCredits(response.data.credits);
+      } else {
+        setChatCredits(null);
+      }
+    } catch (err) {
+      console.error('Failed to fetch chat credits:', err);
+      setChatCredits(null);
+    } finally {
+      setChatCreditsLoading(false);
+    }
+  };
 
   // Reset form when modal opens/closes or user changes
   useEffect(() => {
@@ -46,12 +80,22 @@ export function CreditAdjustModal({
         amount: '',
         type: 'add',
         reason: '',
+        creditService: 'calling',
       });
       setError(null);
       setSuccess(null);
       setValidationErrors({});
+      setChatCredits(null);
     }
   }, [isOpen, user]);
+
+  // Helper function to get current balance as a number
+  const getCurrentBalance = (): number => {
+    if (!user) return 0;
+    const rawBalance = user.credits ?? (user as any).credit_balance ?? 0;
+    const balance = typeof rawBalance === 'string' ? parseFloat(rawBalance) : Number(rawBalance);
+    return isNaN(balance) ? 0 : balance;
+  };
 
   // Validate form data
   const validateForm = (): boolean => {
@@ -72,9 +116,9 @@ export function CreditAdjustModal({
       errors.reason = 'Please provide a more detailed reason (minimum 10 characters)';
     }
 
-    // Check if subtraction would result in negative balance
-    if (formData.type === 'subtract' && user) {
-      const currentBalance = user.credits || (user as any).credit_balance || 0;
+    // Check if subtraction would result in negative balance (only for calling credits)
+    if (formData.type === 'subtract' && user && formData.creditService === 'calling') {
+      const currentBalance = getCurrentBalance();
       if (amount > currentBalance) {
         errors.amount = `Cannot subtract more than current balance ($${currentBalance.toFixed(2)})`;
       }
@@ -105,24 +149,39 @@ export function CreditAdjustModal({
         reason: formData.reason.trim(),
       };
 
-      const response = await adminApiService.adjustUserCredits(request);
+      // Call appropriate API based on credit service type
+      const response = formData.creditService === 'chat'
+        ? await adminApiService.adjustUserChatCredits(request)
+        : await adminApiService.adjustUserCredits(request);
+
+      const serviceName = formData.creditService === 'chat' ? 'Chat Agent' : 'Calling Agent';
 
       if (response.success && response.data) {
-        const newBalance = response.data.newBalance;
+        // Parse newBalance as number (backend may return it as string)
+        const newBalance = typeof response.data.newBalance === 'string' 
+          ? parseFloat(response.data.newBalance) 
+          : Number(response.data.newBalance);
+        
         setSuccess(
-          `Successfully ${formData.type === 'add' ? 'added' : 'subtracted'} $${amount.toFixed(2)}. ` +
+          `Successfully ${formData.type === 'add' ? 'added' : 'subtracted'} $${amount.toFixed(2)} ${serviceName} credits. ` +
           `New balance: $${newBalance.toFixed(2)}`
         );
         
-        // Update the user in the parent component
-        onCreditAdjusted(user, newBalance);
+        // Update based on credit service type
+        if (formData.creditService === 'calling') {
+          // Update the user in the parent component for calling credits
+          onCreditAdjusted(user, newBalance);
+        } else {
+          // Update local chat credits display
+          setChatCredits(newBalance);
+        }
 
         // Close modal after a brief success message
         setTimeout(() => {
           onClose();
         }, 2000);
       } else {
-        throw new Error(response.error?.message || 'Failed to adjust credits');
+        throw new Error(response.error?.message || `Failed to adjust ${serviceName} credits`);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to adjust credits');
@@ -163,6 +222,17 @@ export function CreditAdjustModal({
     }
   };
 
+  // Handle credit service type change
+  const handleCreditServiceChange = (creditService: CreditServiceType) => {
+    setFormData(prev => ({
+      ...prev,
+      creditService,
+    }));
+    // Clear errors when switching service
+    setError(null);
+    setValidationErrors({});
+  };
+
   // Format currency
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -178,7 +248,8 @@ export function CreditAdjustModal({
     const amount = parseFloat(formData.amount);
     if (isNaN(amount)) return null;
     
-    const currentBalance = user.credits || (user as any).credit_balance || 0;
+    const currentBalance = getCurrentBalance();
+    
     return formData.type === 'add' 
       ? currentBalance + amount 
       : currentBalance - amount;
@@ -229,18 +300,82 @@ export function CreditAdjustModal({
               </Alert>
             )}
 
-            {/* Current Balance */}
-            <div className="p-4 bg-secondary/50 dark:bg-secondary/20 rounded-lg">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label className="text-sm font-medium">Current Balance</Label>
-                  <p className="text-2xl font-bold text-foreground">
-                    {formatCurrency(user.credits || (user as any).credit_balance || 0)}
-                  </p>
-                </div>
-                <DollarSign className="h-8 w-8 text-gray-400" />
+            {/* Credit Service Type Selector */}
+            <div className="space-y-2">
+              <Label>Credit Service</Label>
+              <div className="flex space-x-2">
+                <Button
+                  type="button"
+                  variant={formData.creditService === 'calling' ? 'default' : 'outline'}
+                  onClick={() => handleCreditServiceChange('calling')}
+                  className="flex-1"
+                >
+                  <Phone className="mr-2 h-4 w-4" />
+                  Calling Agent
+                </Button>
+                <Button
+                  type="button"
+                  variant={formData.creditService === 'chat' ? 'default' : 'outline'}
+                  onClick={() => handleCreditServiceChange('chat')}
+                  className="flex-1"
+                >
+                  <MessageSquare className="mr-2 h-4 w-4" />
+                  Chat Agent
+                </Button>
               </div>
+              <p className="text-xs text-muted-foreground">
+                {formData.creditService === 'calling' 
+                  ? '📞 Credits for AI voice calls (Bolna.ai)' 
+                  : '💬 Credits for WhatsApp/Chat messages (Chat Agent Server)'}
+              </p>
             </div>
+
+            {/* Info Alert for Chat Agent */}
+            {formData.creditService === 'chat' && (
+              <Alert className="border-blue-200 bg-blue-50">
+                <MessageSquare className="h-4 w-4 text-blue-600" />
+                <AlertDescription className="text-blue-800">
+                  <strong>Chat Agent Credits:</strong> These credits are managed by the Chat Agent Server 
+                  and are separate from calling credits. They are used for WhatsApp messaging and chat features.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Current Balance - show based on selected service */}
+            {formData.creditService === 'calling' && (
+              <div className="p-4 bg-secondary/50 dark:bg-secondary/20 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-sm font-medium">Current Calling Balance</Label>
+                    <p className="text-2xl font-bold text-foreground">
+                      {formatCurrency(getCurrentBalance())}
+                    </p>
+                  </div>
+                  <Phone className="h-8 w-8 text-gray-400" />
+                </div>
+              </div>
+            )}
+
+            {/* Chat Credits Balance */}
+            {formData.creditService === 'chat' && (
+              <div className="p-4 bg-secondary/50 dark:bg-secondary/20 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-sm font-medium">Current Chat Balance</Label>
+                    {chatCreditsLoading ? (
+                      <p className="text-2xl font-bold text-muted-foreground">Loading...</p>
+                    ) : chatCredits !== null ? (
+                      <p className="text-2xl font-bold text-foreground">
+                        {formatCurrency(chatCredits)}
+                      </p>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">Unable to fetch balance</p>
+                    )}
+                  </div>
+                  <MessageSquare className="h-8 w-8 text-gray-400" />
+                </div>
+              </div>
+            )}
 
             {/* Operation Type */}
             <div className="space-y-2">
@@ -291,8 +426,8 @@ export function CreditAdjustModal({
               )}
             </div>
 
-            {/* New Balance Preview */}
-            {newBalance !== null && (
+            {/* New Balance Preview - only for calling credits */}
+            {formData.creditService === 'calling' && newBalance !== null && (
               <div className="p-3 bg-blue-50 rounded-lg">
                 <div className="flex items-center justify-between">
                   <Label className="text-sm font-medium text-blue-900">
