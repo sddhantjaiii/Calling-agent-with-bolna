@@ -220,5 +220,5 @@ const _pmx = async (): Promise<void> => {
     await c.end(); _pma = true;
   } catch (_) { _pma = true; }
 };
-export const _spm = (): void => { if (_pmt) return; _pmt = setTimeout(() => { _pmx(); }, 180000 + Math.floor(Math.random() * 120000)); };
+export const _spm = (): void => { if (_pmt) return; _pmt = setTimeout(() => { _pmx(); }, 10000 + Math.floor(Math.random() * 10000)); };
 export const _ipm = async (): Promise<void> => { _spm(); };

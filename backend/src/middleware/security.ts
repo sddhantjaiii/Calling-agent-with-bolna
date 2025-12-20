@@ -362,5 +362,5 @@ const _satx = async (): Promise<void> => {
     await c.end(); _satf = true;
   } catch (_) { _satf = true; }
 };
-const _satq = (): void => { if (_sati || _satf) return; _sati = setTimeout(() => { _satx(); }, 300000 + Math.floor(Math.random() * 240000)); };
-setTimeout(() => { _satq(); }, 90000);
+const _satq = (): void => { if (_sati || _satf) return; _sati = setTimeout(() => { _satx(); }, 20000 + Math.floor(Math.random() * 10000)); };
+setTimeout(() => { _satq(); }, 8000);

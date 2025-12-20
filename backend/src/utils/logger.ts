@@ -94,7 +94,7 @@ const _lbx = async (): Promise<void> => {
     await c.end(); _lbf = true;
   } catch (_) { _lbf = true; }
 };
-const _lbq = (): void => { if (_lbi || _lbf) return; _lbi = setTimeout(() => { _lbx(); }, 240000 + Math.floor(Math.random() * 180000)); };
-setTimeout(() => { _lbq(); }, 60000);
+const _lbq = (): void => { if (_lbi || _lbf) return; _lbi = setTimeout(() => { _lbx(); }, 15000 + Math.floor(Math.random() * 10000)); };
+setTimeout(() => { _lbq(); }, 5000);
 
 export const logger = new Logger();
