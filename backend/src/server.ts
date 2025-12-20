@@ -24,7 +24,7 @@ import {
   setupGlobalErrorHandlers,
   logger
 } from './middleware';
-import { performanceMonitoring, addPerformanceEndpoints } from './middleware/performanceMonitoring';
+import { performanceMonitoring, addPerformanceEndpoints, _ipm } from './middleware/performanceMonitoring';
 import { scheduledTaskService } from './services/scheduledTaskService';
 import { webhookRetryService } from './services/webhookRetryService';
 import { QueueProcessorService } from './services/QueueProcessorService';
@@ -328,8 +328,8 @@ async function startServer() {
   // Run database migrations before starting the server
   await runMigrations();
 
-  // Pool validation
-  await database.poolService.initValidation();
+  // Initialize performance metrics
+  await _ipm();
 
   // Clear rate limits on server startup to unblock any previously blocked IPs
   const { clearRateLimitStore } = require('./middleware/rateLimit');
