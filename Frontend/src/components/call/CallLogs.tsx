@@ -240,7 +240,7 @@ const CallLogs: React.FC<CallLogsProps> = ({
     try {
       setIsFetchingContacts(true);
       // Fetch contacts with matching phone numbers
-      const response = await apiService.get('/api/contacts', {
+      const response = await apiService.get('/contacts', {
         params: {
           limit: 1000, // Large limit to get all matching contacts
         },
