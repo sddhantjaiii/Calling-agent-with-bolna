@@ -1386,7 +1386,7 @@ const CallLogs: React.FC<CallLogsProps> = ({
             </>
           ) : (
             totalPages > 1 && (
-              <Pagination() => handleCreateCampaign(filteredCalls.filter(call => selectedCallIds.has(call.id)))
+              <Pagination
                 currentPage={currentPage}
                 totalPages={totalPages}
                 totalItems={totalCalls}
