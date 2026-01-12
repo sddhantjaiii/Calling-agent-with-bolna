@@ -80,7 +80,7 @@ export class CallAnalyticsController {
       // Add campaign filtering if campaignId is specified
       if (campaignId) {
         kpiQuery += ` AND c.campaign_id = $${paramIndex}`;
-        queryParams.push(campaignId);
+        queryParams.push(campaignId as string);
         paramIndex++;
       }
 
@@ -133,7 +133,7 @@ export class CallAnalyticsController {
       }
       
       if (campaignId) {
-        prevQueryParams.push(campaignId);
+        prevQueryParams.push(campaignId as string);
       }
 
       const prevResult = await database.query(prevKpiQuery, prevQueryParams);
@@ -323,7 +323,7 @@ export class CallAnalyticsController {
       
       if (campaignId) {
         query += ` AND c.campaign_id = $${paramIndex}`;
-        queryParams.push(campaignId);
+        queryParams.push(campaignId as string);
         paramIndex++;
         console.log('📊 Lead Quality Query with campaign filter - Campaign ID:', campaignId);
       }
@@ -650,7 +650,7 @@ export class CallAnalyticsController {
       
       if (campaignId) {
         query += ` AND c.campaign_id = $${paramIndex}`;
-        queryParams.push(campaignId);
+        queryParams.push(campaignId as string);
         paramIndex++;
       }
 
@@ -788,7 +788,7 @@ export class CallAnalyticsController {
       
       if (campaignId) {
         query += ` AND c.campaign_id = $${paramIndex}`;
-        queryParams.push(campaignId);
+        queryParams.push(campaignId as string);
         paramIndex++;
       }
 
@@ -810,7 +810,7 @@ export class CallAnalyticsController {
       }
       
       if (campaignId) {
-        prevQueryParams.push(campaignId);
+        prevQueryParams.push(campaignId as string);
         prevParamIndex++;
       }
 
