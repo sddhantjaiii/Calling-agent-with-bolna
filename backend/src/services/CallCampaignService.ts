@@ -10,6 +10,7 @@ import {
   CampaignStatus,
   CampaignAnalytics
 } from '../types/campaign';
+import LeadAnalytics from '../models/LeadAnalytics';
 
 export class CallCampaignService {
   /**
@@ -271,7 +272,7 @@ export class CallCampaignService {
       // Otherwise, fetch from database (for regular campaign creation)
       const { pool } = await import('../config/database');
       const contactsResult = await pool.query(
-        `SELECT id, phone_number, name, email, company, notes 
+        `SELECT id, phone_number, name, email, company, notes, last_contact_at 
          FROM contacts 
          WHERE id = ANY($1) AND user_id = $2`,
         [contactIds, userId]
@@ -284,11 +285,51 @@ export class CallCampaignService {
       logger.info(`Fetched ${contactsResult.rows.length} contacts from database`);
     }
 
+    // Fetch lead analytics for all contacts to get product_interest and last_interaction_summary
+    const phoneNumbers = Array.from(contactMap.values()).map((c: any) => c.phone_number);
+    const leadAnalyticsMap = new Map<string, any>();
+    
+    if (phoneNumbers.length > 0) {
+      try {
+        const { pool } = await import('../config/database');
+        const analyticsResult = await pool.query(
+          `SELECT phone_number, requirements, transcript_summary 
+           FROM lead_analytics 
+           WHERE user_id = $1 
+             AND phone_number = ANY($2) 
+             AND analysis_type = 'complete'`,
+          [userId, phoneNumbers]
+        );
+        
+        analyticsResult.rows.forEach((analytics: any) => {
+          leadAnalyticsMap.set(analytics.phone_number, analytics);
+        });
+        logger.info(`Fetched lead analytics for ${analyticsResult.rows.length} contacts`);
+      } catch (analyticsError) {
+        // Log but don't fail if analytics fetch fails
+        logger.warn('Failed to fetch lead analytics for campaign contacts:', analyticsError);
+      }
+    }
+
     const queueItems = [];
     
     for (let i = 0; i < contactIds.length; i++) {
       const contact = contactMap.get(contactIds[i]);
       if (!contact) continue;
+
+      // Get lead analytics for this contact
+      const analytics = leadAnalyticsMap.get(contact.phone_number);
+      
+      // Format last_interaction_date as human-readable string
+      let lastInteractionDate = '';
+      if (contact.last_contact_at) {
+        const date = new Date(contact.last_contact_at);
+        lastInteractionDate = date.toLocaleDateString('en-US', { 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric' 
+        });
+      }
 
       // Calculate priority (contacts with names get +100)
       const priority = contact.name ? 100 : 0;
@@ -303,7 +344,11 @@ export class CallCampaignService {
         user_data: {
           lead_name: contact.name || '',
           business_name: contact.company || '',
-          email: contact.email || ''
+          email: contact.email || '',
+          notes: contact.notes || '',
+          product_interest: analytics?.requirements || '',
+          last_interaction_summary: analytics?.transcript_summary || '',
+          last_interaction_date: lastInteractionDate
         },
         priority,
         position: i + 1,

@@ -21,27 +21,55 @@ import { logger } from '../utils/logger';
  * - contact.name OR queueUserData.name/lead_name → lead_name
  * - contact.company OR queueUserData.company/business_name → business_name
  * - contact.email OR queueUserData.email → email
+ * - contact.notes OR queueUserData.notes → notes
+ * - leadAnalytics.requirements OR queueUserData.product_interest → product_interest
+ * - leadAnalytics.transcript_summary OR queueUserData.last_interaction_summary → last_interaction_summary
+ * - contact.last_contact_at OR queueUserData.last_interaction_date → last_interaction_date
  * 
  * @param contact - Contact data from database (for direct calls)
  * @param queueUserData - User data from campaign queue item (for campaign calls)
- * @returns Object with lead_name, business_name, email fields for Bolna API
+ * @param leadAnalytics - Lead analytics data for additional context (optional)
+ * @returns Object with lead_name, business_name, email, notes, product_interest, last_interaction_summary, last_interaction_date fields for Bolna API
  */
-function buildUserData(contact: ContactInterface | null, queueUserData?: Record<string, any>): Record<string, any> {
-  // If we have queue user_data (from campaign), use it but transform field names
+function buildUserData(
+  contact: ContactInterface | null, 
+  queueUserData?: Record<string, any>,
+  leadAnalytics?: LeadAnalyticsInterface | null
+): Record<string, any> {
+  // If we have queue user_data (from campaign), use it directly (already contains all fields)
   if (queueUserData) {
     return {
       lead_name: queueUserData.name || queueUserData.lead_name || '',
       business_name: queueUserData.company || queueUserData.business_name || '',
-      email: queueUserData.email || ''
+      email: queueUserData.email || '',
+      notes: queueUserData.notes || '',
+      product_interest: queueUserData.product_interest || '',
+      last_interaction_summary: queueUserData.last_interaction_summary || '',
+      last_interaction_date: queueUserData.last_interaction_date || ''
     };
   }
   
-  // If we have contact data, build user_data from it
+  // If we have contact data, build user_data from it + lead analytics
   if (contact) {
+    // Format last_interaction_date as human-readable string
+    let lastInteractionDate = '';
+    if (contact.last_contact_at) {
+      const date = new Date(contact.last_contact_at);
+      lastInteractionDate = date.toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+    }
+    
     return {
       lead_name: contact.name || '',
       business_name: contact.company || '',
-      email: contact.email || ''
+      email: contact.email || '',
+      notes: contact.notes || '',
+      product_interest: leadAnalytics?.requirements || '',
+      last_interaction_summary: leadAnalytics?.transcript_summary || '',
+      last_interaction_date: lastInteractionDate
     };
   }
   
@@ -49,7 +77,11 @@ function buildUserData(contact: ContactInterface | null, queueUserData?: Record<
   return {
     lead_name: '',
     business_name: '',
-    email: ''
+    email: '',
+    notes: '',
+    product_interest: '',
+    last_interaction_summary: '',
+    last_interaction_date: ''
   };
 }
 
@@ -540,6 +572,8 @@ export class CallService {
             
             // Fetch contact data if contactId is provided (for direct calls)
             let contactData: ContactInterface | null = null;
+            let leadAnalyticsData: LeadAnalyticsInterface | null = null;
+            
             if (callRequest.contactId) {
               contactData = await Contact.findById(callRequest.contactId);
               
@@ -561,6 +595,20 @@ export class CallService {
                 }
                 
                 logger.info(`Fetched contact data for call: ${contactData.name}`);
+                
+                // Fetch lead analytics for additional context (product_interest, last_interaction_summary)
+                try {
+                  leadAnalyticsData = await LeadAnalytics.getCompleteAnalysisByContact(
+                    callRequest.userId,
+                    contactData.phone_number
+                  );
+                  if (leadAnalyticsData) {
+                    logger.info(`Fetched lead analytics for call: requirements=${!!leadAnalyticsData.requirements}, transcript_summary=${!!leadAnalyticsData.transcript_summary}`);
+                  }
+                } catch (analyticsError) {
+                  // Log but don't fail the call if analytics fetch fails
+                  logger.warn(`Failed to fetch lead analytics for contact ${callRequest.contactId}:`, analyticsError);
+                }
               }
             }
             
@@ -646,7 +694,7 @@ export class CallService {
               agent_id: agent.bolna_agent_id,
               recipient_phone_number: callRequest.phoneNumber,
               webhook_url: process.env.BOLNA_WEBHOOK_URL || undefined,
-              user_data: buildUserData(contactData),
+              user_data: buildUserData(contactData, undefined, leadAnalyticsData),
               metadata: {
                 user_id: callRequest.userId,
                 agent_id: callRequest.agentId,
