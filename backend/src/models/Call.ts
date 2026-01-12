@@ -661,7 +661,7 @@ export class CallModel extends BaseModel<CallInterface> {
       if (filters.status) {
         // Status is now always an array of lifecycle statuses
         if (Array.isArray(filters.status) && filters.status.length > 0) {
-          const placeholders = filters.status.map((_, i) => `$${paramIndex + i}`).join(', ');
+          const placeholders = filters.status.map((_: string, i: number) => `$${paramIndex + i}`).join(', ');
           baseQuery += ` AND c.call_lifecycle_status IN (${placeholders})`;
           params.push(...filters.status);
           paramIndex += filters.status.length;
