@@ -85,8 +85,9 @@ export class CallCampaignModel {
       `INSERT INTO call_campaigns (
         user_id, name, description, agent_id, phone_number_id, next_action,
         first_call_time, last_call_time, status, start_date, end_date, started_at,
-        campaign_timezone, use_custom_timezone, max_retries, retry_interval_minutes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+        campaign_timezone, use_custom_timezone, max_retries, retry_interval_minutes,
+        retry_strategy, custom_retry_schedule
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
       RETURNING *`,
       [
         userId,
@@ -104,7 +105,9 @@ export class CallCampaignModel {
         data.campaign_timezone || null,
         data.use_custom_timezone || false,
         data.max_retries || 0,
-        data.retry_interval_minutes || 1 // Default 1 min for testing
+        data.retry_interval_minutes || 1, // Default 1 min for testing
+        data.retry_strategy || 'simple',
+        data.custom_retry_schedule ? JSON.stringify(data.custom_retry_schedule) : null
       ]
     );
     return result.rows[0];

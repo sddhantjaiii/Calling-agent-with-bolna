@@ -411,6 +411,17 @@ export type CampaignStatus =
   | 'completed'  // All calls completed
   | 'cancelled'; // Campaign cancelled by user
 
+export type RetryStrategy = 'simple' | 'custom';
+
+export interface CustomRetryEntry {
+  attempt: number;        // Retry attempt number (1-5)
+  delay_minutes: number;  // Minutes to wait after previous attempt
+}
+
+export interface CustomRetrySchedule {
+  retries: CustomRetryEntry[];
+}
+
 export interface Campaign {
   id: string;
   user_id: string;
@@ -430,6 +441,12 @@ export interface Campaign {
   // Timezone settings
   campaign_timezone?: string | null;
   use_custom_timezone?: boolean;
+  
+  // Retry configuration
+  max_retries?: number;
+  retry_interval_minutes?: number;
+  retry_strategy?: RetryStrategy;
+  custom_retry_schedule?: CustomRetrySchedule | null;
   
   // Status
   status: CampaignStatus;

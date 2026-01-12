@@ -28,6 +28,26 @@ export type QueueStatus =
 export type CallType = 'direct' | 'campaign';
 
 /**
+ * Retry Strategy Type
+ */
+export type RetryStrategy = 'simple' | 'custom';
+
+/**
+ * Custom Retry Entry
+ */
+export interface CustomRetryEntry {
+  attempt: number;        // Retry attempt number (1-5)
+  delay_minutes: number;  // Minutes to wait after previous attempt
+}
+
+/**
+ * Custom Retry Schedule
+ */
+export interface CustomRetrySchedule {
+  retries: CustomRetryEntry[];
+}
+
+/**
  * Call Campaign Interface
  */
 export interface CallCampaign {
@@ -54,6 +74,8 @@ export interface CallCampaign {
   // Retry configuration for busy/no-answer calls
   max_retries: number;           // Number of retry attempts (0 = no retries)
   retry_interval_minutes: number; // Minutes between retry attempts
+  retry_strategy: RetryStrategy;  // 'simple' or 'custom'
+  custom_retry_schedule?: CustomRetrySchedule | null; // Custom schedule when strategy is 'custom'
   
   // Status
   status: CampaignStatus;
@@ -162,6 +184,8 @@ export interface CreateCampaignRequest {
   // Retry configuration
   max_retries?: number;           // Number of retries for busy/no-answer (default: 0)
   retry_interval_minutes?: number; // Minutes between retries (default: 60)
+  retry_strategy?: RetryStrategy;  // 'simple' or 'custom' (default: 'simple')
+  custom_retry_schedule?: CustomRetrySchedule; // Custom schedule when strategy is 'custom'
   
   // Contacts
   contact_ids: string[]; // Array of contact IDs to add to campaign
@@ -232,6 +256,8 @@ export interface UpdateCampaignRequest {
   use_custom_timezone?: boolean;
   max_retries?: number;
   retry_interval_minutes?: number;
+  retry_strategy?: RetryStrategy;
+  custom_retry_schedule?: CustomRetrySchedule | null;
 }
 
 /**

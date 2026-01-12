@@ -185,8 +185,7 @@ const CallLogs: React.FC<CallLogsProps> = ({
   // Multi-selection state for campaign creation
   const [selectedCallIds, setSelectedCallIds] = useState<Set<string>>(new Set());
   const [isCreatingCampaign, setIsCreatingCampaign] = useState(false);
-  const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
-  const [isFetchingContacts, setIsFetchingContacts] = useState(false);
+  const [selectedPhoneNumbers, setSelectedPhoneNumbers] = useState<string[]>([]);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
@@ -235,46 +234,8 @@ const CallLogs: React.FC<CallLogsProps> = ({
     });
   };
 
-  // Fetch existing contacts by phone numbers
-  const fetchContactsByPhoneNumbers = async (phoneNumbers: string[]): Promise<string[]> => {
-    try {
-      setIsFetchingContacts(true);
-      // Fetch contacts with matching phone numbers
-      const response = await apiService.get('/contacts', {
-        params: {
-          limit: 1000, // Large limit to get all matching contacts
-        },
-      });
-      
-      if (response.contacts) {
-        // Match contacts by phone number
-        const matchedContactIds: string[] = [];
-        const selectedPhones = new Set(phoneNumbers);
-        
-        response.contacts.forEach((contact: any) => {
-          if (selectedPhones.has(contact.phone_number)) {
-            matchedContactIds.push(contact.id);
-          }
-        });
-        
-        return matchedContactIds;
-      }
-      return [];
-    } catch (error) {
-      console.error('Failed to fetch contacts:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to fetch existing contacts. Creating campaign without contact linking.',
-        variant: 'destructive',
-      });
-      return [];
-    } finally {
-      setIsFetchingContacts(false);
-    }
-  };
-
   // Handle create campaign from selected calls
-  const handleCreateCampaign = async (selectedCalls: Call[]) => {
+  const handleCreateCampaign = (selectedCalls: Call[]) => {
     if (selectedCallIds.size === 0) {
       toast({
         title: 'No Calls Selected',
@@ -287,26 +248,9 @@ const CallLogs: React.FC<CallLogsProps> = ({
     // Get unique phone numbers from selected calls
     const phoneNumbers = Array.from(new Set(selectedCalls.map(call => call.phoneNumber)));
     
-    // Fetch existing contacts that match these phone numbers
-    const contactIds = await fetchContactsByPhoneNumbers(phoneNumbers);
-    
-    if (contactIds.length === 0) {
-      toast({
-        title: 'No Contacts Found',
-        description: `No existing contacts found for ${phoneNumbers.length} phone number(s). Please create contacts first from the Contacts page.`,
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    if (contactIds.length < phoneNumbers.length) {
-      toast({
-        title: 'Partial Match',
-        description: `Found ${contactIds.length} out of ${phoneNumbers.length} phone numbers in your contacts. Only matched contacts will be added to the campaign.`,
-      });
-    }
-    
-    setSelectedContactIds(contactIds);
+    // Store phone numbers and open campaign modal
+    // The backend will handle contact creation/matching during campaign creation
+    setSelectedPhoneNumbers(phoneNumbers);
     setIsCreatingCampaign(true);
   };
 
@@ -1417,7 +1361,6 @@ const CallLogs: React.FC<CallLogsProps> = ({
                   <Button
                     size="lg"
                     onClick={() => handleCreateCampaign(filteredCalls.filter(call => selectedCallIds.has(call.id)))}
-                    disabled={isFetchingContacts}
                     className="h-16 px-8 rounded-full shadow-2xl hover:shadow-[0_20px_50px_rgba(8,_112,_184,_0.7)] transition-all duration-300 text-white font-semibold text-base group relative overflow-hidden"
                     style={{ 
                       background: 'linear-gradient(135deg, #1A6262 0%, #2d8a8a 100%)',
@@ -1428,26 +1371,17 @@ const CallLogs: React.FC<CallLogsProps> = ({
                     
                     {/* Content */}
                     <div className="relative flex items-center">
-                      {isFetchingContacts ? (
-                        <>
-                          <Loader2 className="w-6 h-6 mr-3 animate-spin" />
-                          <span>Fetching Contacts...</span>
-                        </>
-                      ) : (
-                        <>
-                          <div className="relative mr-3">
-                            <PhoneCall className="w-6 h-6 group-hover:scale-110 transition-transform duration-300" />
-                            {/* Pulsing ring effect */}
-                            <div className="absolute inset-0 rounded-full bg-white/30 animate-ping"></div>
-                          </div>
-                          <span className="group-hover:tracking-wide transition-all duration-300">
-                            Create Campaign
-                          </span>
-                          <span className="ml-2 bg-white/20 px-3 py-1 rounded-full text-sm font-bold backdrop-blur-sm">
-                            {getSelectedPhoneNumbers().length}
-                          </span>
-                        </>
-                      )}
+                      <div className="relative mr-3">
+                        <PhoneCall className="w-6 h-6 group-hover:scale-110 transition-transform duration-300" />
+                        {/* Pulsing ring effect */}
+                        <div className="absolute inset-0 rounded-full bg-white/30 animate-ping"></div>
+                      </div>
+                      <span className="group-hover:tracking-wide transition-all duration-300">
+                        Create Campaign
+                      </span>
+                      <span className="ml-2 bg-white/20 px-3 py-1 rounded-full text-sm font-bold backdrop-blur-sm">
+                        {getSelectedPhoneNumbers().length}
+                      </span>
                     </div>
                   </Button>
                 </TooltipTrigger>
@@ -1480,10 +1414,11 @@ const CallLogs: React.FC<CallLogsProps> = ({
         isOpen={isCreatingCampaign}
         onClose={() => {
           setIsCreatingCampaign(false);
-          setSelectedContactIds([]);
+          setSelectedPhoneNumbers([]);
           setSelectedCallIds(new Set()); // Clear selection after campaign creation
         }}
-        preSelectedContacts={selectedContactIds}
+        preSelectedContacts={[]} // Empty since we're using phone numbers directly
+        initialPhoneNumbers={selectedPhoneNumbers} // Pass phone numbers for campaign creation
       />
     </TooltipProvider>
   );

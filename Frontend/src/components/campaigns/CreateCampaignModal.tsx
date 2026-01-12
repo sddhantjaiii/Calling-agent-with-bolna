@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/components/ui/use-toast';
-import { Upload, X, FileText, CheckCircle, AlertCircle, Download, HelpCircle, Loader2, Phone, MessageSquare, Mail } from 'lucide-react';
+import { Upload, X, FileText, CheckCircle, AlertCircle, Download, HelpCircle, Loader2, Phone, MessageSquare, Mail, Plus, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import {
   Tooltip,
@@ -211,6 +211,7 @@ interface CreateCampaignModalProps {
   isOpen: boolean;
   onClose: () => void;
   preSelectedContacts?: string[]; // For bulk call button integration
+  initialPhoneNumbers?: string[]; // For creating campaign from call logs without existing contacts
 }
 
 interface CsvUploadResult {
@@ -230,6 +231,7 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
   isOpen,
   onClose,
   preSelectedContacts = [],
+  initialPhoneNumbers = [],
 }) => {
   const { theme } = useTheme();
   const { toast } = useToast();
@@ -302,6 +304,8 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
   const [maxRetries, setMaxRetries] = useState(0);
   const [retryIntervalMinutes, setRetryIntervalMinutes] = useState(60);
   const [isCustomInterval, setIsCustomInterval] = useState(false);
+  const [retryStrategy, setRetryStrategy] = useState<'simple' | 'custom'>('simple');
+  const [customRetries, setCustomRetries] = useState<Array<{ attempt: number; delay_minutes: number }>>([]);
   
   // Credit estimation states
   const [showEstimator, setShowEstimator] = useState(false);
@@ -358,6 +362,26 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
       fetchPhoneNumbers();
     }
   }, [isOpen]);
+
+  // Handle initialPhoneNumbers - create CSV file automatically
+  useEffect(() => {
+    if (isOpen && initialPhoneNumbers.length > 0) {
+      // Create CSV content from phone numbers
+      const csvContent = 'phone\n' + initialPhoneNumbers.join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const file = new File([blob], 'selected-calls.csv', { type: 'text/csv' });
+      
+      setCsvFile(file);
+      setParsedContactCount(initialPhoneNumbers.length);
+      
+      // Show toast notification
+      toast({
+        title: 'Phone Numbers Loaded',
+        description: `${initialPhoneNumbers.length} phone number${initialPhoneNumbers.length !== 1 ? 's' : ''} from call logs ready for campaign.`,
+      });
+    }
+  }, [isOpen, initialPhoneNumbers]);
+
 
   // Fetch phone numbers for selection
   const fetchPhoneNumbers = async () => {
@@ -1048,8 +1072,10 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
           csvFile,
           use_custom_timezone: useCustomTimezone,
           campaign_timezone: effectiveTimezone,
-          max_retries: maxRetries,
+          max_retries: retryStrategy === 'custom' ? customRetries.length : maxRetries,
           retry_interval_minutes: retryIntervalMinutes,
+          retry_strategy: retryStrategy,
+          custom_retry_schedule: retryStrategy === 'custom' ? { retries: customRetries } : null,
           phone_number_id: selectedPhoneNumberId || undefined,
         };
       } else if (preSelectedContacts.length > 0) {
@@ -1067,8 +1093,10 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
           next_action: nextAction,
           use_custom_timezone: useCustomTimezone,
           campaign_timezone: effectiveTimezone,
-          max_retries: maxRetries,
+          max_retries: retryStrategy === 'custom' ? customRetries.length : maxRetries,
           retry_interval_minutes: retryIntervalMinutes,
+          retry_strategy: retryStrategy,
+          custom_retry_schedule: retryStrategy === 'custom' ? { retries: customRetries } : null,
         };
       } else {
         toast({
@@ -1518,6 +1546,10 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
         // Add retry configuration
         formData.append('max_retries', pendingCampaignData.max_retries.toString());
         formData.append('retry_interval_minutes', pendingCampaignData.retry_interval_minutes.toString());
+        formData.append('retry_strategy', pendingCampaignData.retry_strategy);
+        if (pendingCampaignData.custom_retry_schedule) {
+          formData.append('custom_retry_schedule', JSON.stringify(pendingCampaignData.custom_retry_schedule));
+        }
         
         // Add phone number ID if selected
         if (pendingCampaignData.phone_number_id) {
@@ -2267,92 +2299,194 @@ const CreateCampaignModal: React.FC<CreateCampaignModalProps> = ({
           {/* Retry Configuration - Only for Call campaigns */}
           {campaignType === 'call' && (
           <div className={`p-4 rounded-lg border ${theme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-gray-50'}`}>
-            <div className="flex items-center gap-2 mb-3">
-              <Label className="text-base font-medium">Auto-Retry for Not Connected Leads</Label>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger>
-                    <HelpCircle className="w-4 h-4 text-muted-foreground" />
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    <p>If a call ends with &quot;no answer&quot; or &quot;busy&quot;, the system will automatically retry calling that lead after the specified interval, up to the maximum number of retries.</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="maxRetries">Number of Retries</Label>
-                <Select value={maxRetries.toString()} onValueChange={(val) => setMaxRetries(parseInt(val))}>
-                  <SelectTrigger id="maxRetries" className="mt-1">
-                    <SelectValue placeholder="Select retries" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="0">No retries</SelectItem>
-                    <SelectItem value="1">1 retry</SelectItem>
-                    <SelectItem value="2">2 retries</SelectItem>
-                    <SelectItem value="3">3 retries</SelectItem>
-                    <SelectItem value="4">4 retries</SelectItem>
-                    <SelectItem value="5">5 retries</SelectItem>
-                  </SelectContent>
-                </Select>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Label className="text-base font-medium">Auto-Retry for Not Connected Leads</Label>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <HelpCircle className="w-4 h-4 text-muted-foreground" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      <p>If a call ends with &quot;no answer&quot; or &quot;busy&quot;, the system will automatically retry calling that lead.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
-              <div>
-                <Label htmlFor="retryInterval">Retry Interval (Minutes)</Label>
-                <div className="flex gap-2">
-                  <Select 
-                    value={isCustomInterval ? "custom" : retryIntervalMinutes.toString()} 
-                    onValueChange={(val) => {
-                      if (val === "custom") {
-                        setIsCustomInterval(true);
-                      } else {
-                        setIsCustomInterval(false);
-                        setRetryIntervalMinutes(parseInt(val));
-                      }
-                    }}
-                    disabled={maxRetries === 0}
-                  >
-                    <SelectTrigger id="retryInterval" className="mt-1 flex-1">
-                      <SelectValue placeholder="Select interval" />
+              
+              {/* Strategy Toggle */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Mode:</span>
+                <Button
+                  type="button"
+                  variant={retryStrategy === 'simple' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setRetryStrategy('simple')}
+                  className="h-8"
+                >
+                  Simple
+                </Button>
+                <Button
+                  type="button"
+                  variant={retryStrategy === 'custom' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => {
+                    setRetryStrategy('custom');
+                    // Auto-populate custom retries from simple mode if empty
+                    if (customRetries.length === 0 && maxRetries > 0) {
+                      const newRetries = Array.from({ length: maxRetries }, (_, i) => ({
+                        attempt: i + 1,
+                        delay_minutes: retryIntervalMinutes
+                      }));
+                      setCustomRetries(newRetries);
+                    }
+                  }}
+                  className="h-8"
+                >
+                  Custom
+                </Button>
+              </div>
+            </div>
+
+            {/* Simple Mode */}
+            {retryStrategy === 'simple' && (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="maxRetries">Number of Retries</Label>
+                  <Select value={maxRetries.toString()} onValueChange={(val) => setMaxRetries(parseInt(val))}>
+                    <SelectTrigger id="maxRetries" className="mt-1">
+                      <SelectValue placeholder="Select retries" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="15">15 minutes</SelectItem>
-                      <SelectItem value="30">30 minutes</SelectItem>
-                      <SelectItem value="60">1 hour</SelectItem>
-                      <SelectItem value="120">2 hours</SelectItem>
-                      <SelectItem value="180">3 hours</SelectItem>
-                      <SelectItem value="240">4 hours</SelectItem>
-                      <SelectItem value="360">6 hours</SelectItem>
-                      <SelectItem value="720">12 hours</SelectItem>
-                      <SelectItem value="1440">24 hours</SelectItem>
-                      <SelectItem value="custom">Custom</SelectItem>
+                      <SelectItem value="0">No retries</SelectItem>
+                      <SelectItem value="1">1 retry</SelectItem>
+                      <SelectItem value="2">2 retries</SelectItem>
+                      <SelectItem value="3">3 retries</SelectItem>
+                      <SelectItem value="4">4 retries</SelectItem>
+                      <SelectItem value="5">5 retries</SelectItem>
                     </SelectContent>
                   </Select>
-                  
-                  {isCustomInterval && (
-                    <Input
-                      type="number"
-                      value={retryIntervalMinutes}
-                      onChange={(e) => {
-                        const val = parseInt(e.target.value);
-                        if (!isNaN(val)) {
-                          setRetryIntervalMinutes(val);
+                </div>
+                <div>
+                  <Label htmlFor="retryInterval">Retry Interval (Minutes)</Label>
+                  <div className="flex gap-2">
+                    <Select 
+                      value={isCustomInterval ? "custom" : retryIntervalMinutes.toString()} 
+                      onValueChange={(val) => {
+                        if (val === "custom") {
+                          setIsCustomInterval(true);
                         } else {
-                          setRetryIntervalMinutes(0);
+                          setIsCustomInterval(false);
+                          setRetryIntervalMinutes(parseInt(val));
                         }
                       }}
-                      className="mt-1 w-24"
-                      min={1}
-                      max={1440}
-                      placeholder="Mins"
-                    />
-                  )}
+                      disabled={maxRetries === 0}
+                    >
+                      <SelectTrigger id="retryInterval" className="mt-1 flex-1">
+                        <SelectValue placeholder="Select interval" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="15">15 minutes</SelectItem>
+                        <SelectItem value="30">30 minutes</SelectItem>
+                        <SelectItem value="60">1 hour</SelectItem>
+                        <SelectItem value="120">2 hours</SelectItem>
+                        <SelectItem value="180">3 hours</SelectItem>
+                        <SelectItem value="240">4 hours</SelectItem>
+                        <SelectItem value="360">6 hours</SelectItem>
+                        <SelectItem value="720">12 hours</SelectItem>
+                        <SelectItem value="1440">24 hours</SelectItem>
+                        <SelectItem value="custom">Custom</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    
+                    {isCustomInterval && (
+                      <Input
+                        type="number"
+                        value={retryIntervalMinutes}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value);
+                          if (!isNaN(val)) {
+                            setRetryIntervalMinutes(val);
+                          } else {
+                            setRetryIntervalMinutes(0);
+                          }
+                        }}
+                        className="mt-1 w-24"
+                        min={1}
+                        max={1440}
+                        placeholder="Mins"
+                      />
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-            {maxRetries > 0 && (
+            )}
+
+            {/* Custom Mode - Visual Schedule Builder */}
+            {retryStrategy === 'custom' && (
+              <div className="space-y-3">
+                {customRetries.map((retry, index) => (
+                  <div key={index} className="flex items-center gap-3">
+                    <span className="text-sm font-medium w-20">Retry {retry.attempt}:</span>
+                    <Input
+                      type="number"
+                      value={retry.delay_minutes}
+                      onChange={(e) => {
+                        const newRetries = [...customRetries];
+                        newRetries[index].delay_minutes = parseInt(e.target.value) || 0;
+                        setCustomRetries(newRetries);
+                      }}
+                      className="flex-1"
+                      min={1}
+                      max={1440}
+                      placeholder="Minutes"
+                    />
+                    <span className="text-sm text-muted-foreground w-32">minutes after {index === 0 ? 'failed call' : `Retry ${index}`}</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        const newRetries = customRetries.filter((_, i) => i !== index);
+                        // Re-number attempts
+                        setCustomRetries(newRetries.map((r, i) => ({ ...r, attempt: i + 1 })));
+                      }}
+                      className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))}
+                
+                {customRetries.length < 5 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setCustomRetries([
+                        ...customRetries,
+                        { attempt: customRetries.length + 1, delay_minutes: 60 }
+                      ]);
+                    }}
+                    className="w-full"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Retry (max 5)
+                  </Button>
+                )}
+              </div>
+            )}
+
+            {/* Summary Text */}
+            {retryStrategy === 'simple' && maxRetries > 0 && (
               <p className="text-sm text-muted-foreground mt-2">
                 Leads that don&apos;t connect will be retried up to {maxRetries} time{maxRetries > 1 ? 's' : ''} with {retryIntervalMinutes >= 60 ? `${retryIntervalMinutes / 60} hour${retryIntervalMinutes >= 120 ? 's' : ''}` : `${retryIntervalMinutes} minutes`} between each attempt. Retries will respect campaign time windows.
+              </p>
+            )}
+            {retryStrategy === 'custom' && customRetries.length > 0 && (
+              <p className="text-sm text-muted-foreground mt-2">
+                Leads will be retried {customRetries.length} time{customRetries.length > 1 ? 's' : ''} with custom intervals. All retries respect campaign time windows.
               </p>
             )}
           </div>

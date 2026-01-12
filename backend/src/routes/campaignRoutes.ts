@@ -136,6 +136,8 @@ router.post('/upload-csv', uploadExcel.single('file'), async (req: Request, res:
       max_concurrent_calls,
       max_retries,
       retry_interval_minutes,
+      retry_strategy,
+      custom_retry_schedule,
       use_custom_timezone,
       campaign_timezone
     } = req.body;
@@ -384,6 +386,8 @@ router.post('/upload-csv', uploadExcel.single('file'), async (req: Request, res:
       max_concurrent_calls: max_concurrent_calls ? parseInt(max_concurrent_calls) : undefined,
       max_retries: max_retries ? parseInt(max_retries) : 0,
       retry_interval_minutes: retry_interval_minutes ? parseInt(retry_interval_minutes) : 1, // Default 1 min for testing
+      retry_strategy: retry_strategy || 'simple',
+      custom_retry_schedule: custom_retry_schedule ? JSON.parse(custom_retry_schedule) : null,
       use_custom_timezone: use_custom_timezone === 'true',
       campaign_timezone: campaign_timezone || undefined,
       contact_ids: contactIds,

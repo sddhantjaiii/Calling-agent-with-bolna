@@ -1622,6 +1622,29 @@ class WebhookService {
                 call_id: callId
               });
               
+              // Calculate retry delay based on strategy
+              let retryIntervalMinutes = campaign.retry_interval_minutes; // Default to simple mode
+              
+              if (campaign.retry_strategy === 'custom' && campaign.custom_retry_schedule) {
+                // Find the retry entry for this attempt number
+                const retryEntry = campaign.custom_retry_schedule.retries.find(
+                  (r: any) => r.attempt === newRetryCount
+                );
+                if (retryEntry) {
+                  retryIntervalMinutes = retryEntry.delay_minutes;
+                  logger.info('🔄 Using custom retry delay', {
+                    retry_count: newRetryCount,
+                    delay_minutes: retryIntervalMinutes,
+                    strategy: 'custom'
+                  });
+                } else {
+                  logger.warn('⚠️ Custom retry entry not found, falling back to simple mode', {
+                    retry_count: newRetryCount,
+                    available_retries: campaign.custom_retry_schedule.retries.length
+                  });
+                }
+              }
+              
               const retryItem = await CallQueueModel.createRetryItem({
                 user_id: queueItem.user_id,
                 campaign_id: queueItem.campaign_id,
@@ -1633,7 +1656,7 @@ class WebhookService {
                 retry_count: newRetryCount,
                 original_queue_id: queueItem.id,
                 last_call_outcome: callOutcome,
-                retry_interval_minutes: campaign.retry_interval_minutes,
+                retry_interval_minutes: retryIntervalMinutes,
                 campaign_first_call_time: campaign.first_call_time,
                 campaign_last_call_time: campaign.last_call_time,
                 campaign_timezone: campaign.campaign_timezone,
@@ -1647,6 +1670,8 @@ class WebhookService {
                 campaign_id: queueItem.campaign_id,
                 retry_count: newRetryCount,
                 max_retries: campaign.max_retries,
+                retry_strategy: campaign.retry_strategy,
+                delay_minutes: retryIntervalMinutes,
                 call_outcome: callOutcome,
                 scheduled_for: retryItem.scheduled_for
               });
