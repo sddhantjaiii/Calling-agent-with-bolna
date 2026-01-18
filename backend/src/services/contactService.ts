@@ -228,7 +228,7 @@ export class ContactService {
       const result = await ContactModel.query(query, [userId, ...contactIds]);
       
       // Add empty tags array to each contact
-      const contactsWithTags = result.rows.map(contact => ({
+      const contactsWithTags = result.rows.map((contact: any) => ({
         ...contact,
         tags: []
       }));
