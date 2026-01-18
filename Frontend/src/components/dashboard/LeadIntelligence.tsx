@@ -38,7 +38,7 @@ import {
   Filter,
   Check,
   ChevronDown,
-  Pencil,
+  Plus,
   User as UserIcon,
 } from "lucide-react";
 import {
@@ -2063,7 +2063,13 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                       }
                     />
                     <div className="py-1">
-                      <div className="font-medium text-foreground underline cursor-pointer">
+                      <div 
+                        className="font-medium text-foreground underline cursor-pointer hover:text-primary transition-colors"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleContactClick(contact);
+                        }}
+                      >
                         {contact.name}
                       </div>
                       <div className="space-y-1 mt-1">
@@ -2416,9 +2422,9 @@ const LeadIntelligence = ({ onOpenProfile }: LeadIntelligenceProps) => {
                           setShowEditModal(true);
                         }}
                         className="h-8 px-2"
-                        title="Edit Lead Intelligence"
+                        title="Add Interaction"
                       >
-                        <Pencil className="w-4 h-4" />
+                        <Plus className="w-4 h-4" />
                       </Button>
                     )}
                     <Button

@@ -2,6 +2,12 @@ import { pool } from '../config/database';
 import { v4 as uuidv4 } from 'uuid';
 import gmailService from './gmailService';
 import { logger } from '../utils/logger';
+import { 
+  replaceTokens, 
+  validateTokensForContacts, 
+  ContactData,
+  ValidationResult 
+} from '../utils/emailTokenReplacer';
 
 interface CreateEmailCampaignRequest {
   campaign_name: string;
@@ -74,6 +80,29 @@ export class EmailCampaignService {
   }
 
   /**
+   * Validate email campaign tokens against contacts
+   * Returns validation result with detailed error report
+   */
+  static async validateCampaignTokens(
+    userId: string,
+    subject: string,
+    body: string,
+    contactIds: string[]
+  ): Promise<ValidationResult> {
+    // Fetch contacts
+    const contactsResult = await pool.query(
+      `SELECT id, name, phone_number, email, company, city, country, business_context 
+       FROM contacts WHERE id = ANY($1::uuid[]) AND user_id = $2`,
+      [contactIds, userId]
+    );
+
+    const contacts: ContactData[] = contactsResult.rows;
+
+    // Validate tokens
+    return validateTokensForContacts(subject, body, contacts);
+  }
+
+  /**
    * Create a new email campaign
    */
   static async createEmailCampaign(
@@ -86,6 +115,29 @@ export class EmailCampaignService {
       throw new Error(gmailStatus.requiresReconnect 
         ? 'Please reconnect Google to enable email sending. Go to Settings > Integrations to reconnect.'
         : 'Gmail is not connected. Please connect your Gmail account in Settings > Integrations to send emails.');
+    }
+
+    // Validate tokens if contacts are provided
+    if (data.contact_ids && data.contact_ids.length > 0) {
+      const validation = await this.validateCampaignTokens(
+        userId,
+        data.subject,
+        data.body,
+        data.contact_ids
+      );
+
+      if (!validation.valid) {
+        const errorDetails = validation.errors.map(err => ({
+          contactId: err.contactId,
+          contactName: err.contactName,
+          issues: err.tokensFailed.map(tf => tf.reason)
+        }));
+        
+        throw new Error(
+          `Token validation failed for ${validation.contactsWithErrors} contact(s). ` +
+          `Details: ${JSON.stringify(errorDetails)}`
+        );
+      }
     }
 
     return await pool.transaction(async (client) => {
@@ -166,7 +218,7 @@ export class EmailCampaignService {
 
     // Get contacts
     const contactsResult = await client.query(
-      'SELECT id, email, name FROM contacts WHERE id = ANY($1::uuid[]) AND user_id = $2',
+      'SELECT id, email, name, phone_number, company, city, country, business_context FROM contacts WHERE id = ANY($1::uuid[]) AND user_id = $2',
       [contactIds, userId]
     );
     const contacts = contactsResult.rows;
@@ -182,12 +234,17 @@ export class EmailCampaignService {
       }
 
       try {
+        // Personalize subject and body with token replacement
+        const personalizedSubject = replaceTokens(subject, contact);
+        const personalizedBodyHtml = replaceTokens(bodyHtml, contact);
+        const personalizedBodyText = replaceTokens(bodyText, contact);
+
         // Send email via Gmail API
         const result = await gmailService.sendEmail(userId, {
           to: { address: contact.email, name: contact.name || contact.email.split('@')[0] },
-          subject,
-          htmlBody: bodyHtml,
-          textBody: bodyText,
+          subject: personalizedSubject,
+          htmlBody: personalizedBodyHtml,
+          textBody: personalizedBodyText,
           attachments: attachments?.map(att => ({
             filename: att.filename,
             content: att.content,
@@ -213,12 +270,22 @@ export class EmailCampaignService {
               null, // Gmail uses profile name automatically
               contact.email,
               contact.name || contact.email.split('@')[0],
-              subject,
-              bodyHtml,
-              bodyText,
+              personalizedSubject,
+              personalizedBodyHtml,
+              personalizedBodyText,
               attachments && attachments.length > 0,
               attachments?.length || 0,
             ]
+          );
+
+          // Link email to lead_analytics if a lead analytics record exists for this contact
+          await client.query(
+            `UPDATE lead_analytics 
+             SET email_id = $1, updated_at = NOW()
+             WHERE user_id = $2 AND phone_number = $3 AND email_id IS NULL
+             ORDER BY created_at DESC
+             LIMIT 1`,
+            [emailId, userId, contact.phone_number]
           );
 
           // Store attachments metadata if any

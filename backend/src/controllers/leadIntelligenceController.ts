@@ -554,7 +554,7 @@ export class LeadIntelligenceController {
             la.company_name as company_name,
             COALESCE(la.last_edited_by_name, 'Unknown Editor') as interaction_agent,
             la.last_edited_at as interaction_date,
-            'Manual Edit'::text as platform,
+            COALESCE(la.interaction_platform, 'Manual Edit') as platform,
             NULL::text as call_direction,
             NULL::text as hangup_by,
             NULL::text as hangup_reason,
@@ -881,7 +881,8 @@ export class LeadIntelligenceController {
         'assigned_to_team_member_id',
         'custom_cta',      // Custom CTA tags
         'requirements',    // Requirements/notes
-        'contact_notes'    // Notes from contacts table (handled separately)
+        'contact_notes',   // Notes from contacts table (handled separately)
+        'interaction_platform'  // Platform for manual interaction (Call/WhatsApp/Email)
       ];
 
       // Validate that only allowed fields are being updated
@@ -952,6 +953,7 @@ export class LeadIntelligenceController {
         engagement_health: baseRecord.engagement_health,
         lead_status_tag: baseRecord.lead_status_tag,
         assigned_to_team_member_id: baseRecord.assigned_to_team_member_id,
+        interaction_platform: baseRecord.interaction_platform || 'Call',  // Default to Call
         // Copy scores from base record
         intent_score: baseRecord.intent_score,
         urgency_score: baseRecord.urgency_score,
@@ -1043,7 +1045,7 @@ export class LeadIntelligenceController {
         INSERT INTO lead_analytics (
           user_id, phone_number, analysis_type, call_id,
           intent_level, urgency_level, budget_constraint, fit_alignment, engagement_health,
-          lead_status_tag, assigned_to_team_member_id,
+          lead_status_tag, assigned_to_team_member_id, interaction_platform,
           intent_score, urgency_score, budget_score, fit_score, engagement_score, total_score,
           reasoning, cta_interactions, company_name, extracted_name, extracted_email,
           smart_notification, demo_book_datetime, requirements, custom_cta,
@@ -1052,12 +1054,12 @@ export class LeadIntelligenceController {
         ) VALUES (
           $1, $2, 'human_edit', $3,
           $4, $5, $6, $7, $8,
-          $9, $10,
-          $11, $12, $13, $14, $15, $16,
-          $17, $18, $19, $20, $21,
-          $22, $23, $24, $25,
-          $26, $27, CURRENT_TIMESTAMP,
-          $28, $29, $30, $31
+          $9, $10, $11,
+          $12, $13, $14, $15, $16, $17,
+          $18, $19, $20, $21, $22,
+          $23, $24, $25, $26,
+          $27, $28, CURRENT_TIMESTAMP,
+          $29, $30, $31, $32
         )
         ON CONFLICT (user_id, phone_number, analysis_type) WHERE analysis_type = 'human_edit'
         DO UPDATE SET
@@ -1068,6 +1070,7 @@ export class LeadIntelligenceController {
           engagement_health = EXCLUDED.engagement_health,
           lead_status_tag = EXCLUDED.lead_status_tag,
           assigned_to_team_member_id = EXCLUDED.assigned_to_team_member_id,
+          interaction_platform = EXCLUDED.interaction_platform,
           intent_score = EXCLUDED.intent_score,
           urgency_score = EXCLUDED.urgency_score,
           budget_score = EXCLUDED.budget_score,
@@ -1096,7 +1099,7 @@ export class LeadIntelligenceController {
       const upsertValues = [
         userId, decodedGroupId, baseRecord.call_id,
         newValues.intent_level, newValues.urgency_level, newValues.budget_constraint, newValues.fit_alignment, newValues.engagement_health,
-        newValues.lead_status_tag, newValues.assigned_to_team_member_id,
+        newValues.lead_status_tag, newValues.assigned_to_team_member_id, newValues.interaction_platform,
         newValues.intent_score, newValues.urgency_score, newValues.budget_score, newValues.fit_score, newValues.engagement_score, newValues.total_score,
         newValues.reasoning, newValues.cta_interactions, newValues.company_name, newValues.extracted_name, newValues.extracted_email,
         newValues.smart_notification, newValues.demo_book_datetime, newValues.requirements, newValues.custom_cta,

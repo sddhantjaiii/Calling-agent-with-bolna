@@ -1,8 +1,24 @@
 import { Router, Request, Response } from 'express';
 import { EmailCampaignService } from '../services/emailCampaignService';
 import { logger } from '../utils/logger';
+import { EmailCampaignController } from '../controllers/emailCampaignController';
+import { authenticateToken } from '../middleware/auth';
 
 const router = Router();
+
+/**
+ * @route   GET /api/email-campaigns/templates
+ * @desc    Get system email templates
+ * @access  Private
+ */
+router.get('/templates', authenticateToken, EmailCampaignController.getTemplates);
+
+/**
+ * @route   POST /api/email-campaigns/validate
+ * @desc    Validate email campaign tokens before creation
+ * @access  Private
+ */
+router.post('/validate', authenticateToken, EmailCampaignController.validateTokens);
 
 /**
  * @route   POST /api/email-campaigns

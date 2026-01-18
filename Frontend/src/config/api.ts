@@ -124,6 +124,9 @@ export const API_ENDPOINTS = {
     TEMPLATE: `${API_URL}/campaigns/template`,
   },
 
+  // Email Campaigns
+  EMAIL_CAMPAIGNS: `${API_URL}/email-campaigns`,
+
   // Leads
   LEADS: {
     LIST: `${API_URL}/leads`,

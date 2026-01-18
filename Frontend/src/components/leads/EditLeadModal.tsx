@@ -22,6 +22,7 @@ import { Loader2 } from 'lucide-react';
 
 const LEVEL_OPTIONS = ['High', 'Medium', 'Low'] as const;
 const LEAD_TAG_OPTIONS = ['Hot', 'Warm', 'Cold'] as const;
+const INTERACTION_PLATFORM_OPTIONS = ['Call', 'WhatsApp', 'Email'] as const;
 
 export interface LeadIntelligenceData {
   intent_level: string;
@@ -34,6 +35,7 @@ export interface LeadIntelligenceData {
   requirements?: string;
   contact_notes?: string;  // Notes stored in contacts table
   assigned_to?: { id: string; name: string } | null;
+  interaction_platform?: string;  // Platform for manual interaction (Call/WhatsApp/Email)
 }
 
 interface EditLeadModalProps {
@@ -79,6 +81,7 @@ export const EditLeadModal: React.FC<EditLeadModalProps> = ({
     requirements: currentData.requirements || '',
     contact_notes: currentData.contact_notes || '',
     assigned_to: currentData.assigned_to || null,
+    interaction_platform: currentData.interaction_platform || 'Call',
   });
 
   // Reset form when modal opens or currentData changes
@@ -95,6 +98,7 @@ export const EditLeadModal: React.FC<EditLeadModalProps> = ({
         requirements: currentData.requirements || '',
         contact_notes: currentData.contact_notes || '',
         assigned_to: currentData.assigned_to || null,
+        interaction_platform: currentData.interaction_platform || 'Call',
       });
     }
   }, [open, currentData]);
@@ -154,6 +158,7 @@ export const EditLeadModal: React.FC<EditLeadModalProps> = ({
         custom_cta: formData.custom_cta || '',
         requirements: formData.requirements || '',
         contact_notes: formData.contact_notes || '',  // Notes saved to contacts table
+        interaction_platform: formData.interaction_platform || 'Call',  // Platform for manual interaction
       };
 
       // Add assigned_to if changed (backend expects assigned_to_team_member_id)
@@ -223,6 +228,29 @@ export const EditLeadModal: React.FC<EditLeadModalProps> = ({
         </DialogHeader>
 
         <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
+          {/* Interaction Platform (Call/WhatsApp/Email) */}
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="interaction_platform" className="text-right text-gray-300">
+              Interaction Mode
+            </Label>
+            <Select
+              value={formData.interaction_platform || 'Call'}
+              onValueChange={(v) => handleFieldChange('interaction_platform', v)}
+              disabled={saving}
+            >
+              <SelectTrigger className="col-span-3 bg-gray-800 border-gray-600">
+                <SelectValue placeholder="Select interaction platform" />
+              </SelectTrigger>
+              <SelectContent className="bg-gray-800 border-gray-600">
+                {INTERACTION_PLATFORM_OPTIONS.map((platform) => (
+                  <SelectItem key={platform} value={platform}>
+                    {platform}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* Lead Tag (Hot/Warm/Cold) */}
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="lead_status_tag" className="text-right text-gray-300">
