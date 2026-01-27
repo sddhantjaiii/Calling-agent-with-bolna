@@ -1230,7 +1230,7 @@ export const ContactList: React.FC<ContactListProps> = ({
                   
                   return (
                     <React.Fragment key={contact.id}>
-                      <tr className="border-b transition-colors hover:bg-muted/50">
+                      <tr className="border-b transition-colors hover:bg-gray-50 dark:hover:bg-gray-800/50">
                         <td
                           className="p-4 align-middle bg-background sticky left-0 z-10"
                         >
@@ -1243,7 +1243,13 @@ export const ContactList: React.FC<ContactListProps> = ({
                           className="p-4 align-middle bg-background min-w-[220px] sticky left-[48px] z-10"
                         >
                           <div>
-                            <div className="font-medium text-foreground">{contact.name}</div>
+                            <div 
+                              className="font-medium text-foreground cursor-pointer hover:text-blue-600 hover:underline transition-colors"
+                              onClick={() => onContactSelect?.(contact)}
+                              title="Click to view contact details"
+                            >
+                              {contact.name}
+                            </div>
                             {contact.company && (
                               <div className="text-xs text-muted-foreground mt-0.5">{contact.company}</div>
                             )}

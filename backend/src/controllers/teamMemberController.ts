@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import teamMemberService from '../services/teamMemberService';
+import teamMemberAnalyticsService from '../services/teamMemberAnalyticsService';
 import { TeamMemberRole } from '../models/TeamMember';
 import { logger } from '../utils/logger';
 
@@ -328,6 +329,145 @@ class TeamMemberController {
     } catch (error) {
       logger.error('Error validating invite token:', error);
       res.status(500).json({ error: 'Failed to validate token', valid: false });
+    }
+  }
+
+  /**
+   * Get analytics for all team members (salespersons)
+   * GET /api/team-members/analytics?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
+   */
+  async getTeamMemberAnalytics(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = req.userId;
+      if (!userId) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+
+      // Parse optional date range from query params
+      let dateRange: { startDate: Date; endDate: Date } | undefined;
+      if (req.query.startDate && req.query.endDate) {
+        dateRange = {
+          startDate: new Date(req.query.startDate as string),
+          endDate: new Date(req.query.endDate as string),
+        };
+      }
+
+      const analytics = await teamMemberAnalyticsService.getAllTeamMembersAnalytics(userId, dateRange);
+      
+      res.json({ 
+        analytics,
+        dateRange: dateRange || {
+          startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+          endDate: new Date()
+        }
+      });
+    } catch (error) {
+      logger.error('Error getting team member analytics:', error);
+      res.status(500).json({ error: 'Failed to get team member analytics' });
+    }
+  }
+
+  /**
+   * Get analytics for a specific team member
+   * GET /api/team-members/:id/analytics?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
+   */
+  async getTeamMemberAnalyticsById(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = req.userId;
+      if (!userId) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+
+      const { id } = req.params;
+
+      // Parse optional date range
+      let dateRange: { startDate: Date; endDate: Date } | undefined;
+      if (req.query.startDate && req.query.endDate) {
+        dateRange = {
+          startDate: new Date(req.query.startDate as string),
+          endDate: new Date(req.query.endDate as string),
+        };
+      }
+
+      const analytics = await teamMemberAnalyticsService.getTeamMemberAnalytics(userId, id, dateRange);
+      
+      res.json({ 
+        analytics,
+        dateRange: dateRange || {
+          startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+          endDate: new Date()
+        }
+      });
+    } catch (error) {
+      logger.error('Error getting team member analytics by ID:', error);
+      if (error instanceof Error && error.message.includes('not found')) {
+        res.status(404).json({ error: error.message });
+      } else {
+        res.status(500).json({ error: 'Failed to get team member analytics' });
+      }
+    }
+  }
+
+  /**
+   * Get activity log for a specific team member
+   * GET /api/team-members/:id/activity-log?limit=50&offset=0&activityType[]=edit&activityType[]=call
+   */
+  async getTeamMemberActivityLog(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = req.userId;
+      if (!userId) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+
+      const { id } = req.params;
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 50;
+      const offset = req.query.offset ? parseInt(req.query.offset as string) : 0;
+      
+      // Parse activity type filter
+      let activityType: string[] | undefined;
+      if (req.query.activityType) {
+        activityType = Array.isArray(req.query.activityType) 
+          ? req.query.activityType as string[]
+          : [req.query.activityType as string];
+      }
+
+      const result = await teamMemberAnalyticsService.getTeamMemberActivityLog(userId, id, {
+        limit,
+        offset,
+        activityType,
+      });
+      
+      res.json(result);
+    } catch (error) {
+      logger.error('Error getting team member activity log:', error);
+      res.status(500).json({ error: 'Failed to get team member activity log' });
+    }
+  }
+
+  /**
+   * Get follow-ups for a specific team member
+   * GET /api/team-members/:id/follow-ups?status=pending
+   */
+  async getTeamMemberFollowUps(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = req.userId;
+      if (!userId) {
+        res.status(401).json({ error: 'Unauthorized' });
+        return;
+      }
+
+      const { id } = req.params;
+      const status = req.query.status as 'pending' | 'completed' | 'cancelled' | undefined;
+
+      const followUps = await teamMemberAnalyticsService.getTeamMemberFollowUps(userId, id, status);
+      
+      res.json({ follow_ups: followUps });
+    } catch (error) {
+      logger.error('Error getting team member follow-ups:', error);
+      res.status(500).json({ error: 'Failed to get team member follow-ups' });
     }
   }
 }

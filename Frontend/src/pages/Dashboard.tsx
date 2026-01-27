@@ -8,6 +8,7 @@ import LeadIntelligence from "@/components/dashboard/LeadIntelligence";
 import ImportedData from "@/components/dashboard/ImportedData";
 import Customers from "@/components/dashboard/Customers";
 import CallingAgent from "@/components/dashboard/CallingAgent";
+import SalespersonAgent from "@/components/dashboard/SalespersonAgent";
 import Campaigns from "@/pages/Campaigns";
 import CampaignSettings from "@/pages/CampaignSettings";
 import Templates from "@/pages/Templates";
@@ -149,13 +150,23 @@ const DashboardContent = ({
     return match ? match[1] : null;
   };
 
+  // Helper function to get salesperson sub-tab
+  const getSalespersonSubTab = () => {
+    if (!activeSubTab?.startsWith("salesperson")) return null;
+    
+    const match = activeSubTab.match(/^salesperson-(.+)$/);
+    return match ? match[1] : null;
+  };
+
   const isAgentsTab = activeTab === "agents";
   const isAgentManager = isAgentsTab && activeSubTab === "agent-manager";
   const isCallingAgent = isAgentsTab && activeSubTab?.startsWith("calling-agent");
   const isChatAgent = isAgentsTab && activeSubTab?.startsWith("chat-agent");
+  const isSalesperson = isAgentsTab && activeSubTab?.startsWith("salesperson");
 
   const callingAgentSubTab = getCallingAgentSubTab();
   const chatAgentSubTab = getChatAgentSubTab();
+  const salespersonSubTab = getSalespersonSubTab();
 
   const renderContent = () => {
     if (selectedLead) {
@@ -201,7 +212,7 @@ const DashboardContent = ({
       );
     }
     if (isAgentsTab) {
-      if (isAgentManager && !isCallingAgent && !isChatAgent) {
+      if (isAgentManager && !isCallingAgent && !isChatAgent && !isSalesperson) {
         return <Agents />;
       }
       // Calling Agent with unified logs and analytics
@@ -230,6 +241,18 @@ const DashboardContent = ({
             }
             onOpenProfile={(lead: Lead) =>
               handleOpenProfile(lead, "chat", "data")
+            }
+          />
+        );
+      }
+      // Salesperson Agent with analytics and activity logs
+      if (isSalesperson && salespersonSubTab) {
+        return (
+          <SalespersonAgent
+            activeSubTab={salespersonSubTab}
+            activeTab={activeTab}
+            setActiveSubTab={(subtab) =>
+              setActiveSubTab(`salesperson-${subtab}`)
             }
           />
         );

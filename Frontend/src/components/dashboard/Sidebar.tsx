@@ -139,6 +139,23 @@ const Sidebar = ({
             },
           ],
         },
+        {
+          id: "salesperson",
+          label: "Salesperson",
+          icon: UserCheck,
+          subTabs: [
+            {
+              id: "salesperson-analytics",
+              label: "Analytics",
+              icon: BarChart3,
+            },
+            {
+              id: "salesperson-activity-logs",
+              label: "Activity Logs",
+              icon: FileText,
+            },
+          ],
+        },
       ],
     },
     {
@@ -207,6 +224,9 @@ const Sidebar = ({
     } else if (subTabId === "chat-agent") {
       // For chat agent, default to logs sub-tab
       setActiveSubTab("chat-agent-logs");
+    } else if (subTabId === "salesperson") {
+      // For salesperson, default to analytics sub-tab
+      setActiveSubTab("salesperson-analytics");
     } else {
       setActiveSubTab(subTabId);
     }

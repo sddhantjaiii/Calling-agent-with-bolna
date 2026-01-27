@@ -332,9 +332,9 @@ export const validateAgentName = (name: string): string | null => {
     return 'Agent name must be less than 50 characters';
   }
   
-  // Check for valid characters (letters, numbers, spaces, hyphens, underscores)
-  if (!/^[a-zA-Z0-9\s\-_]+$/.test(trimmedName)) {
-    return 'Agent name can only contain letters, numbers, spaces, hyphens, and underscores';
+  // Check for valid characters (letters, numbers, spaces, common business characters)
+  if (!/^[a-zA-Z0-9\s\-_&().,']+$/.test(trimmedName)) {
+    return 'Agent name can only contain letters, numbers, spaces, and common business characters (&, -, _, parentheses, periods, commas, apostrophes)';
   }
   
   return null;

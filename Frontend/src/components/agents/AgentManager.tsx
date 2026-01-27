@@ -10,8 +10,6 @@ import type { Agent } from "@/types";
 import {
   Pencil,
   Trash2,
-  Eye,
-  ChevronUp,
   Wifi,
   Phone,
   MessageCircle,
@@ -137,7 +135,6 @@ export default function AgentManager() {
   const [status, setStatus] = useState("all");
   const [agentType, setAgentType] = useState("all");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  const [viewDetails, setViewDetails] = useState<Record<string, boolean>>({});
 
   // Display error messages from the hook
   useEffect(() => {
@@ -218,13 +215,6 @@ export default function AgentManager() {
         duration: 5000,
       });
     }
-  };
-
-  const toggleViewDetails = (agentId: string) => {
-    setViewDetails((prev) => ({
-      ...prev,
-      [agentId]: !prev[agentId],
-    }));
   };
 
   // Helper to determine agent type
@@ -424,7 +414,6 @@ export default function AgentManager() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {filteredAgents.map((agent) => {
                 const isExpanded = expanded[agent.id];
-                const isViewingDetails = viewDetails[agent.id];
                 const desc =
                   typeof agent.description === "string" ? agent.description : "";
                 const fallbackDesc = (
@@ -437,8 +426,7 @@ export default function AgentManager() {
                 return (
                   <div
                     key={agent.id}
-                    className={`bg-card border border-border rounded-lg shadow-md p-6 flex flex-col justify-between transition-all duration-300 hover:shadow-lg ${isViewingDetails ? "min-h-[320px]" : "min-h-[200px]"
-                      }`}
+                    className="bg-card border border-border rounded-lg shadow-md p-6 flex flex-col justify-between transition-all duration-300 hover:shadow-lg min-h-[200px]"
                   >
                     {/* Title with Platform Badge */}
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
@@ -513,19 +501,6 @@ export default function AgentManager() {
                     <div className="flex flex-col gap-0.5 text-[13px] text-foreground/80 mb-2 mt-2">
                       <div className="flex items-center gap-2">
                         <span className="w-24 text-muted-foreground font-semibold">
-                          Platform:
-                        </span>
-                        <span className="flex items-center gap-1">
-                          {platformConfig.logoUrl ? (
-                            <img src={platformConfig.logoUrl} alt={platformConfig.label} className="w-4 h-4" />
-                          ) : (
-                            platformConfig.icon
-                          )}
-                          {platformConfig.label}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="w-24 text-muted-foreground font-semibold">
                           Type:
                         </span>
                         <span>
@@ -546,6 +521,14 @@ export default function AgentManager() {
                         </span>
                         <span>{agent.conversations ?? 0}</span>
                       </div>
+                      <div className="flex items-center gap-2">
+                        <span className="w-24 text-muted-foreground font-semibold">
+                          Performance:
+                        </span>
+                        <span className="text-blue-600">
+                          {agent.successRate || 0}% success rate
+                        </span>
+                      </div>
                       {agent.phoneDisplay && (
                         <div className="flex items-center gap-2">
                           <span className="w-24 text-muted-foreground font-semibold">
@@ -562,64 +545,8 @@ export default function AgentManager() {
                       </div>
                     </div>
 
-                    {/* Expanded Details */}
-                    {isViewingDetails && (
-                      <div className="flex flex-col gap-0.5 text-[13px] text-foreground/80 mb-2 border-t pt-2">
-                        <div className="flex items-center gap-2">
-                          <span className="w-24 text-muted-foreground font-semibold">
-                            Model:
-                          </span>
-                          <span>{agent.model || "gpt-4o-mini"}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="w-24 text-muted-foreground font-semibold">
-                            Credits:
-                          </span>
-                          <span
-                            className={`${(agent.creditsRemaining || 0) < 500
-                              ? "text-red-600"
-                              : "text-green-600"
-                              }`}
-                          >
-                            {(agent.creditsRemaining || 0).toLocaleString()}{" "}
-                            remaining
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="w-24 text-muted-foreground font-semibold">
-                            Performance:
-                          </span>
-                          <span className="text-blue-600">
-                            {agent.successRate || 0}% success rate
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="w-24 text-muted-foreground font-semibold">
-                            Avg Response:
-                          </span>
-                          <span>{agent.avgDuration || '0m'}</span>
-                        </div>
-                      </div>
-                    )}
-
                     {/* Actions */}
-                    <div className="flex items-center justify-between mt-auto pt-4">
-                      <button
-                        onClick={() => toggleViewDetails(agent.id)}
-                        className="font-medium hover:underline flex items-center gap-1 text-[#1A6262]"
-                      >
-                        {isViewingDetails ? (
-                          <>
-                            <ChevronUp className="w-4 h-4" />
-                            Hide Details
-                          </>
-                        ) : (
-                          <>
-                            <Eye className="w-4 h-4" />
-                            View Details
-                          </>
-                        )}
-                      </button>
+                    <div className="flex items-center justify-end mt-auto pt-4">
                       <div className="flex gap-3">
                         {/* Edit button - disabled for chat agents */}
                         {isAgentChatType ? (
@@ -652,7 +579,7 @@ export default function AgentManager() {
                               </button>
                             </TooltipTrigger>
                             <TooltipContent side="top">
-                              <p>Edit agent name and description</p>
+                              <p>Edit agent name</p>
                             </TooltipContent>
                           </Tooltip>
                         )}

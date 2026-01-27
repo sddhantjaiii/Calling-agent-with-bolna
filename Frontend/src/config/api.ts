@@ -159,6 +159,10 @@ export const API_ENDPOINTS = {
     RESEND_INVITE: (id: string) => `${API_URL}/team-members/${id}/resend-invite`,
     SET_PASSWORD: `${API_URL}/team-members/set-password`,
     VALIDATE_TOKEN: (token: string) => `${API_URL}/team-members/validate-token/${token}`,
+    ANALYTICS: `${API_URL}/team-members/analytics`,
+    ANALYTICS_BY_ID: (id: string) => `${API_URL}/team-members/${id}/analytics`,
+    ACTIVITY_LOG: (id: string) => `${API_URL}/team-members/${id}/activity-log`,
+    FOLLOW_UPS: (id: string) => `${API_URL}/team-members/${id}/follow-ups`,
   },
 
   // Follow-ups

@@ -1,7 +1,8 @@
 # Complete Database Schema Documentation
 
-*Generated on: 2025-12-02T23:10:36.832Z*
+*Generated on: 2026-01-23T00:00:00.000Z*
 *Database: Neon PostgreSQL*
+*Last Updated: January 23, 2026 - Added new tables (emails, email_campaigns, team_members, etc.) and columns (interaction_platform, email_id, requirements, lead_stage, retry_strategy, etc.)*
 
 ## Table of Contents
 
@@ -16,15 +17,21 @@
 - [public.contacts](#publiccontacts)
 - [public.credit_transactions](#publiccredit_transactions)
 - [public.customers](#publiccustomers)
+- [public.email_campaigns](#publicemailcampaigns)
+- [public.emails](#publicemails)
 - [public.failure_logs](#publicfailure_logs)
 - [public.follow_ups](#publicfollow_ups)
 - [public.lead_analytics](#publiclead_analytics)
+- [public.lead_intelligence_events](#publicleadintelligenceevents)
 - [public.login_attempts](#publiclogin_attempts)
 - [public.migrations](#publicmigrations)
 - [public.notification_preferences](#publicnotification_preferences)
 - [public.notifications](#publicnotifications)
+- [public.pending_user_syncs](#publicpendingusersyncs)
 - [public.phone_numbers](#publicphone_numbers)
 - [public.system_config](#publicsystem_config)
+- [public.team_member_sessions](#publicteammembersessions)
+- [public.team_members](#publicteammembers)
 - [public.transcripts](#publictranscripts)
 - [public.user_analytics](#publicuser_analytics)
 - [public.user_email_settings](#publicuser_email_settings)
@@ -417,6 +424,9 @@ CREATE TRIGGER update_calendar_meetings_updated_at BEFORE UPDATE ON public.calen
 | `use_custom_timezone` | boolean | YES | false |  |  | True if campaign uses custom timezone instead of user timezone |
 | `max_retries` | integer | NO | 0 |  |  | Maximum number of auto-callback retries for busy/no-answer calls (0 = no retries, max 5) |
 | `retry_interval_minutes` | integer | NO | 60 |  |  | Time gap between retry attempts in minutes |
+| `retry_strategy` | character varying(20) | YES | 'simple'::character varying |  |  | Retry configuration mode: "simple" (fixed interval) or "custom" (per-retry schedule) |
+| `custom_retry_schedule` | jsonb | YES | NULL |  |  | Custom retry schedule in JSON format: {"retries": [{"attempt": 1, "delay_minutes": 15}, ...]}. Only used when retry_strategy = "custom" |
+| `phone_number_id` | uuid | YES | - |  |  | Optional foreign key to phone_numbers table for outbound caller ID |
 
 ### Constraints
 
@@ -929,6 +939,154 @@ CREATE TRIGGER update_customers_updated_at BEFORE UPDATE ON public.customers FOR
 
 ---
 
+## public.email_campaigns
+
+**Description**: Manages batch email campaigns with scheduling
+
+### Columns
+
+| Column Name | Data Type | Nullable | Default | Primary Key | Unique | Description |
+|-------------|-----------|----------|---------|-------------|--------|-------------|
+| `id` | uuid | NO | gen_random_uuid() | ✓ | ✓ |  |
+| `user_id` | uuid | NO | - |  | ✓ | Multi-tenant isolation |
+| `name` | character varying(255) | NO | - |  |  | Campaign name |
+| `description` | text | YES | - |  |  | Campaign description |
+| `subject` | text | NO | - |  |  | Email subject template |
+| `body_html` | text | YES | - |  |  | HTML email body template |
+| `body_text` | text | YES | - |  |  | Plain text email body template |
+| `status` | character varying(20) | NO | 'draft'::character varying |  |  | Campaign status: draft, scheduled, active, paused, completed, cancelled |
+| `total_contacts` | integer | NO | 0 |  |  | Total number of contacts in campaign |
+| `completed_emails` | integer | NO | 0 |  |  | Number of emails sent |
+| `successful_emails` | integer | NO | 0 |  |  | Number of successfully delivered emails |
+| `failed_emails` | integer | NO | 0 |  |  | Number of failed emails |
+| `opened_emails` | integer | NO | 0 |  |  | Number of opened emails |
+| `start_date` | date | NO | - |  |  | Campaign start date |
+| `end_date` | date | YES | - |  |  | Campaign end date |
+| `scheduled_at` | timestamp with time zone | YES | - |  |  | When to start sending emails |
+| `created_at` | timestamp with time zone | NO | now() |  |  |  |
+| `updated_at` | timestamp with time zone | NO | now() |  |  |  |
+| `started_at` | timestamp with time zone | YES | - |  |  | When campaign actually started |
+| `completed_at` | timestamp with time zone | YES | - |  |  | When campaign completed |
+
+### Constraints
+
+| Constraint Name | Type | Definition |
+|-----------------|------|------------|
+| `email_campaigns_status_check` | CHECK | CHECK (((status)::text = ANY ((ARRAY['draft'::character varying, 'scheduled'::character varying, 'active'::character varying, 'paused'::character varying, 'completed'::character varying, 'cancelled'::character varying])::text[]))) |
+| `email_campaigns_user_id_fkey` | FOREIGN KEY | FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE |
+| `email_campaigns_pkey` | PRIMARY KEY | PRIMARY KEY (id) |
+| `email_campaigns_id_user_id_key` | UNIQUE | UNIQUE (id, user_id) |
+
+### Indexes
+
+| Index Name | Definition |
+|------------|------------|
+| `email_campaigns_pkey` | CREATE UNIQUE INDEX email_campaigns_pkey ON public.email_campaigns USING btree (id) |
+| `email_campaigns_id_user_id_key` | CREATE UNIQUE INDEX email_campaigns_id_user_id_key ON public.email_campaigns USING btree (id, user_id) |
+| `idx_email_campaigns_user_id` | CREATE INDEX idx_email_campaigns_user_id ON public.email_campaigns USING btree (user_id) |
+| `idx_email_campaigns_status` | CREATE INDEX idx_email_campaigns_status ON public.email_campaigns USING btree (status) |
+| `idx_email_campaigns_start_date` | CREATE INDEX idx_email_campaigns_start_date ON public.email_campaigns USING btree (start_date) WHERE ((status)::text = ANY ((ARRAY['scheduled'::character varying, 'active'::character varying])::text[])) |
+
+### Foreign Keys
+
+| Column | References | On Update | On Delete |
+|--------|------------|-----------|------------|
+| `user_id` | `public.users(id)` | NO ACTION | CASCADE |
+
+**Current Row Count**: 0
+
+---
+
+## public.emails
+
+**Description**: Tracks all emails sent to contacts, including campaign emails
+
+### Columns
+
+| Column Name | Data Type | Nullable | Default | Primary Key | Unique | Description |
+|-------------|-----------|----------|---------|-------------|--------|-------------|
+| `id` | uuid | NO | gen_random_uuid() | ✓ | ✓ |  |
+| `user_id` | uuid | NO | - |  | ✓ | Multi-tenant isolation |
+| `contact_id` | uuid | YES | - |  |  | Link to contact (nullable for external recipients) |
+| `campaign_id` | uuid | YES | - |  |  | Link to email campaign if part of campaign |
+| `from_email` | character varying(255) | NO | - |  |  | Sender email address |
+| `from_name` | character varying(255) | YES | - |  |  | Sender name |
+| `to_email` | character varying(255) | NO | - |  |  | Recipient email address |
+| `to_name` | character varying(255) | YES | - |  |  | Recipient name |
+| `cc_emails` | text[] | YES | - |  |  | Array of CC email addresses |
+| `bcc_emails` | text[] | YES | - |  |  | Array of BCC email addresses |
+| `subject` | text | NO | - |  |  | Email subject |
+| `body_html` | text | YES | - |  |  | HTML email body |
+| `body_text` | text | YES | - |  |  | Plain text email body |
+| `has_attachments` | boolean | YES | false |  |  | Whether email has attachments |
+| `attachment_count` | integer | YES | 0 |  |  | Number of attachments |
+| `status` | character varying(50) | YES | 'sent'::character varying |  |  | Email delivery status: sent, delivered, opened, bounced, failed |
+| `sent_at` | timestamp with time zone | YES | now() |  |  | When email was sent |
+| `delivered_at` | timestamp with time zone | YES | - |  |  | When email was delivered |
+| `opened_at` | timestamp with time zone | YES | - |  |  | When email was opened |
+| `bounced_at` | timestamp with time zone | YES | - |  |  | When email bounced |
+| `failed_at` | timestamp with time zone | YES | - |  |  | When email failed |
+| `external_message_id` | character varying(500) | YES | - |  |  | ZeptoMail or other provider message ID |
+| `error_message` | text | YES | - |  |  | Error message if failed |
+| `created_at` | timestamp with time zone | YES | now() |  |  |  |
+| `updated_at` | timestamp with time zone | YES | now() |  |  |  |
+
+### Constraints
+
+| Constraint Name | Type | Definition |
+|-----------------|------|------------|
+| `emails_status_check` | CHECK | CHECK (((status)::text = ANY ((ARRAY['sent'::character varying, 'delivered'::character varying, 'opened'::character varying, 'bounced'::character varying, 'failed'::character varying])::text[]))) |
+| `emails_user_id_fkey` | FOREIGN KEY | FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE |
+| `emails_contact_id_fkey` | FOREIGN KEY | FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE SET NULL |
+| `emails_campaign_id_fkey` | FOREIGN KEY | FOREIGN KEY (campaign_id) REFERENCES email_campaigns(id) ON DELETE SET NULL |
+| `emails_pkey` | PRIMARY KEY | PRIMARY KEY (id) |
+| `emails_id_user_id_key` | UNIQUE | UNIQUE (id, user_id) |
+
+### Indexes
+
+| Index Name | Definition |
+|------------|------------|
+| `emails_pkey` | CREATE UNIQUE INDEX emails_pkey ON public.emails USING btree (id) |
+| `emails_id_user_id_key` | CREATE UNIQUE INDEX emails_id_user_id_key ON public.emails USING btree (id, user_id) |
+| `idx_emails_user_id` | CREATE INDEX idx_emails_user_id ON public.emails USING btree (user_id) |
+| `idx_emails_contact_id` | CREATE INDEX idx_emails_contact_id ON public.emails USING btree (contact_id) |
+| `idx_emails_campaign_id` | CREATE INDEX idx_emails_campaign_id ON public.emails USING btree (campaign_id) |
+| `idx_emails_sent_at` | CREATE INDEX idx_emails_sent_at ON public.emails USING btree (sent_at DESC) |
+| `idx_emails_status` | CREATE INDEX idx_emails_status ON public.emails USING btree (status) |
+| `idx_emails_to_email` | CREATE INDEX idx_emails_to_email ON public.emails USING btree (to_email) |
+
+### Foreign Keys
+
+| Column | References | On Update | On Delete |
+|--------|------------|-----------|------------|
+| `user_id` | `public.users(id)` | NO ACTION | CASCADE |
+| `contact_id` | `public.contacts(id)` | NO ACTION | SET NULL |
+| `campaign_id` | `public.email_campaigns(id)` | NO ACTION | SET NULL |
+
+### Triggers
+
+#### trigger_update_contact_email_stats_insert
+
+- **Timing**: AFTER
+- **Event**: INSERT
+- **Definition**:
+```sql
+CREATE TRIGGER trigger_update_contact_email_stats_insert AFTER INSERT ON public.emails FOR EACH ROW WHEN ((new.contact_id IS NOT NULL)) EXECUTE FUNCTION update_contact_email_stats()
+```
+
+#### trigger_update_contact_email_stats_update
+
+- **Timing**: AFTER
+- **Event**: UPDATE
+- **Definition**:
+```sql
+CREATE TRIGGER trigger_update_contact_email_stats_update AFTER UPDATE ON public.emails FOR EACH ROW WHEN (((new.contact_id IS NOT NULL) AND ((new.status)::text = 'opened'::text) AND ((old.status)::text <> 'opened'::text))) EXECUTE FUNCTION update_contact_email_stats()
+```
+
+**Current Row Count**: 0
+
+---
+
 ## public.failure_logs
 
 **Description**: Stores detailed logs of API failures (4xx and 5xx errors) with full request/response metadata for debugging and monitoring
@@ -1102,10 +1260,15 @@ CREATE TRIGGER trigger_follow_ups_updated_at BEFORE UPDATE ON public.follow_ups 
 | `demo_book_datetime` | timestamp with time zone | YES | - |  |  | Timezone-aware datetime when demo/meeting was scheduled |
 | `is_read` | boolean | YES | false |  |  | Tracks whether the smart notification has been read by the user |
 | `phone_number` | character varying(50) | YES | - |  | ✓ | Required for complete analysis (identifies contact across calls). NULL for individual analysis (phone derived from call_id) |
-| `analysis_type` | character varying(20) | YES | 'individual'::character varying |  | ✓ | Type of analysis: "individual" = single call analysis (one row per call), "complete" = aggregated analysis across all calls for a contact (one row per user_id + phone_number, updated on each call) |
+| `analysis_type` | character varying(20) | YES | 'individual'::character varying |  | ✓ | Type of analysis: "individual" = single call analysis (one row per call), "complete" = aggregated analysis across all calls for a contact (one row per user_id + phone_number, updated on each call), "human_edit" = manual human override |
 | `previous_calls_analyzed` | integer | YES | 0 |  |  | For individual: always 0. For complete: total number of calls analyzed for this user_id + phone_number combination |
 | `latest_call_id` | uuid | YES | - |  |  | For complete analysis only: points to most recent call analyzed. NULL for individual analysis |
 | `analysis_timestamp` | timestamp with time zone | YES | CURRENT_TIMESTAMP |  |  |  |
+| `requirements` | text | YES | - |  |  | Product/business requirements extracted from call transcript by OpenAI analysis. NULL if no requirements mentioned |
+| `lead_stage` | character varying(50) | YES | 'New Lead'::character varying |  |  | Current stage in the sales funnel (e.g., "New Lead", "Qualified", "Negotiation", "Closed Won", "Closed Lost") |
+| `lead_stage_updated_at` | timestamp with time zone | YES | CURRENT_TIMESTAMP |  |  | Timestamp when the lead stage was last updated |
+| `email_id` | uuid | YES | - |  |  | Links to email campaigns sent to this lead for interaction timeline tracking |
+| `interaction_platform` | character varying(50) | YES | - |  |  | Platform for manual interaction (Call, WhatsApp, Email). Used for human_edit analysis type to show the mode of interaction in timeline |
 
 ### Constraints
 
@@ -1197,6 +1360,58 @@ CREATE TRIGGER trigger_update_agent_scores_from_lead_analytics AFTER INSERT OR U
 ```
 
 **Current Row Count**: 13
+
+---
+
+## public.lead_intelligence_events
+
+**Description**: Tracks all changes/events on lead intelligence for timeline display. Includes manual edits by humans, assignments, notes, etc.
+
+### Columns
+
+| Column Name | Data Type | Nullable | Default | Primary Key | Unique | Description |
+|-------------|-----------|----------|---------|-------------|--------|-------------|
+| `id` | uuid | NO | uuid_generate_v4() | ✓ | ✓ |  |
+| `tenant_user_id` | uuid | NO | - |  |  | User ID that owns this lead |
+| `phone_number` | character varying(50) | YES | - |  |  | Lead's phone number |
+| `lead_analytics_id` | uuid | YES | - |  |  | Reference to individual lead_analytics record if applicable |
+| `actor_type` | character varying(20) | NO | 'owner'::character varying |  |  | Who performed the action: owner, team_member, ai, system |
+| `actor_id` | uuid | YES | - |  |  | user.id for owner, team_member.id for team members |
+| `actor_name` | character varying(255) | NO | - |  |  | Name of the actor who performed the action |
+| `event_type` | character varying(50) | NO | - |  |  | Type of event: edit, assign, note, status_change, call, email, meeting |
+| `field_changes` | jsonb | YES | '{}'::jsonb |  |  | JSON object containing field-level changes |
+| `notes` | text | YES | - |  |  | Additional notes or comments |
+| `created_at` | timestamp with time zone | NO | CURRENT_TIMESTAMP |  |  |  |
+
+### Constraints
+
+| Constraint Name | Type | Definition |
+|-----------------|------|------------|
+| `lead_events_actor_type_check` | CHECK | CHECK (((actor_type)::text = ANY ((ARRAY['owner'::character varying, 'team_member'::character varying, 'ai'::character varying, 'system'::character varying])::text[]))) |
+| `lead_events_event_type_check` | CHECK | CHECK (((event_type)::text = ANY ((ARRAY['edit'::character varying, 'assign'::character varying, 'note'::character varying, 'status_change'::character varying, 'call'::character varying, 'email'::character varying, 'meeting'::character varying])::text[]))) |
+| `lead_intelligence_events_tenant_user_id_fkey` | FOREIGN KEY | FOREIGN KEY (tenant_user_id) REFERENCES users(id) ON DELETE CASCADE |
+| `lead_intelligence_events_lead_analytics_id_fkey` | FOREIGN KEY | FOREIGN KEY (lead_analytics_id) REFERENCES lead_analytics(id) ON DELETE SET NULL |
+| `lead_intelligence_events_pkey` | PRIMARY KEY | PRIMARY KEY (id) |
+
+### Indexes
+
+| Index Name | Definition |
+|------------|------------|
+| `lead_intelligence_events_pkey` | CREATE UNIQUE INDEX lead_intelligence_events_pkey ON public.lead_intelligence_events USING btree (id) |
+| `idx_lead_events_tenant` | CREATE INDEX idx_lead_events_tenant ON public.lead_intelligence_events USING btree (tenant_user_id) |
+| `idx_lead_events_phone` | CREATE INDEX idx_lead_events_phone ON public.lead_intelligence_events USING btree (phone_number) WHERE (phone_number IS NOT NULL) |
+| `idx_lead_events_lead_analytics` | CREATE INDEX idx_lead_events_lead_analytics ON public.lead_intelligence_events USING btree (lead_analytics_id) WHERE (lead_analytics_id IS NOT NULL) |
+| `idx_lead_events_created` | CREATE INDEX idx_lead_events_created ON public.lead_intelligence_events USING btree (created_at DESC) |
+| `idx_lead_events_type` | CREATE INDEX idx_lead_events_type ON public.lead_intelligence_events USING btree (event_type) |
+
+### Foreign Keys
+
+| Column | References | On Update | On Delete |
+|--------|------------|-----------|------------|
+| `tenant_user_id` | `public.users(id)` | NO ACTION | CASCADE |
+| `lead_analytics_id` | `public.lead_analytics(id)` | NO ACTION | SET NULL |
+
+**Current Row Count**: 0
 
 ---
 
@@ -1441,6 +1656,49 @@ CREATE TRIGGER trigger_phone_numbers_updated_at BEFORE UPDATE ON public.phone_nu
 
 ---
 
+## public.pending_user_syncs
+
+**Description**: Tracks pending user sync attempts to Chat Agent Server (WhatsApp microservice) with retry logic
+
+### Columns
+
+| Column Name | Data Type | Nullable | Default | Primary Key | Unique | Description |
+|-------------|-----------|----------|---------|-------------|--------|-------------|
+| `user_id` | uuid | NO | - | ✓ | ✓ | User ID to sync to Chat Agent Server |
+| `email` | character varying(255) | NO | - |  |  | User email for sync |
+| `attempt_number` | integer | NO | 1 |  |  | Current attempt number (1-3), retry intervals: immediate, 60min, 12h |
+| `next_retry_at` | timestamp with time zone | NO | now() |  |  | When the next retry should be attempted |
+| `last_error` | text | YES | - |  |  | Error message from last failed attempt |
+| `status` | character varying(20) | NO | 'pending'::character varying |  |  | pending = waiting for retry, failed = max retries exceeded |
+| `created_at` | timestamp with time zone | NO | now() |  |  |  |
+| `updated_at` | timestamp with time zone | NO | now() |  |  |  |
+
+### Constraints
+
+| Constraint Name | Type | Definition |
+|-----------------|------|------------|
+| `pending_user_syncs_status_check` | CHECK | CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'failed'::character varying])::text[]))) |
+| `pending_user_syncs_user_id_fkey` | FOREIGN KEY | FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE |
+| `pending_user_syncs_pkey` | PRIMARY KEY | PRIMARY KEY (user_id) |
+
+### Indexes
+
+| Index Name | Definition |
+|------------|------------|
+| `pending_user_syncs_pkey` | CREATE UNIQUE INDEX pending_user_syncs_pkey ON public.pending_user_syncs USING btree (user_id) |
+| `idx_pending_user_syncs_next_retry` | CREATE INDEX idx_pending_user_syncs_next_retry ON public.pending_user_syncs USING btree (next_retry_at) WHERE ((status)::text = 'pending'::text) |
+| `idx_pending_user_syncs_status` | CREATE INDEX idx_pending_user_syncs_status ON public.pending_user_syncs USING btree (status) |
+
+### Foreign Keys
+
+| Column | References | On Update | On Delete |
+|--------|------------|-----------|------------|
+| `user_id` | `public.users(id)` | NO ACTION | CASCADE |
+
+**Current Row Count**: 0
+
+---
+
 ## public.system_config
 
 ### Columns
@@ -1536,6 +1794,110 @@ CREATE TRIGGER update_system_config_updated_at BEFORE UPDATE ON public.system_co
 | `user_id` | `public.users(id)` | NO ACTION | CASCADE |
 
 **Current Row Count**: 11
+
+---
+
+## public.team_members
+
+**Description**: Human representatives who work under a tenant (owner user). They can log in, view/edit leads based on their role
+
+### Columns
+
+| Column Name | Data Type | Nullable | Default | Primary Key | Unique | Description |
+|-------------|-----------|----------|---------|-------------|--------|-------------|
+| `id` | uuid | NO | uuid_generate_v4() | ✓ | ✓ |  |
+| `tenant_user_id` | uuid | NO | - |  | ✓ | The owner user this team member belongs to |
+| `name` | character varying(255) | NO | - |  |  | Team member's full name |
+| `email` | character varying(255) | NO | - |  | ✓ | Team member's email (globally unique) |
+| `password_hash` | character varying(255) | YES | - |  |  | Hashed password for authentication |
+| `role` | character varying(50) | NO | 'agent'::character varying |  |  | Role: manager, agent, or viewer |
+| `is_active` | boolean | NO | true |  |  | Whether this team member can log in |
+| `invite_token` | character varying(255) | YES | - |  |  | Temporary token for invitation acceptance |
+| `invite_token_expires` | timestamp with time zone | YES | - |  |  | Expiration time for invite token |
+| `password_set_at` | timestamp with time zone | YES | - |  |  | When password was last set |
+| `last_login` | timestamp with time zone | YES | - |  |  | Last login timestamp |
+| `created_at` | timestamp with time zone | NO | CURRENT_TIMESTAMP |  |  |  |
+| `updated_at` | timestamp with time zone | NO | CURRENT_TIMESTAMP |  |  |  |
+
+### Constraints
+
+| Constraint Name | Type | Definition |
+|-----------------|------|------------|
+| `team_members_role_check` | CHECK | CHECK (((role)::text = ANY ((ARRAY['manager'::character varying, 'agent'::character varying, 'viewer'::character varying])::text[]))) |
+| `team_members_email_tenant_unique` | UNIQUE | UNIQUE (tenant_user_id, email) |
+| `team_members_tenant_user_id_fkey` | FOREIGN KEY | FOREIGN KEY (tenant_user_id) REFERENCES users(id) ON DELETE CASCADE |
+| `team_members_pkey` | PRIMARY KEY | PRIMARY KEY (id) |
+
+### Indexes
+
+| Index Name | Definition |
+|------------|------------|
+| `team_members_pkey` | CREATE UNIQUE INDEX team_members_pkey ON public.team_members USING btree (id) |
+| `team_members_email_tenant_unique` | CREATE UNIQUE INDEX team_members_email_tenant_unique ON public.team_members USING btree (tenant_user_id, email) |
+| `idx_team_members_email_global` | CREATE UNIQUE INDEX idx_team_members_email_global ON public.team_members USING btree (email) |
+| `idx_team_members_tenant_user_id` | CREATE INDEX idx_team_members_tenant_user_id ON public.team_members USING btree (tenant_user_id) |
+| `idx_team_members_email` | CREATE INDEX idx_team_members_email ON public.team_members USING btree (email) |
+| `idx_team_members_role` | CREATE INDEX idx_team_members_role ON public.team_members USING btree (tenant_user_id, role) |
+| `idx_team_members_invite_token` | CREATE INDEX idx_team_members_invite_token ON public.team_members USING btree (invite_token) WHERE (invite_token IS NOT NULL) |
+| `idx_team_members_active` | CREATE INDEX idx_team_members_active ON public.team_members USING btree (tenant_user_id, is_active) |
+
+### Foreign Keys
+
+| Column | References | On Update | On Delete |
+|--------|------------|-----------|------------|
+| `tenant_user_id` | `public.users(id)` | NO ACTION | CASCADE |
+
+**Current Row Count**: 0
+
+---
+
+## public.team_member_sessions
+
+**Description**: Tracks login sessions for team members (similar to user_sessions)
+
+### Columns
+
+| Column Name | Data Type | Nullable | Default | Primary Key | Unique | Description |
+|-------------|-----------|----------|---------|-------------|--------|-------------|
+| `id` | uuid | NO | uuid_generate_v4() | ✓ | ✓ |  |
+| `team_member_id` | uuid | NO | - |  |  | Team member who owns this session |
+| `tenant_user_id` | uuid | NO | - |  |  | The owner user (for quick tenant filtering) |
+| `token_hash` | character varying(255) | NO | - |  |  | Hashed JWT token |
+| `refresh_token_hash` | character varying(255) | YES | - |  |  | Hashed refresh token |
+| `expires_at` | timestamp with time zone | NO | - |  |  | When the JWT token expires |
+| `refresh_expires_at` | timestamp with time zone | YES | - |  |  | When the refresh token expires |
+| `is_active` | boolean | NO | true |  |  | Whether session is active |
+| `last_used` | timestamp with time zone | YES | CURRENT_TIMESTAMP |  |  | Last time session was used |
+| `ip_address` | character varying(45) | YES | - |  |  | IP address of the session |
+| `user_agent` | text | YES | - |  |  | User agent string |
+| `created_at` | timestamp with time zone | NO | CURRENT_TIMESTAMP |  |  |  |
+
+### Constraints
+
+| Constraint Name | Type | Definition |
+|-----------------|------|------------|
+| `team_member_sessions_team_member_id_fkey` | FOREIGN KEY | FOREIGN KEY (team_member_id) REFERENCES team_members(id) ON DELETE CASCADE |
+| `team_member_sessions_tenant_user_id_fkey` | FOREIGN KEY | FOREIGN KEY (tenant_user_id) REFERENCES users(id) ON DELETE CASCADE |
+| `team_member_sessions_pkey` | PRIMARY KEY | PRIMARY KEY (id) |
+
+### Indexes
+
+| Index Name | Definition |
+|------------|------------|
+| `team_member_sessions_pkey` | CREATE UNIQUE INDEX team_member_sessions_pkey ON public.team_member_sessions USING btree (id) |
+| `idx_team_member_sessions_member` | CREATE INDEX idx_team_member_sessions_member ON public.team_member_sessions USING btree (team_member_id) |
+| `idx_team_member_sessions_token` | CREATE INDEX idx_team_member_sessions_token ON public.team_member_sessions USING btree (token_hash) WHERE (is_active = true) |
+| `idx_team_member_sessions_refresh` | CREATE INDEX idx_team_member_sessions_refresh ON public.team_member_sessions USING btree (refresh_token_hash) WHERE (is_active = true) |
+| `idx_team_member_sessions_expires` | CREATE INDEX idx_team_member_sessions_expires ON public.team_member_sessions USING btree (expires_at) WHERE (is_active = true) |
+
+### Foreign Keys
+
+| Column | References | On Update | On Delete |
+|--------|------------|-----------|------------|
+| `team_member_id` | `public.team_members(id)` | NO ACTION | CASCADE |
+| `tenant_user_id` | `public.users(id)` | NO ACTION | CASCADE |
+
+**Current Row Count**: 0
 
 ---
 

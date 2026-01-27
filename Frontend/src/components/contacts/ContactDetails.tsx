@@ -13,9 +13,12 @@ import {
   Trash2,
   FileText,
   PhoneIncoming,
+  ExternalLink,
+  Tag,
 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { useContacts } from '@/hooks/useContacts';
+import { useNavigation } from '@/contexts/NavigationContext';
 import DeleteContactDialog from './DeleteContactDialog';
 import { CallAgentModal } from './CallAgentModal';
 import { SendWhatsAppModal } from './SendWhatsAppModal';
@@ -37,6 +40,7 @@ export const ContactDetails: React.FC<ContactDetailsProps> = ({
 }) => {
   const { toast } = useToast();
   const { deleting } = useContacts();
+  const { navigateToLeadIntelligence } = useNavigation();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isCallModalOpen, setIsCallModalOpen] = useState(false);
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
@@ -83,6 +87,13 @@ export const ContactDetails: React.FC<ContactDetailsProps> = ({
 
   const handleDeleteCancel = () => {
     setIsDeleteDialogOpen(false);
+  };
+
+  const handleViewInteractionTimeline = () => {
+    // Navigate to Lead Intelligence and auto-open this contact's timeline
+    // The NavigationContext will handle setting targetLeadIdentifier
+    // which triggers the useEffect in LeadIntelligence to auto-expand the timeline
+    navigateToLeadIntelligence({ phone: contact.phoneNumber });
   };
 
   return (
@@ -219,11 +230,28 @@ export const ContactDetails: React.FC<ContactDetailsProps> = ({
                   </p>
                 </div>
               </div>
+
+              {/* Tags Section */}
+              {contact.tags && contact.tags.length > 0 && (
+                <div className="space-y-2 pt-4 border-t">
+                  <label className="text-sm font-medium text-gray-500 flex items-center gap-2">
+                    <Tag className="w-4 h-4" />
+                    Tags
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {contact.tags.map((tag, idx) => (
+                      <Badge key={idx} variant="secondary" className="text-xs bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                        #{tag}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
               
               {contact.notes && (
                 <div className="space-y-2 pt-4 border-t">
                   <label className="text-sm font-medium text-gray-500">Notes</label>
-                  <div className="bg-gray-50 p-3 rounded-md">
+                  <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-md">
                     <p className="text-sm whitespace-pre-wrap">{contact.notes}</p>
                   </div>
                 </div>
@@ -231,21 +259,27 @@ export const ContactDetails: React.FC<ContactDetailsProps> = ({
             </CardContent>
           </Card>
 
-          {/* Activity Timeline - Placeholder for future implementation */}
+          {/* Interaction Timeline - Redirect to Lead Intelligence */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="w-5 h-5" />
-                Activity Timeline
+              <CardTitle className="flex items-center gap-2 text-base">
+                <FileText className="w-4 h-4" />
+                Interaction Timeline
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="text-center py-8 text-gray-500">
-                <FileText className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                <p className="text-lg font-medium mb-2">No activity yet</p>
-                <p className="text-sm">
-                  Call history, messages, and interactions will appear here once available.
+            <CardContent className="py-4">
+              <div className="space-y-3">
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  View all calls, messages, and interactions with this contact.
                 </p>
+                <Button 
+                  onClick={handleViewInteractionTimeline}
+                  className="w-full gap-2"
+                  variant="default"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  View Full Timeline
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -253,27 +287,6 @@ export const ContactDetails: React.FC<ContactDetailsProps> = ({
 
         {/* Sidebar */}
         <div className="space-y-6">
-          {/* Quick Stats */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Quick Stats</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500">Total Calls</span>
-                <Badge variant="secondary">0</Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500">Total Messages</span>
-                <Badge variant="secondary">0</Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500">Last Contact</span>
-                <span className="text-sm text-gray-500">Never</span>
-              </div>
-            </CardContent>
-          </Card>
-
           {/* Contact Details */}
           <Card>
             <CardHeader>
@@ -282,7 +295,7 @@ export const ContactDetails: React.FC<ContactDetailsProps> = ({
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium text-gray-500">Contact ID</label>
-                <p className="text-sm font-mono bg-gray-100 p-2 rounded">
+                <p className="text-sm font-mono bg-gray-100 dark:bg-gray-800 p-2 rounded">
                   {contact.id}
                 </p>
               </div>
@@ -345,40 +358,6 @@ export const ContactDetails: React.FC<ContactDetailsProps> = ({
                   </div>
                 </div>
               )}
-            </CardContent>
-          </Card>
-
-          {/* Quick Actions */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Quick Actions</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <Button 
-                variant="outline" 
-                className="w-full justify-start"
-                onClick={handleCall}
-              >
-                <Phone className="w-4 h-4 mr-2" />
-                Start Call
-              </Button>
-              <Button 
-                variant="outline" 
-                className="w-full justify-start"
-                onClick={handleMessage}
-              >
-                <MessageSquare className="w-4 h-4 mr-2" />
-                Send Message
-              </Button>
-              <Button 
-                variant="outline" 
-                className="w-full justify-start"
-                onClick={handleEmail}
-                disabled={!contact.email}
-              >
-                <Mail className="w-4 h-4 mr-2" />
-                Send Email
-              </Button>
             </CardContent>
           </Card>
         </div>

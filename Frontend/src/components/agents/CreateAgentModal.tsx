@@ -296,7 +296,7 @@ export function CreateAgentModal({
       <DialogContent className="max-w-md max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader className="flex-shrink-0 pb-4">
           <DialogTitle>
-            {editAgent ? 'Edit Agent' : 'Create New Agent'}
+            {editAgent ? 'Edit Agent Name' : 'Create New Agent'}
           </DialogTitle>
         </DialogHeader>
 
@@ -315,108 +315,113 @@ export function CreateAgentModal({
               error={validationErrors.name}
               touched={touchedFields.name}
               disabled={isSubmitting || creating || updating}
-              description="Choose a descriptive name for your AI agent"
+              description={editAgent ? "Update the name of your agent" : "Choose a descriptive name for your AI agent"}
             />
 
-            {/* Agent Type */}
-            <ValidatedSelect
-              label="Agent Type"
-              value={formData.type}
-              onValueChange={(value) => handleInputChange('type', value)}
-              onBlur={() => handleFieldBlur('type')}
-              error={validationErrors.type}
-              touched={touchedFields.type}
-              required
-              disabled={isSubmitting || creating || updating}
-              description="Choose how your agent will interact with customers"
-            >
-              <SelectItem value="CallAgent">Call Agent</SelectItem>
-              <SelectItem value="ChatAgent">Chat Agent</SelectItem>
-            </ValidatedSelect>
+            {/* Show additional fields only when creating (not editing) */}
+            {!editAgent && (
+              <>
+                {/* Agent Type */}
+                <ValidatedSelect
+                  label="Agent Type"
+                  value={formData.type}
+                  onValueChange={(value) => handleInputChange('type', value)}
+                  onBlur={() => handleFieldBlur('type')}
+                  error={validationErrors.type}
+                  touched={touchedFields.type}
+                  required
+                  disabled={isSubmitting || creating || updating}
+                  description="Choose how your agent will interact with customers"
+                >
+                  <SelectItem value="CallAgent">Call Agent</SelectItem>
+                  <SelectItem value="ChatAgent">Chat Agent</SelectItem>
+                </ValidatedSelect>
 
-            {/* Language */}
-            <ValidatedSelect
-              label="Language"
-              value={formData.language}
-              onValueChange={(value) => handleInputChange('language', value)}
-              onBlur={() => handleFieldBlur('language')}
-              error={validationErrors.language}
-              touched={touchedFields.language}
-              required
-              disabled={isSubmitting || creating || updating}
-              description="Primary language for agent interactions"
-            >
-              <SelectItem value="English">English</SelectItem>
-              <SelectItem value="Spanish">Spanish</SelectItem>
-              <SelectItem value="French">French</SelectItem>
-              <SelectItem value="German">German</SelectItem>
-              <SelectItem value="Italian">Italian</SelectItem>
-            </ValidatedSelect>
+                {/* Language */}
+                <ValidatedSelect
+                  label="Language"
+                  value={formData.language}
+                  onValueChange={(value) => handleInputChange('language', value)}
+                  onBlur={() => handleFieldBlur('language')}
+                  error={validationErrors.language}
+                  touched={touchedFields.language}
+                  required
+                  disabled={isSubmitting || creating || updating}
+                  description="Primary language for agent interactions"
+                >
+                  <SelectItem value="English">English</SelectItem>
+                  <SelectItem value="Spanish">Spanish</SelectItem>
+                  <SelectItem value="French">French</SelectItem>
+                  <SelectItem value="German">German</SelectItem>
+                  <SelectItem value="Italian">Italian</SelectItem>
+                </ValidatedSelect>
 
-            {/* Voice Selection (only for Call Agents) */}
-            {formData.type === 'CallAgent' && (
-              <ValidatedSelect
-                label="Voice"
-                value={formData.voiceId || undefined}
-                onValueChange={(value) => handleInputChange('voiceId', value)}
-                onBlur={() => handleFieldBlur('voiceId')}
-                placeholder={voices.length === 0 ? "Loading voices..." : "Select a voice"}
-                error={validationErrors.voiceId}
-                touched={touchedFields.voiceId}
-                required
-                disabled={voices.length === 0 || isSubmitting || creating || updating}
-                description={voices.length === 0 ? "Loading available voices..." : "Choose the voice for your call agent"}
-              >
-                {voices.map((voice) => (
-                  <SelectItem key={voice.voice_id} value={voice.voice_id}>
-                    {voice.name} ({voice.category})
-                  </SelectItem>
-                ))}
-              </ValidatedSelect>
+                {/* Voice Selection (only for Call Agents) */}
+                {formData.type === 'CallAgent' && (
+                  <ValidatedSelect
+                    label="Voice"
+                    value={formData.voiceId || undefined}
+                    onValueChange={(value) => handleInputChange('voiceId', value)}
+                    onBlur={() => handleFieldBlur('voiceId')}
+                    placeholder={voices.length === 0 ? "Loading voices..." : "Select a voice"}
+                    error={validationErrors.voiceId}
+                    touched={touchedFields.voiceId}
+                    required
+                    disabled={voices.length === 0 || isSubmitting || creating || updating}
+                    description={voices.length === 0 ? "Loading available voices..." : "Choose the voice for your call agent"}
+                  >
+                    {voices.map((voice) => (
+                      <SelectItem key={voice.voice_id} value={voice.voice_id}>
+                        {voice.name} ({voice.category})
+                      </SelectItem>
+                    ))}
+                  </ValidatedSelect>
+                )}
+
+                {/* Model */}
+                <ValidatedSelect
+                  label="AI Model"
+                  value={formData.model}
+                  onValueChange={(value) => handleInputChange('model', value)}
+                  disabled={isSubmitting || creating || updating}
+                  description="Choose the AI model that powers your agent"
+                >
+                  <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
+                  <SelectItem value="gpt-4o">GPT-4o</SelectItem>
+                  <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo</SelectItem>
+                </ValidatedSelect>
+
+                {/* Description */}
+                <ValidatedTextarea
+                  label="Description"
+                  value={formData.description}
+                  onChange={(e) => handleInputChange('description', e.target.value)}
+                  onBlur={() => handleFieldBlur('description')}
+                  placeholder="Describe what this agent does..."
+                  maxLength={200}
+                  showCharCount
+                  rows={3}
+                  disabled={isSubmitting || creating || updating}
+                  error={validationErrors.description}
+                  touched={touchedFields.description}
+                  description="Optional description to help you identify this agent"
+                />
+
+                {/* Data Collection Description */}
+                <ValidatedTextarea
+                  label="Data Collection Description"
+                  value={formData.dataCollectionDescription}
+                  onChange={(e) => handleInputChange('dataCollectionDescription', e.target.value)}
+                  onBlur={() => handleFieldBlur('dataCollectionDescription')}
+                  placeholder="Enter the data collection evaluation instructions for the agent"
+                  rows={8}
+                  error={validationErrors.dataCollectionDescription}
+                  touched={touchedFields.dataCollectionDescription}
+                  disabled={isSubmitting || creating || updating}
+                  description="Instructions for how the agent should evaluate and collect lead data from conversations"
+                />
+              </>
             )}
-
-            {/* Model */}
-            <ValidatedSelect
-              label="AI Model"
-              value={formData.model}
-              onValueChange={(value) => handleInputChange('model', value)}
-              disabled={isSubmitting || creating || updating}
-              description="Choose the AI model that powers your agent"
-            >
-              <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
-              <SelectItem value="gpt-4o">GPT-4o</SelectItem>
-              <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo</SelectItem>
-            </ValidatedSelect>
-
-            {/* Description */}
-            <ValidatedTextarea
-              label="Description"
-              value={formData.description}
-              onChange={(e) => handleInputChange('description', e.target.value)}
-              onBlur={() => handleFieldBlur('description')}
-              placeholder="Describe what this agent does..."
-              maxLength={200}
-              showCharCount
-              rows={3}
-              error={validationErrors.description}
-              touched={touchedFields.description}
-              disabled={isSubmitting || creating || updating}
-              description="Optional description to help you identify this agent"
-            />
-
-            {/* Data Collection Description */}
-            <ValidatedTextarea
-              label="Data Collection Description"
-              value={formData.dataCollectionDescription}
-              onChange={(e) => handleInputChange('dataCollectionDescription', e.target.value)}
-              onBlur={() => handleFieldBlur('dataCollectionDescription')}
-              placeholder="Enter the data collection evaluation instructions for the agent"
-              rows={8}
-              error={validationErrors.dataCollectionDescription}
-              touched={touchedFields.dataCollectionDescription}
-              disabled={isSubmitting || creating || updating}
-              description="Instructions for how the agent should evaluate and collect lead data from conversations"
-            />
 
             {/* Error Display */}
             {error && (
@@ -448,7 +453,7 @@ export function CreateAgentModal({
                     {editAgent ? 'Updating...' : 'Creating...'}
                   </div>
                 ) : (
-                  editAgent ? 'Update Agent' : 'Create Agent'
+                  editAgent ? 'Update Name' : 'Create Agent'
                 )}
               </Button>
             </div>

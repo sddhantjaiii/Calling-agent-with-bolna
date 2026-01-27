@@ -39,4 +39,20 @@ router.delete('/:id', authenticateToken, requireOwner, teamMemberController.deac
 // Resend invite email
 router.post('/:id/resend-invite', authenticateToken, requireOwner, teamMemberController.resendInvite);
 
+// ============================================================================
+// ANALYTICS ENDPOINTS (authenticated users)
+// ============================================================================
+
+// Get analytics for all team members (salespersons)
+router.get('/analytics', authenticateToken, teamMemberController.getTeamMemberAnalytics);
+
+// Get analytics for a specific team member
+router.get('/:id/analytics', authenticateToken, teamMemberController.getTeamMemberAnalyticsById);
+
+// Get activity log for a specific team member
+router.get('/:id/activity-log', authenticateToken, teamMemberController.getTeamMemberActivityLog);
+
+// Get follow-ups for a specific team member
+router.get('/:id/follow-ups', authenticateToken, teamMemberController.getTeamMemberFollowUps);
+
 export default router;

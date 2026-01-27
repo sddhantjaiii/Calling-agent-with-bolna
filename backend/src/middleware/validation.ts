@@ -119,8 +119,8 @@ export const validationChains = {
   agent: [
     body('name')
       .isLength({ min: 1, max: 100 })
-      .matches(/^[a-zA-Z0-9\s\-_]+$/)
-      .withMessage('Agent name must be 1-100 characters and contain only letters, numbers, spaces, hyphens, and underscores'),
+      .matches(/^[a-zA-Z0-9\s\-_&().,']+$/)
+      .withMessage('Agent name must be 1-100 characters and contain only letters, numbers, spaces, and common business characters (&, -, _, parentheses, periods, commas, apostrophes)'),
     
     body('description')
       .optional()

@@ -2670,6 +2670,41 @@ class ApiService {
     return response as { token?: string; refreshToken?: string; user?: any; error?: string };
   }
 
+  async getTeamMemberAnalytics(dateRange?: { startDate: string; endDate: string }): Promise<ApiResponse<{ analytics: TeamMemberKPIs[]; dateRange: { startDate: Date; endDate: Date } }>> {
+    const url = dateRange 
+      ? `${API_ENDPOINTS.TEAM_MEMBERS.ANALYTICS}?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`
+      : API_ENDPOINTS.TEAM_MEMBERS.ANALYTICS;
+    return this.request<{ analytics: TeamMemberKPIs[]; dateRange: { startDate: Date; endDate: Date } }>(url);
+  }
+
+  async getTeamMemberAnalyticsById(id: string, dateRange?: { startDate: string; endDate: string }): Promise<ApiResponse<{ analytics: TeamMemberKPIs; dateRange: { startDate: Date; endDate: Date } }>> {
+    const url = dateRange
+      ? `${API_ENDPOINTS.TEAM_MEMBERS.ANALYTICS_BY_ID(id)}?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`
+      : API_ENDPOINTS.TEAM_MEMBERS.ANALYTICS_BY_ID(id);
+    return this.request<{ analytics: TeamMemberKPIs; dateRange: { startDate: Date; endDate: Date } }>(url);
+  }
+
+  async getTeamMemberActivityLog(
+    id: string,
+    options?: { limit?: number; offset?: number; activityType?: string[] }
+  ): Promise<ApiResponse<{ activities: TeamMemberActivityLog[]; total: number }>> {
+    const params = new URLSearchParams();
+    if (options?.limit) params.append('limit', options.limit.toString());
+    if (options?.offset) params.append('offset', options.offset.toString());
+    if (options?.activityType) {
+      options.activityType.forEach(type => params.append('activityType[]', type));
+    }
+    const url = `${API_ENDPOINTS.TEAM_MEMBERS.ACTIVITY_LOG(id)}${params.toString() ? `?${params.toString()}` : ''}`;
+    return this.request<{ activities: TeamMemberActivityLog[]; total: number }>(url);
+  }
+
+  async getTeamMemberFollowUps(id: string, status?: 'pending' | 'completed' | 'cancelled'): Promise<ApiResponse<{ follow_ups: TeamMemberFollowUp[] }>> {
+    const url = status
+      ? `${API_ENDPOINTS.TEAM_MEMBERS.FOLLOW_UPS(id)}?status=${status}`
+      : API_ENDPOINTS.TEAM_MEMBERS.FOLLOW_UPS(id);
+    return this.request<{ follow_ups: TeamMemberFollowUp[] }>(url);
+  }
+
   // ============================================================================
   // LEAD INTELLIGENCE EDIT API
   // ============================================================================
@@ -2887,6 +2922,48 @@ interface BatchExtractionSummaryResponse {
   timestamp: string;
 }
 
+// Salesperson/Team Member Analytics Types
+interface TeamMemberKPIs {
+  teamMemberId: string;
+  teamMemberName: string;
+  teamMemberRole: string;
+  leadsAssigned: number;
+  leadsActive: number;
+  qualifiedLeads: number;
+  followUpsAssigned: number;
+  followUpsCompleted: number;
+  followUpsPending: number;
+  leadEdits: number;
+  notesAdded: number;
+  statusChanges: number;
+  manualCallsLogged: number;
+  demosScheduled: number;
+}
+
+interface TeamMemberActivityLog {
+  id: string;
+  activityType: 'edit' | 'assign' | 'note' | 'status_change' | 'call' | 'follow_up';
+  activityDescription: string;
+  leadName?: string;
+  leadPhone?: string;
+  timestamp: Date;
+  details?: Record<string, any>;
+}
+
+interface TeamMemberFollowUp {
+  id: string;
+  lead_phone: string;
+  lead_email: string | null;
+  lead_name: string | null;
+  follow_up_date: string;
+  remark: string;
+  follow_up_status: 'pending' | 'completed' | 'cancelled';
+  is_completed: boolean;
+  completed_at: string | null;
+  created_at: string;
+  call_id: string | null;
+}
+
 // Create and configure the API service instance
 const apiService = new ApiService();
 
@@ -2940,3 +3017,10 @@ apiService.addResponseInterceptor(async <T>(response: ApiResponse<T>) => {
 
 export { apiService };
 export default apiService;
+
+// Export types for consumer use
+export type {
+  TeamMemberKPIs,
+  TeamMemberActivityLog,
+  TeamMemberFollowUp,
+};

@@ -40,6 +40,7 @@ import {
   ChevronDown,
   Plus,
   User as UserIcon,
+  Pencil,
 } from "lucide-react";
 import {
   DropdownMenu,
