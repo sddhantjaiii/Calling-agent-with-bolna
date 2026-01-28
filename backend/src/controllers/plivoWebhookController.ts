@@ -188,10 +188,11 @@ export class PlivoWebhookController {
       
       // Check if call was answered - Plivo sends these fields
       const answerTime = asString((req.body as any)?.AnswerTime);
-      const billDuration = asString((req.body as any)?.BillDuration) || asString((req.body as any)?.Duration);
-      const durationSeconds = billDuration ? parseInt(billDuration, 10) : 0;
+      // Use Duration (actual call time) instead of BillDuration (rounded for billing)
+      const actualDuration = asString((req.body as any)?.Duration) || asString((req.body as any)?.BillDuration);
+      const durationSeconds = actualDuration ? parseInt(actualDuration, 10) : 0;
       
-      // Call was answered if: AnswerTime exists OR BillDuration > 0
+      // Call was answered if: AnswerTime exists OR Duration > 0
       const wasAnswered = Boolean(answerTime) || durationSeconds > 0;
       
       // Map Plivo's HangupCause to a user-friendly status

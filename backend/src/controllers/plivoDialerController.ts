@@ -358,7 +358,7 @@ export class PlivoDialerController {
 
   /**
    * GET /api/plivo-dialer/analytics/summary
-   * Compute basic KPIs from plivo_calls for the authenticated tenant.
+   * Compute comprehensive KPIs from plivo_calls for the authenticated tenant.
    */
   static async getAnalyticsSummary(req: Request, res: Response): Promise<Response> {
     try {
@@ -370,11 +370,42 @@ export class PlivoDialerController {
            COUNT(*)::int AS total_calls,
            COUNT(*) FILTER (WHERE answered_at IS NOT NULL)::int AS answered_calls,
            COUNT(*) FILTER (WHERE ended_at IS NOT NULL)::int AS completed_calls,
-           COUNT(*) FILTER (WHERE status = 'failed' OR status ILIKE '%fail%' OR status ILIKE '%error%')::int AS failed_calls,
+           
+           -- Status breakdown
+           COUNT(*) FILTER (WHERE status = 'completed')::int AS status_completed,
+           COUNT(*) FILTER (WHERE status = 'busy')::int AS status_busy,
+           COUNT(*) FILTER (WHERE status = 'no_answer')::int AS status_no_answer,
+           COUNT(*) FILTER (WHERE status = 'not_answered')::int AS status_not_answered,
+           COUNT(*) FILTER (WHERE status = 'rejected')::int AS status_rejected,
+           COUNT(*) FILTER (WHERE status = 'network_error')::int AS status_network_error,
+           COUNT(*) FILTER (WHERE status = 'invalid_number')::int AS status_invalid_number,
+           COUNT(*) FILTER (WHERE status = 'failed' OR status ILIKE '%fail%' OR status ILIKE '%error%')::int AS status_failed,
+           COUNT(*) FILTER (WHERE status IN ('initiating', 'ringing', 'in-progress', 'answered'))::int AS status_in_progress,
+           
+           -- Duration metrics
            COALESCE(SUM(COALESCE(duration_seconds, 0)), 0)::int AS total_duration_seconds,
            COALESCE(AVG(NULLIF(duration_seconds, 0)), 0)::float AS average_duration_seconds,
+           COALESCE(MAX(duration_seconds), 0)::int AS max_duration_seconds,
+           COALESCE(MIN(NULLIF(duration_seconds, 0)), 0)::int AS min_duration_seconds,
+           
+           -- Recording & Transcription
            COUNT(*) FILTER (WHERE recording_url IS NOT NULL OR recording_status = 'available')::int AS recordings_available,
-           COUNT(*) FILTER (WHERE transcript_text IS NOT NULL OR transcript_status = 'completed')::int AS transcripts_completed
+           COUNT(*) FILTER (WHERE transcript_text IS NOT NULL OR transcript_status = 'completed')::int AS transcripts_completed,
+           
+           -- Success rates (answered vs total)
+           CASE 
+             WHEN COUNT(*) > 0 
+             THEN ROUND((COUNT(*) FILTER (WHERE answered_at IS NOT NULL)::float / COUNT(*)::float * 100), 2)
+             ELSE 0 
+           END AS answer_rate_percentage,
+           
+           -- Connection rate (any call that progressed beyond initiated)
+           CASE 
+             WHEN COUNT(*) > 0 
+             THEN ROUND((COUNT(*) FILTER (WHERE status NOT IN ('failed', 'network_error', 'invalid_number'))::float / COUNT(*)::float * 100), 2)
+             ELSE 0 
+           END AS connection_rate_percentage
+           
          FROM plivo_calls
          WHERE user_id = $1`,
         [userId]
@@ -391,11 +422,33 @@ export class PlivoDialerController {
           totalCalls: row.total_calls || 0,
           answeredCalls: row.answered_calls || 0,
           completedCalls: row.completed_calls || 0,
-          failedCalls: row.failed_calls || 0,
+          
+          // Status breakdown
+          statusBreakdown: {
+            completed: row.status_completed || 0,
+            busy: row.status_busy || 0,
+            noAnswer: row.status_no_answer || 0,
+            notAnswered: row.status_not_answered || 0,
+            rejected: row.status_rejected || 0,
+            networkError: row.status_network_error || 0,
+            invalidNumber: row.status_invalid_number || 0,
+            failed: row.status_failed || 0,
+            inProgress: row.status_in_progress || 0,
+          },
+          
+          // Duration metrics
           totalDurationSeconds: row.total_duration_seconds || 0,
           averageDurationSeconds: avg,
+          maxDurationSeconds: row.max_duration_seconds || 0,
+          minDurationSeconds: row.min_duration_seconds || 0,
+          
+          // Recording & Transcription
           recordingsAvailable: row.recordings_available || 0,
           transcriptsCompleted: row.transcripts_completed || 0,
+          
+          // Success rates
+          answerRatePercentage: parseFloat(row.answer_rate_percentage || 0),
+          connectionRatePercentage: parseFloat(row.connection_rate_percentage || 0),
         },
       });
     } catch (error: any) {
