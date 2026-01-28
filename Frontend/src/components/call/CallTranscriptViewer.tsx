@@ -35,6 +35,7 @@ interface CallTranscriptViewerProps {
   isOpen: boolean;
   onClose: () => void;
   call?: Call;
+  transcriptSource?: 'calls' | 'dialer';
 }
 
 interface TranscriptSegment {
@@ -56,6 +57,7 @@ const CallTranscriptViewer: React.FC<CallTranscriptViewerProps> = ({
   isOpen,
   onClose,
   call,
+  transcriptSource = 'calls',
 }) => {
   const { theme } = useTheme();
   
@@ -82,7 +84,9 @@ const CallTranscriptViewer: React.FC<CallTranscriptViewerProps> = ({
     setError(null);
     
     try {
-      const response = await apiService.getCallTranscript(callId);
+      const response = transcriptSource === 'dialer'
+        ? await apiService.getPlivoDialerTranscript(callId)
+        : await apiService.getCallTranscript(callId);
       if (response.success && response.data) {
         // Normalize backend shape (speaker_segments -> speakers, snake_case -> camelCase)
         const raw: any = response.data as any;

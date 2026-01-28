@@ -25,6 +25,16 @@
 
   <body>
     <div id="root"></div>
+
+    <!-- Plivo SDK v2 audio elements (must exist before SDK initializes) -->
+    <audio id="plivo_webrtc_remoteview" data-devicetype="speakerDevice" autoplay hidden></audio>
+    <audio id="plivo_ringbacktone" data-devicetype="speakerDevice" loop hidden></audio>
+    <audio id="plivo_connect_tone" data-devicetype="speakerDevice" loop hidden></audio>
+    <audio id="plivo_ringtone" data-devicetype="ringtoneDevice" loop hidden></audio>
+    <!-- Silent tone used to unlock audio playback; muted autoplay is allowed by browsers -->
+    <audio id="plivo_silent_tone" data-devicetype="silentDevice" muted loop autoplay hidden src="https://cdn.plivo.com/sdk/browser/audio/silent-audio.mp3"></audio>
+    
+    <script src="https://cdn.plivo.com/sdk/browser/v2/plivo.min.js"></script>
     <!-- IMPORTANT: DO NOT REMOVE THIS SCRIPT TAG OR THIS VERY COMMENT! -->
     <script src="https://cdn.gpteng.co/gptengineer.js" type="module"></script>
     <script type="module" src="/src/main.tsx"></script>

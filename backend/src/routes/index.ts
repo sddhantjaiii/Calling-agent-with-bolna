@@ -39,6 +39,7 @@ import leadStageRoutes from './leadStageRoutes';
 import chatLeadsRoutes from './chatLeads';
 import teamMemberRoutes from './teamMembers';
 import extractionsRoutes from './extractions';
+import plivoDialerRoutes from './plivoDialer';
 
 // Import rate limiting middleware
 import { generalRateLimit, authRateLimit } from '../middleware/rateLimit';
@@ -110,6 +111,7 @@ router.use('/lead-stages', authenticatedRateLimit, leadStageRoutes); // Lead sta
 router.use('/chat-leads', authenticatedRateLimit, chatLeadsRoutes); // Chat Agent leads and messages proxy
 router.use('/team-members', generalRateLimit, teamMemberRoutes); // Team member management (has mixed auth)
 router.use('/extractions', authenticatedRateLimit, extractionsRoutes); // Chat Agent extractions proxy for summaries
+router.use('/plivo-dialer', authenticatedRateLimit, plivoDialerRoutes); // Plivo Browser SDK v2 dialer (Phase-1)
 
 // Monitoring routes - no rate limiting
 router.use('/monitoring', monitoringRoutes);

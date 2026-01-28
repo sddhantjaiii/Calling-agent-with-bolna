@@ -130,6 +130,56 @@ class OpenAIExtractionService {
       return response.data;
     } catch (error) {
       const axiosError = error as AxiosError;
+
+      const apiMessage: string | undefined = (axiosError.response?.data as any)?.error?.message;
+      const isPromptNotFound =
+        axiosError.response?.status === 404 &&
+        typeof apiMessage === 'string' &&
+        apiMessage.includes('Prompt with id') &&
+        apiMessage.includes('not found');
+
+      // If the configured prompt template doesn't exist for the current OPENAI_API_KEY,
+      // fall back to calling Responses API without `prompt` (model override).
+      if (isPromptNotFound) {
+        const fallbackModel = process.env.OPENAI_MODEL;
+        if (!fallbackModel) {
+          throw new Error(
+            `OpenAI prompt template not found (${request.prompt.id}). ` +
+              `Set valid OPENAI_INDIVIDUAL_PROMPT_ID/OPENAI_COMPLETE_PROMPT_ID (or user prompt IDs), ` +
+              `or set OPENAI_MODEL to enable fallback.`
+          );
+        }
+
+        logger.warn('OpenAI prompt template not found; falling back to OPENAI_MODEL', {
+          promptId: request.prompt.id,
+          model: fallbackModel,
+        });
+
+        const fallbackResponse = await axios.post<OpenAIResponseAPIResponse>(
+          `${this.baseUrl}/responses`,
+          {
+            model: fallbackModel,
+            input: [
+              {
+                role: 'system',
+                content:
+                  'Return ONLY valid JSON. Do not include markdown, code fences, or commentary. ' +
+                  'If a field is unknown, use null. Ensure the JSON matches the expected schema.',
+              },
+              ...request.input,
+            ],
+          },
+          {
+            headers: {
+              'Authorization': `Bearer ${this.apiKey}`,
+              'Content-Type': 'application/json',
+            },
+            timeout: this.timeout,
+          }
+        );
+
+        return fallbackResponse.data;
+      }
       
       logger.error('OpenAI Response API call failed', {
         error: axiosError.message,

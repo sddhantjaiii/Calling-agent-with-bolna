@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plivo Minimal Call Test (Phase 0)</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 500px;
+            width: 100%;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+            text-align: center;
+        }
+        
+        .subtitle {
+            color: #666;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .status-section {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 25px;
+        }
+        
+        .status-label {
+            font-size: 12px;
+            color: #666;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+        
+        .status-value {
+            font-size: 14px;
+            color: #333;
+            font-weight: 500;
+        }
+        
+        .status-value.ready {
+            color: #28a745;
+        }
+        
+        .status-value.error {
+            color: #dc3545;
+        }
+        
+        .status-value.calling {
+            color: #007bff;
+        }
+        
+        .input-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        input[type="tel"] {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        
+        input[type="tel"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 25px;
+        }
+        
+        button {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        #callBtn {
+            background: #28a745;
+            color: white;
+        }
+        
+        #callBtn:hover:not(:disabled) {
+            background: #218838;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.4);
+        }
+        
+        #hangupBtn {
+            background: #dc3545;
+            color: white;
+        }
+        
+        #hangupBtn:hover:not(:disabled) {
+            background: #c82333;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(220, 53, 69, 0.4);
+        }
+        
+        .info-section {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px solid #f0f0f0;
+        }
+        
+        .info-title {
+            font-size: 12px;
+            color: #666;
+            font-weight: 600;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+        
+        .info-list {
+            font-size: 13px;
+            color: #666;
+            line-height: 1.8;
+        }
+        
+        .info-list li {
+            margin-bottom: 5px;
+        }
+        
+        .alert {
+            padding: 12px 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        
+        .alert-warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        
+        .spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(0, 0, 0, 0.1);
+            border-left-color: #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📞 Plivo Call Test</h1>
+        <p class="subtitle">Phase 0: Minimal SDK Validation</p>
+        
+        <div class="status-section">
+            <div class="status-label">SDK Status</div>
+            <div id="sdkStatus" class="status-value">Initializing...</div>
+        </div>
+        
+        <div class="status-section">
+            <div class="status-label">Call Status</div>
+            <div id="callStatus" class="status-value">Idle</div>
+        </div>
+        
+        <div class="input-group">
+            <label for="phoneNumber">Destination Phone Number</label>
+            <input 
+                type="tel" 
+                id="phoneNumber" 
+                placeholder="e.g., 919876543210" 
+                disabled
+            />
+        </div>
+        
+        <div class="button-group">
+            <button id="callBtn" disabled>
+                📞 Call
+            </button>
+            <button id="hangupBtn" disabled>
+                📴 Hang Up
+            </button>
+        </div>
+        
+        <div class="info-section">
+            <div class="info-title">Pre-flight Checklist:</div>
+            <ul class="info-list">
+                <li>✓ Microphone permission granted</li>
+                <li>✓ Chrome browser (desktop)</li>
+                <li>✓ Headphones connected</li>
+                <li>✓ Backend server running</li>
+                <li>✓ Plivo credentials configured</li>
+            </ul>
+        </div>
+    </div>
+
+        <!--
+            Plivo SDK v2 audio elements (pre-created so they exist before SDK initializes)
+        -->
+        <audio id="plivo_webrtc_remoteview" data-devicetype="speakerDevice" autoplay hidden></audio>
+        <audio id="plivo_ringbacktone" data-devicetype="speakerDevice" loop hidden></audio>
+        <audio id="plivo_connect_tone" data-devicetype="speakerDevice" loop hidden></audio>
+        <audio id="plivo_ringtone" data-devicetype="ringtoneDevice" loop hidden></audio>
+        <audio id="plivo_silent_tone" data-devicetype="silentDevice" hidden></audio>
+    
+    <!-- Plivo Browser SDK -->
+    <script src="https://cdn.plivo.com/sdk/browser/v2/plivo.min.js"></script>
+    
+    <!-- Application Logic -->
+    <script src="app.js"></script>
+</body>
+</html>

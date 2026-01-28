@@ -1316,6 +1316,14 @@ class ApiService {
     return this.request<Transcript>(API_ENDPOINTS.CALLS.TRANSCRIPT(id));
   }
 
+  async getPlivoDialerTranscript(id: string): Promise<ApiResponse<Transcript>> {
+    return this.request<Transcript>(API_ENDPOINTS.PLIVO_DIALER.TRANSCRIPT(id));
+  }
+
+  async getPlivoDialerLeadIntelligence(id: string): Promise<ApiResponse<Record<string, unknown>>> {
+    return this.request<Record<string, unknown>>(API_ENDPOINTS.PLIVO_DIALER.LEAD_INTELLIGENCE(id));
+  }
+
   async getCallRecording(id: string): Promise<ApiResponse<{ url: string }>> {
     return this.request<{ url: string }>(API_ENDPOINTS.CALLS.RECORDING(id));
   }

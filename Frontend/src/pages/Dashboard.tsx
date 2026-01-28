@@ -20,6 +20,9 @@ import { Toaster } from "sonner";
 import LeadProfileTab from "@/components/chat/LeadProfileTab";
 import Overview from "@/pages/Overview";
 import Agents from "@/pages/Agents";
+import PlivoDialer from "@/pages/PlivoDialer";
+import PlivoDialerLogs from "@/pages/PlivoDialerLogs";
+import PlivoDialerAnalytics from "@/pages/PlivoDialerAnalytics";
 import { DashboardErrorBoundary } from "@/components/ui/ErrorBoundaryWrapper";
 import { ImpersonationBanner } from "@/components/admin/ImpersonationBanner";
 
@@ -186,6 +189,15 @@ const DashboardContent = ({
     }
     if (activeTab === "imported-data") {
       return <ImportedData onOpenProfile={handleOpenProfile} />;
+    }
+    if (activeTab === "dialer") {
+      if (activeSubTab === "dialer-logs") {
+        return <PlivoDialerLogs />;
+      }
+      if (activeSubTab === "dialer-analytics") {
+        return <PlivoDialerAnalytics />;
+      }
+      return <PlivoDialer />;
     }
     if (activeTab === "campaigns") {
       console.log('Campaign tab active, activeSubTab:', activeSubTab);

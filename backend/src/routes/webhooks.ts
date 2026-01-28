@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { webhookController } from '../controllers/webhookController';
 import { n8nWebhookController } from '../controllers/n8nWebhookController';
+import { PlivoWebhookController } from '../controllers/plivoWebhookController';
 import { logWebhookRequest } from '../middleware/webhook';
 
 const router = Router();
@@ -64,6 +65,15 @@ router.post('/bolna',
 router.post('/n8n/lead-call',
   n8nWebhookController.handleLeadCaptureAndCall.bind(n8nWebhookController)
 );
+
+/**
+ * PLIVO XML APPLICATION WEBHOOKS (Phase-1 Dialer)
+ *
+ * These endpoints must be publicly reachable and are called by Plivo's Voice XML application.
+ */
+router.all('/plivo/answer', PlivoWebhookController.answer);
+router.all('/plivo/hangup', PlivoWebhookController.hangup);
+router.all('/plivo/recording', PlivoWebhookController.recording);
 
 // Health check endpoints
 router.get('/health', webhookController.handleHealthCheck.bind(webhookController));

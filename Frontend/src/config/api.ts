@@ -244,6 +244,16 @@ export const API_ENDPOINTS = {
     LIST: `${API_URL}/phone-numbers`,
   },
 
+  // Plivo Browser Dialer (Phase-1)
+  PLIVO_DIALER: {
+    TOKEN: `${API_URL}/plivo-dialer/token`,
+    CALLS: `${API_URL}/plivo-dialer/calls`,
+    STATUS: (id: string) => `${API_URL}/plivo-dialer/calls/${id}/status`,
+    TRANSCRIPT: (id: string) => `${API_URL}/plivo-dialer/calls/${id}/transcript`,
+    LEAD_INTELLIGENCE: (id: string) => `${API_URL}/plivo-dialer/calls/${id}/lead-intelligence`,
+    ANALYTICS_SUMMARY: `${API_URL}/plivo-dialer/analytics/summary`,
+  },
+
   // WhatsApp Chat Agent Service (External Service)
   WHATSAPP: {
     PHONE_NUMBERS: (userId: string, platform?: string) => `${WHATSAPP_API_URL}/phone-numbers?user_id=${userId}${platform ? `&platform=${platform}` : ''}`,

@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 
 import dotenv from 'dotenv';
+import path from 'path';
 import MigrationRunner from '../utils/migrationRunner';
 import database from '../config/database';
 
 // Load environment variables
+dotenv.config({ path: path.resolve(__dirname, '..', '..', '.env') });
 dotenv.config();
 
 async function main() {

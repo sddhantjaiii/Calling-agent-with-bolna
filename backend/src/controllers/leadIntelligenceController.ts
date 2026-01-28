@@ -108,44 +108,109 @@ export class LeadIntelligenceController {
       // Enhanced query to group leads and get their analytics with new fields
       // Priority: complete analysis (human-edited) > most recent individual call analytics
       const query = `
-        WITH phone_leads_base AS (
-          SELECT 
-            c.phone_number::text as group_key,
-            'phone'::text as group_type,
+        WITH phone_interactions AS (
+          -- AI calling-agent calls
+          SELECT
             c.phone_number::text as phone,
-            FIRST_VALUE(COALESCE(co.email, la.extracted_email)) OVER (PARTITION BY c.phone_number ORDER BY c.created_at DESC)::text as email,
-            FIRST_VALUE(COALESCE(co.name, la.extracted_name, 'Anonymous')) OVER (PARTITION BY c.phone_number ORDER BY c.created_at DESC)::text as name,
-            FIRST_VALUE(COALESCE(co.company, la.company_name)) OVER (PARTITION BY c.phone_number ORDER BY c.created_at DESC)::text as company,
-            FIRST_VALUE(c.lead_type) OVER (PARTITION BY c.phone_number ORDER BY c.created_at DESC)::text as lead_type,
-            FIRST_VALUE(
-              CASE 
-                WHEN la.lead_status_tag IS NOT NULL THEN la.lead_status_tag
-                WHEN c.status = 'failed' AND c.call_lifecycle_status IS NOT NULL THEN c.call_lifecycle_status
-                ELSE 'Cold'
-              END
-            ) OVER (PARTITION BY c.phone_number ORDER BY c.created_at DESC)::text as recent_lead_tag_from_call,
-            FIRST_VALUE(la.engagement_health) OVER (PARTITION BY c.phone_number ORDER BY c.created_at DESC)::text as recent_engagement_level_from_call,
-            FIRST_VALUE(la.intent_level) OVER (PARTITION BY c.phone_number ORDER BY c.created_at DESC)::text as recent_intent_level_from_call,
-            FIRST_VALUE(la.budget_constraint) OVER (PARTITION BY c.phone_number ORDER BY c.created_at DESC)::text as recent_budget_constraint_from_call,
-            FIRST_VALUE(la.urgency_level) OVER (PARTITION BY c.phone_number ORDER BY c.created_at DESC)::text as recent_timeline_urgency_from_call,
-            FIRST_VALUE(la.fit_alignment) OVER (PARTITION BY c.phone_number ORDER BY c.created_at DESC)::text as recent_fit_alignment_from_call,
-            false as escalated_to_human,
-            FIRST_VALUE(c.created_at) OVER (PARTITION BY c.phone_number ORDER BY c.created_at DESC) as last_contact,
-            FIRST_VALUE(la.demo_book_datetime) OVER (PARTITION BY c.phone_number ORDER BY c.created_at DESC) as demo_book_datetime,
-            FIRST_VALUE(co.lead_stage) OVER (PARTITION BY c.phone_number ORDER BY c.created_at DESC)::text as lead_stage,
-            FIRST_VALUE(co.id) OVER (PARTITION BY c.phone_number ORDER BY c.created_at DESC)::text as contact_id,
-            COUNT(*) FILTER (WHERE la.analysis_type = 'individual' OR la.analysis_type IS NULL) OVER (PARTITION BY c.phone_number)::bigint as interactions,
-            ROW_NUMBER() OVER (PARTITION BY c.phone_number ORDER BY c.created_at DESC)::bigint as rn,
-            -- Get the latest agent only (not all agents)
-            FIRST_VALUE(a.name) OVER (PARTITION BY c.phone_number ORDER BY c.created_at DESC)::text as latest_agent
+            c.created_at as interaction_date,
+            COALESCE(co.email, la.extracted_email)::text as email,
+            COALESCE(co.name, la.extracted_name, 'Anonymous')::text as name,
+            COALESCE(co.company, la.company_name)::text as company,
+            c.lead_type::text as lead_type,
+            CASE
+              WHEN la.lead_status_tag IS NOT NULL THEN la.lead_status_tag
+              WHEN c.status = 'failed' AND c.call_lifecycle_status IS NOT NULL THEN c.call_lifecycle_status
+              ELSE 'Cold'
+            END::text as lead_status_tag,
+            la.engagement_health::text as engagement_health,
+            la.intent_level::text as intent_level,
+            la.budget_constraint::text as budget_constraint,
+            la.urgency_level::text as urgency_level,
+            la.fit_alignment::text as fit_alignment,
+            la.demo_book_datetime as demo_book_datetime,
+            co.lead_stage::text as lead_stage,
+            co.id::text as contact_id,
+            COALESCE(a.name, '')::text as latest_agent
           FROM calls c
-          LEFT JOIN lead_analytics la ON c.id = la.call_id
+          LEFT JOIN lead_analytics la
+            ON c.id = la.call_id
+           AND (la.analysis_type = 'individual' OR la.analysis_type IS NULL)
           LEFT JOIN contacts co ON c.contact_id = co.id
           LEFT JOIN agents a ON c.agent_id = a.id
-          WHERE c.user_id = $1 
+          WHERE c.user_id = $1
             AND c.phone_number IS NOT NULL
             AND c.phone_number != ''
             AND (co.is_customer IS NULL OR co.is_customer = false)
+
+          UNION ALL
+
+          -- CRM Dialer calls (Plivo)
+          SELECT
+            pc.to_phone_number::text as phone,
+            COALESCE(pc.ended_at, pc.answered_at, pc.started_at, pc.initiated_at, pc.created_at) as interaction_date,
+            COALESCE(
+              co.email,
+              pc.lead_complete_analysis->'extraction'->>'email_address',
+              pc.lead_individual_analysis->'extraction'->>'email_address'
+            )::text as email,
+            COALESCE(
+              co.name,
+              pc.lead_complete_analysis->'extraction'->>'name',
+              pc.lead_individual_analysis->'extraction'->>'name',
+              'Anonymous'
+            )::text as name,
+            COALESCE(
+              co.company,
+              pc.lead_complete_analysis->'extraction'->>'company_name',
+              pc.lead_individual_analysis->'extraction'->>'company_name'
+            )::text as company,
+            'outbound'::text as lead_type,
+            COALESCE(
+              pc.lead_complete_analysis->>'lead_status_tag',
+              pc.lead_individual_analysis->>'lead_status_tag',
+              'Cold'
+            )::text as lead_status_tag,
+            COALESCE(pc.lead_complete_analysis->>'engagement_health', pc.lead_individual_analysis->>'engagement_health')::text as engagement_health,
+            COALESCE(pc.lead_complete_analysis->>'intent_level', pc.lead_individual_analysis->>'intent_level')::text as intent_level,
+            COALESCE(pc.lead_complete_analysis->>'budget_constraint', pc.lead_individual_analysis->>'budget_constraint')::text as budget_constraint,
+            COALESCE(pc.lead_complete_analysis->>'urgency_level', pc.lead_individual_analysis->>'urgency_level')::text as urgency_level,
+            COALESCE(pc.lead_complete_analysis->>'fit_alignment', pc.lead_individual_analysis->>'fit_alignment')::text as fit_alignment,
+            NULL::timestamptz as demo_book_datetime,
+            co.lead_stage::text as lead_stage,
+            co.id::text as contact_id,
+            COALESCE(tm.name, 'CRM Dialer')::text as latest_agent
+          FROM plivo_calls pc
+          LEFT JOIN contacts co ON pc.contact_id = co.id
+          LEFT JOIN team_members tm ON pc.team_member_id = tm.id
+          WHERE pc.user_id = $1
+            AND pc.to_phone_number IS NOT NULL
+            AND pc.to_phone_number != ''
+            AND (co.is_customer IS NULL OR co.is_customer = false)
+        ),
+        phone_leads_base AS (
+          SELECT
+            pi.phone::text as group_key,
+            'phone'::text as group_type,
+            pi.phone::text as phone,
+            FIRST_VALUE(pi.email) OVER (PARTITION BY pi.phone ORDER BY pi.interaction_date DESC)::text as email,
+            FIRST_VALUE(pi.name) OVER (PARTITION BY pi.phone ORDER BY pi.interaction_date DESC)::text as name,
+            FIRST_VALUE(pi.company) OVER (PARTITION BY pi.phone ORDER BY pi.interaction_date DESC)::text as company,
+            FIRST_VALUE(pi.lead_type) OVER (PARTITION BY pi.phone ORDER BY pi.interaction_date DESC)::text as lead_type,
+            FIRST_VALUE(pi.lead_status_tag) OVER (PARTITION BY pi.phone ORDER BY pi.interaction_date DESC)::text as recent_lead_tag_from_call,
+            FIRST_VALUE(pi.engagement_health) OVER (PARTITION BY pi.phone ORDER BY pi.interaction_date DESC)::text as recent_engagement_level_from_call,
+            FIRST_VALUE(pi.intent_level) OVER (PARTITION BY pi.phone ORDER BY pi.interaction_date DESC)::text as recent_intent_level_from_call,
+            FIRST_VALUE(pi.budget_constraint) OVER (PARTITION BY pi.phone ORDER BY pi.interaction_date DESC)::text as recent_budget_constraint_from_call,
+            FIRST_VALUE(pi.urgency_level) OVER (PARTITION BY pi.phone ORDER BY pi.interaction_date DESC)::text as recent_timeline_urgency_from_call,
+            FIRST_VALUE(pi.fit_alignment) OVER (PARTITION BY pi.phone ORDER BY pi.interaction_date DESC)::text as recent_fit_alignment_from_call,
+            false as escalated_to_human,
+            FIRST_VALUE(pi.interaction_date) OVER (PARTITION BY pi.phone ORDER BY pi.interaction_date DESC) as last_contact,
+            FIRST_VALUE(pi.demo_book_datetime) OVER (PARTITION BY pi.phone ORDER BY pi.interaction_date DESC) as demo_book_datetime,
+            FIRST_VALUE(pi.lead_stage) OVER (PARTITION BY pi.phone ORDER BY pi.interaction_date DESC)::text as lead_stage,
+            FIRST_VALUE(pi.contact_id) OVER (PARTITION BY pi.phone ORDER BY pi.interaction_date DESC)::text as contact_id,
+            COUNT(*) OVER (PARTITION BY pi.phone)::bigint as interactions,
+            ROW_NUMBER() OVER (PARTITION BY pi.phone ORDER BY pi.interaction_date DESC)::bigint as rn,
+            FIRST_VALUE(pi.latest_agent) OVER (PARTITION BY pi.phone ORDER BY pi.interaction_date DESC)::text as latest_agent
+          FROM phone_interactions pi
         ),
         -- Get the latest analysis values (human_edit takes precedence if newer than complete)
         latest_analysis AS (
@@ -191,20 +256,56 @@ export class LeadIntelligenceController {
             plb.rn,
             -- Show only the latest interacted agent
             COALESCE(plb.latest_agent, '')::text as interacted_agents,
-            (SELECT la_latest.requirements 
-             FROM lead_analytics la_latest 
-             WHERE la_latest.user_id = $1 
-               AND la_latest.phone_number = plb.phone 
-               AND la_latest.analysis_type IN ('complete', 'human_edit')
-             ORDER BY la_latest.analysis_timestamp DESC
-             LIMIT 1)::text as requirements,
-            (SELECT la_latest.custom_cta 
-             FROM lead_analytics la_latest 
-             WHERE la_latest.user_id = $1 
-               AND la_latest.phone_number = plb.phone 
-               AND la_latest.analysis_type IN ('complete', 'human_edit')
-             ORDER BY la_latest.analysis_timestamp DESC
-             LIMIT 1)::text as custom_cta,
+            (
+              SELECT req.requirements
+              FROM (
+                SELECT
+                  la_latest.requirements::text as requirements,
+                  la_latest.analysis_timestamp as ts
+                FROM lead_analytics la_latest
+                WHERE la_latest.user_id = $1
+                  AND la_latest.phone_number = plb.phone
+                  AND la_latest.analysis_type IN ('complete', 'human_edit')
+
+                UNION ALL
+
+                SELECT
+                  pc_latest.lead_complete_analysis->'extraction'->>'requirements' as requirements,
+                  COALESCE(pc_latest.lead_extraction_completed_at, pc_latest.created_at) as ts
+                FROM plivo_calls pc_latest
+                WHERE pc_latest.user_id = $1
+                  AND pc_latest.to_phone_number = plb.phone
+                  AND pc_latest.lead_extraction_status = 'completed'
+                  AND pc_latest.lead_complete_analysis IS NOT NULL
+              ) req
+              ORDER BY req.ts DESC
+              LIMIT 1
+            )::text as requirements,
+            (
+              SELECT cta.custom_cta
+              FROM (
+                SELECT
+                  la_latest.custom_cta::text as custom_cta,
+                  la_latest.analysis_timestamp as ts
+                FROM lead_analytics la_latest
+                WHERE la_latest.user_id = $1
+                  AND la_latest.phone_number = plb.phone
+                  AND la_latest.analysis_type IN ('complete', 'human_edit')
+
+                UNION ALL
+
+                SELECT
+                  pc_latest.lead_complete_analysis->'extraction'->>'custom_cta' as custom_cta,
+                  COALESCE(pc_latest.lead_extraction_completed_at, pc_latest.created_at) as ts
+                FROM plivo_calls pc_latest
+                WHERE pc_latest.user_id = $1
+                  AND pc_latest.to_phone_number = plb.phone
+                  AND pc_latest.lead_extraction_status = 'completed'
+                  AND pc_latest.lead_complete_analysis IS NOT NULL
+              ) cta
+              ORDER BY cta.ts DESC
+              LIMIT 1
+            )::text as custom_cta,
             -- Notes now come from contacts table
             (SELECT co_notes.notes 
              FROM contacts co_notes 
@@ -659,6 +760,90 @@ export class LeadIntelligenceController {
             )
             WHERE c.user_id = $1 
               AND c.phone_number = $2
+
+            UNION ALL
+
+            -- CRM Dialer interactions (Plivo)
+            SELECT
+              pc.id,
+              'call'::text as interaction_type,
+              COALESCE(
+                ct.name,
+                pc.lead_individual_analysis->'extraction'->>'name',
+                pc.lead_complete_analysis->'extraction'->>'name',
+                'Anonymous'
+              ) as lead_name,
+              COALESCE(
+                ct.email,
+                pc.lead_individual_analysis->'extraction'->>'email_address',
+                pc.lead_complete_analysis->'extraction'->>'email_address'
+              ) as extracted_email,
+              COALESCE(
+                ct.company,
+                pc.lead_individual_analysis->'extraction'->>'company_name',
+                pc.lead_complete_analysis->'extraction'->>'company_name'
+              ) as company_name,
+              COALESCE(tm.name, 'CRM Dialer') as interaction_agent,
+              COALESCE(pc.ended_at, pc.answered_at, pc.started_at, pc.initiated_at, pc.created_at) as interaction_date,
+              'CRM Call' as platform,
+              'Outbound' as call_direction,
+              pc.hangup_by,
+              pc.hangup_reason,
+              COALESCE(
+                pc.lead_individual_analysis->>'lead_status_tag',
+                pc.lead_complete_analysis->>'lead_status_tag',
+                'Cold'
+              ) as status,
+              COALESCE(
+                pc.lead_individual_analysis->'extraction'->>'smartnotification',
+                pc.lead_individual_analysis->'extraction'->>'smart_notification',
+                pc.lead_individual_analysis->'extraction'->>'in_detail_summary'
+              ) as smart_notification,
+              COALESCE(
+                pc.lead_individual_analysis->'extraction'->>'requirements',
+                pc.lead_complete_analysis->'extraction'->>'requirements'
+              ) as requirements,
+              COALESCE(
+                pc.lead_individual_analysis->'extraction'->>'custom_cta',
+                pc.lead_complete_analysis->'extraction'->>'custom_cta'
+              ) as custom_cta,
+              CASE
+                WHEN COALESCE(pc.duration_seconds, 0) > 0 THEN
+                  LPAD(((pc.duration_seconds / 60))::text, 2, '0') || ':' || LPAD((pc.duration_seconds % 60)::text, 2, '0')
+                ELSE '00:00'
+              END as duration,
+              COALESCE(pc.lead_individual_analysis->>'engagement_health', pc.lead_complete_analysis->>'engagement_health') as engagement_level,
+              COALESCE(pc.lead_individual_analysis->>'intent_level', pc.lead_complete_analysis->>'intent_level') as intent_level,
+              COALESCE(pc.lead_individual_analysis->>'budget_constraint', pc.lead_complete_analysis->>'budget_constraint') as budget_constraint,
+              COALESCE(pc.lead_individual_analysis->>'urgency_level', pc.lead_complete_analysis->>'urgency_level') as timeline_urgency,
+              COALESCE(pc.lead_individual_analysis->>'fit_alignment', pc.lead_complete_analysis->>'fit_alignment') as fit_alignment,
+              NULLIF(COALESCE(pc.lead_individual_analysis->>'total_score', pc.lead_complete_analysis->>'total_score'), '')::numeric as total_score,
+              NULLIF(COALESCE(pc.lead_individual_analysis->>'intent_score', pc.lead_complete_analysis->>'intent_score'), '')::numeric as intent_score,
+              NULLIF(COALESCE(pc.lead_individual_analysis->>'urgency_score', pc.lead_complete_analysis->>'urgency_score'), '')::numeric as urgency_score,
+              NULLIF(COALESCE(pc.lead_individual_analysis->>'budget_score', pc.lead_complete_analysis->>'budget_score'), '')::numeric as budget_score,
+              NULLIF(COALESCE(pc.lead_individual_analysis->>'fit_score', pc.lead_complete_analysis->>'fit_score'), '')::numeric as fit_score,
+              NULLIF(COALESCE(pc.lead_individual_analysis->>'engagement_score', pc.lead_complete_analysis->>'engagement_score'), '')::numeric as engagement_score,
+              NULL::timestamp as demo_book_datetime,
+              fu.follow_up_date,
+              fu.remark as follow_up_remark,
+              fu.follow_up_status,
+              fu.is_completed as follow_up_completed,
+              fu.call_id as follow_up_call_id,
+              NULL::text as email_subject,
+              NULL::text as email_status,
+              NULL::text as email_to,
+              NULL::text as email_from
+            FROM plivo_calls pc
+            LEFT JOIN contacts ct ON pc.contact_id = ct.id
+            LEFT JOIN team_members tm ON pc.team_member_id = tm.id
+            LEFT JOIN follow_ups fu ON (
+              fu.call_id IS NULL
+              AND fu.lead_phone = pc.to_phone_number
+              AND fu.user_id = $1
+            )
+            WHERE pc.user_id = $1
+              AND pc.to_phone_number = $2
+              AND (ct.is_customer IS NULL OR ct.is_customer = false)
             ${emailInteractionsUnion}
             ${humanEditUnion}
           ) combined

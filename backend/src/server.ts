@@ -1,5 +1,11 @@
 // CRITICAL: Load environment variables FIRST
 import dotenv from 'dotenv';
+import path from 'path';
+
+// Load env from backend/.env even if process is started from a different CWD.
+dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
+
+// Fallback to default dotenv behavior (CWD) in case a different env file strategy is used.
 dotenv.config();
 
 // CRITICAL: Import instrument.ts AFTER dotenv, before everything else

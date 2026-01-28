@@ -164,6 +164,28 @@ const Sidebar = ({
       icon: FileText,
     },
     {
+      id: "dialer",
+      label: "Make a Call",
+      icon: Phone,
+      subTabs: [
+        {
+          id: "dialer-make-call",
+          label: "Make a Call",
+          icon: Phone,
+        },
+        {
+          id: "dialer-logs",
+          label: "Dialer Logs",
+          icon: Phone,
+        },
+        {
+          id: "dialer-analytics",
+          label: "Dialer Analysis",
+          icon: BarChart3,
+        },
+      ],
+    },
+    {
       id: "campaigns",
       label: "Campaigns",
       icon: Target,
@@ -213,6 +235,8 @@ const Sidebar = ({
       setActiveSubTab("agent-manager");
     } else if (tabId === "campaigns") {
       setActiveSubTab("campaigns-list");
+    } else if (tabId === "dialer") {
+      setActiveSubTab("dialer-make-call");
     }
   };
 
@@ -409,7 +433,7 @@ const Sidebar = ({
                             key={subTab.id}
                             onClick={() => {
                               // For campaign sub-tabs, just set the sub-tab directly
-                              if (activeTab === "campaigns") {
+                              if (activeTab === "campaigns" || activeTab === "dialer") {
                                 setActiveSubTab(subTab.id);
                               } else {
                                 // For agent sub-tabs, use the special handler
