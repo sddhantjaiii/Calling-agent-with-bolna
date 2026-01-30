@@ -145,7 +145,8 @@ export class EmailCampaignService {
       const campaignId = uuidv4();
       const bodyText = data.body.replace(/<[^>]*>/g, ''); // Strip HTML for text version
 
-      // Create email campaign with 'pending' status - emails will be sent in background
+      // Create email campaign with 'draft' status - emails will be sent in background
+      // Valid statuses: draft, scheduled, in_progress, completed, cancelled
       const campaignResult = await client.query(
         `INSERT INTO email_campaigns (
           id, user_id, name, subject, body_html, body_text, status, scheduled_at, total_contacts
@@ -158,7 +159,7 @@ export class EmailCampaignService {
           data.subject,
           data.body,
           bodyText,
-          data.schedule ? 'scheduled' : 'pending', // Use 'pending' instead of 'in_progress'
+          data.schedule ? 'scheduled' : 'draft', // Use 'draft' as initial status
           data.schedule ? new Date(data.schedule) : null,
           data.contact_ids?.length || 0,
         ]
