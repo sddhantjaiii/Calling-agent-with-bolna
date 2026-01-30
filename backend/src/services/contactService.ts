@@ -1283,7 +1283,7 @@ export class ContactService {
             c.is_auto_created,
             c.city,
             c.country,
-            la.lead_stage,
+            c.lead_stage,
             CASE 
               WHEN (SELECT COUNT(*) FROM calls WHERE contact_id = c.id) = 0 THEN 'Not contacted'
               WHEN (SELECT lead_type FROM calls WHERE contact_id = c.id ORDER BY created_at DESC LIMIT 1) = 'inbound'
@@ -1299,9 +1299,6 @@ export class ContactService {
               'outbound'
             ) as call_type
           FROM contacts c
-          LEFT JOIN lead_analytics la ON la.phone_number = c.phone_number 
-            AND la.user_id = c.user_id 
-            AND la.analysis_type = 'complete'
           WHERE c.user_id = $1
         )
         SELECT 
