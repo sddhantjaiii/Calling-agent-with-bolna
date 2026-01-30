@@ -1316,18 +1316,6 @@ export class ContactService {
       const result = await ContactModel.query(query, [userId]);
       const row = result.rows[0] || {};
 
-      // Also get lead stages from user's lead_stages configuration
-      const leadStagesQuery = `
-        SELECT stages FROM users WHERE id = $1
-      `;
-      const leadStagesResult = await ContactModel.query(leadStagesQuery, [userId]);
-      const userStages = leadStagesResult.rows[0]?.stages || [];
-      
-      // Merge lead stages from data with configured stages
-      const dataLeadStages: string[] = row.lead_stages || [];
-      const configuredStageNames = userStages.map((s: any) => s.name || s);
-      const allLeadStages = [...new Set([...dataLeadStages, ...configuredStageNames])].filter(Boolean).sort();
-
       return {
         tags: (row.tags || []).filter(Boolean).sort(),
         lastStatus: (row.statuses || []).filter(Boolean).sort(),
@@ -1335,7 +1323,7 @@ export class ContactService {
         source: (row.sources || []).filter(Boolean).sort(),
         city: (row.cities || []).filter(Boolean).sort(),
         country: (row.countries || []).filter(Boolean).sort(),
-        leadStage: allLeadStages
+        leadStage: (row.lead_stages || []).filter(Boolean).sort()
       };
     } catch (error) {
       logger.error('Error getting filter options:', error);
