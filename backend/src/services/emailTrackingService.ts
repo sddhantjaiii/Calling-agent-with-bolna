@@ -59,7 +59,7 @@ class EmailTrackingService {
    * Generate tracking pixel URL for an email
    */
   getTrackingPixelUrl(trackingId: string): string {
-    return `${this.baseUrl}/api/v1/track/open/${trackingId}.png`;
+    return `${this.baseUrl}/api/track/open/${trackingId}.png`;
   }
 
   /**
@@ -96,7 +96,7 @@ class EmailTrackingService {
   getTrackedLinkUrl(trackingId: string, originalUrl: string, linkId?: string): string {
     const id = linkId || this.generateLinkId(originalUrl);
     const encodedUrl = encodeURIComponent(originalUrl);
-    return `${this.baseUrl}/api/v1/track/click/${trackingId}/${id}?url=${encodedUrl}`;
+    return `${this.baseUrl}/api/track/click/${trackingId}/${id}?url=${encodedUrl}`;
   }
 
   /**
