@@ -22,6 +22,8 @@ import LeadProfileTab from "./components/chat/LeadProfileTab";
 import ChatDataPage from "./pages/ChatDataPage";
 import AutoEngagementFlows from "./pages/AutoEngagementFlows";
 import AutoEngagementFlowBuilder from "./pages/AutoEngagementFlowBuilder";
+import AutoEngagementExecutions from "./pages/AutoEngagementExecutions";
+import AutoEngagementExecutionDetail from "./pages/AutoEngagementExecutionDetail";
 import AdminLayout from "./components/admin/AdminLayout";
 import { EnhancedLeadCardDemo } from "./components/leads/EnhancedLeadCardDemo";
 import AdminDashboard from "./components/admin/AdminDashboard";
@@ -144,6 +146,22 @@ function App() {
                         element={
                           <ProtectedRoute>
                             <AutoEngagementFlowBuilder />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/dashboard/auto-engagement/executions"
+                        element={
+                          <ProtectedRoute>
+                            <AutoEngagementExecutions />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/dashboard/auto-engagement/executions/:id"
+                        element={
+                          <ProtectedRoute>
+                            <AutoEngagementExecutionDetail />
                           </ProtectedRoute>
                         }
                       />
