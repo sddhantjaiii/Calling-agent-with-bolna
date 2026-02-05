@@ -116,7 +116,7 @@ export class AutoEngagementFlowController {
         }
       }
 
-      const client = await pool.connect();
+      const client = await pool.getClient();
       try {
         await client.query('BEGIN');
 

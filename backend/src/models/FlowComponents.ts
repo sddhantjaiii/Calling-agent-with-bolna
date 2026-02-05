@@ -44,7 +44,7 @@ export class FlowTriggerConditionModel {
     conditionOperator: string;
     conditionValue: string | null;
   }>): Promise<FlowTriggerCondition[]> {
-    const client = await pool.connect();
+    const client = await pool.getClient();
     try {
       await client.query('BEGIN');
 
@@ -91,7 +91,7 @@ export class FlowTriggerConditionModel {
       conditionValue: string | null;
     }>
   ): Promise<FlowTriggerCondition[]> {
-    const client = await pool.connect();
+    const client = await pool.getClient();
     try {
       await client.query('BEGIN');
 
@@ -183,7 +183,7 @@ export class FlowActionModel {
     conditionType?: string | null;
     conditionValue?: string | null;
   }>): Promise<FlowAction[]> {
-    const client = await pool.connect();
+    const client = await pool.getClient();
     try {
       await client.query('BEGIN');
 
@@ -312,7 +312,7 @@ export class FlowActionModel {
       conditionValue?: string | null;
     }>
   ): Promise<FlowAction[]> {
-    const client = await pool.connect();
+    const client = await pool.getClient();
     try {
       await client.query('BEGIN');
 
@@ -356,7 +356,7 @@ export class FlowActionModel {
    * Reorder actions for a flow
    */
   static async reorderActions(flowId: string, actionIds: string[]): Promise<FlowAction[]> {
-    const client = await pool.connect();
+    const client = await pool.getClient();
     try {
       await client.query('BEGIN');
 
@@ -380,5 +380,3 @@ export class FlowActionModel {
     }
   }
 }
-
-export { FlowTriggerConditionModel, FlowActionModel };
