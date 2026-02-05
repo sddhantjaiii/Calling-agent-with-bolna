@@ -1,8 +1,14 @@
 const { Client } = require('pg');
+require('dotenv').config();
 
 async function updateUserToAdmin() {
+  if (!process.env.DATABASE_URL) {
+    console.error('❌ ERROR: DATABASE_URL environment variable is required');
+    process.exit(1);
+  }
+  
   const client = new Client({
-    connectionString: 'postgresql://neondb_owner:npg_d6qDxYFghA0J@ep-wandering-sun-a1it7q5i-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require'
+    connectionString: process.env.DATABASE_URL
   });
 
   try {

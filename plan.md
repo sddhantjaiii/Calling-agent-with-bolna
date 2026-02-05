@@ -293,7 +293,7 @@ This document outlines the complete migration from ElevenLabs Conversational AI 
 ```bash
 # Update Database URL for Bolna migration
 - DATABASE_URL=postgresql://username:password@localhost:5432/database_name
-+ DATABASE_URL=postgresql://neondb_owner:npg_d6qDxYFghA0J@ep-morning-pond-a1v4ecll-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
++ DATABASE_URL=postgresql://your_username:your_password@your-host.neon.tech/your_database?sslmode=require&channel_binding=require
 
 # Replace ElevenLabs config with Bolna.ai config
 - ELEVENLABS_API_KEY=your_elevenlabs_api_key_here

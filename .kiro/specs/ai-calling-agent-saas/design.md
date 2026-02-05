@@ -429,7 +429,7 @@ interface ErrorResponse {
 ### Environment Variables Needed
 
 **Database Configuration:**
-- `DATABASE_URL` - postgresql://neondb_owner:npg_d6qDxYFghA0J@ep-wandering-sun-a1it7q5i-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+- `DATABASE_URL` - postgresql://your_username:your_password@your-host.neon.tech/your_database?sslmode=require&channel_binding=require
 
 **Stack Auth Configuration (Neon Auth):**
 - `STACK_PROJECT_ID` - e0135016-a873-43e2-b39a-5f2a4e208cbc

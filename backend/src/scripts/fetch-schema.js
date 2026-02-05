@@ -1,10 +1,16 @@
 const fs = require('fs');
 const path = require('path');
 const { Pool } = require('pg');
+require('dotenv').config();
+
+if (!process.env.DATABASE_URL) {
+  console.error('❌ ERROR: DATABASE_URL environment variable is required');
+  process.exit(1);
+}
 
 // Database connection
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || "postgresql://postgres.square-pine-52224220:KfOE7X9TyMhb@aws-0-ap-south-1.pooler.supabase.com:6543/postgres",
+  connectionString: process.env.DATABASE_URL,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
