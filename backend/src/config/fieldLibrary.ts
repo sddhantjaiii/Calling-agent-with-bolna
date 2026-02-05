@@ -287,16 +287,16 @@ export function generateExtractionJSON(enabledFieldKeys: string[] = []): object 
   // Return the complete extraction JSON in the exact order needed
   return {
     intent_level: "Low | Medium | High",
-    intent_score: "1-100 based on buying signals",
+    intent_score: "1, 2, or 3 based on buying signals (1=Low, 2=Medium, 3=High)",
     urgency_level: "Low | Medium | High",
-    urgency_score: "1-100 based on timeline urgency",
+    urgency_score: "1, 2, or 3 based on timeline urgency (1=Low, 2=Medium, 3=High)",
     budget_constraint: "Yes | Maybe | No",
-    budget_score: "1-100 based on budget alignment",
+    budget_score: "1, 2, or 3 based on budget alignment (1=No, 2=Maybe, 3=Yes)",
     fit_alignment: "Low | Medium | High",
-    fit_score: "1-100 based on product/service fit",
+    fit_score: "1, 2, or 3 based on product/service fit (1=Low, 2=Medium, 3=High)",
     engagement_health: "Low | Medium | High",
-    engagement_score: "1-100 based on conversation engagement",
-    total_score: "0-100 weighted average of all scores",
+    engagement_score: "1, 2, or 3 based on conversation engagement (1=Low, 2=Medium, 3=High)",
+    total_score: "1-15 sum of all 5 scores (intent + urgency + budget + fit + engagement)",
     lead_status_tag: "Cold | Warm | Hot",
     demo_book_datetime: "ISO 8601 datetime if demo/meeting scheduled, null otherwise",
     reasoning: {
