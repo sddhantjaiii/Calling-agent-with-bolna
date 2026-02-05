@@ -755,6 +755,238 @@ export class AutoEngagementFlowController {
       });
     }
   }
+
+  /**
+   * Test flow execution (simulation mode)
+   * POST /api/auto-engagement/flows/:id/test
+   */
+  async testFlowExecution(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const userId = req.user!.id;
+      const { id } = req.params;
+      const { contact_data } = req.body;
+
+      // Validate flow exists and belongs to user
+      const flow = await AutoEngagementFlowModel.findByIdWithDetails(id, userId);
+      if (!flow) {
+        res.status(404).json({
+          success: false,
+          error: 'Flow not found'
+        });
+        return;
+      }
+
+      // Simulate matching logic
+      let matchResult = {
+        matches: true,
+        reason: 'All conditions met',
+        conditions_checked: [] as any[]
+      };
+
+      if (flow.trigger_conditions) {
+        for (const condition of flow.trigger_conditions) {
+          const conditionCheck = {
+            type: condition.condition_type,
+            operator: condition.condition_operator,
+            value: condition.condition_value,
+            contact_value: contact_data?.[condition.condition_type] || 'N/A',
+            result: false
+          };
+
+          // Simulate condition evaluation
+          if (condition.condition_type === 'any' as any) {
+            conditionCheck.result = true;
+          } else if (contact_data && condition.condition_value) {
+            const contactValue = String(contact_data[condition.condition_type] || '');
+            const conditionValue = String(condition.condition_value);
+
+            switch (condition.condition_operator) {
+              case 'equals':
+                conditionCheck.result = contactValue === conditionValue;
+                break;
+              case 'not_equals':
+                conditionCheck.result = contactValue !== conditionValue;
+                break;
+              case 'contains':
+                conditionCheck.result = contactValue.toLowerCase().includes(conditionValue.toLowerCase());
+                break;
+              default:
+                conditionCheck.result = false;
+            }
+          }
+
+          matchResult.conditions_checked.push(conditionCheck);
+          
+          if (!conditionCheck.result) {
+            matchResult.matches = false;
+            matchResult.reason = `Condition failed: ${condition.condition_type} ${condition.condition_operator} ${condition.condition_value}`;
+          }
+        }
+      }
+
+      // Simulate action execution plan
+      const actionPlan = flow.actions ? flow.actions.map(action => ({
+        order: action.action_order,
+        type: action.action_type,
+        config: action.action_config,
+        condition: action.condition_type ? {
+          type: action.condition_type,
+          value: action.condition_value,
+          will_execute: action.condition_type === 'always'
+        } : null,
+        estimated_status: 'Would be executed in live mode'
+      })) : [];
+
+      res.json({
+        success: true,
+        data: {
+          test_mode: true,
+          flow_id: id,
+          flow_name: flow.name,
+          matching: matchResult,
+          action_plan: actionPlan,
+          note: 'This is a simulation. No actual actions were executed.'
+        }
+      });
+
+    } catch (error) {
+      logger.error('[AutoEngagementFlowController] Error testing flow execution:', error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to test flow execution'
+      });
+    }
+  }
+
+  /**
+   * Get analytics for all flows
+   * GET /api/auto-engagement/analytics
+   */
+  async getAnalytics(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const userId = req.user!.id;
+
+      // Get all flows for user
+      const flows = await AutoEngagementFlowModel.findByUserId(userId);
+
+      // Get overall statistics
+      const allExecutionsResult = await pool.query(
+        `SELECT 
+          COUNT(*) as total_executions,
+          COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_count,
+          COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed_count,
+          COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancelled_count
+        FROM flow_executions
+        WHERE flow_id IN (
+          SELECT id FROM auto_engagement_flows WHERE user_id = $1
+        )`,
+        [userId]
+      );
+
+      // Get per-flow statistics
+      const flowStatsResult = await pool.query(
+        `SELECT 
+          aef.id as flow_id,
+          aef.name as flow_name,
+          aef.priority,
+          aef.is_enabled,
+          COUNT(fe.id) as execution_count,
+          COUNT(CASE WHEN fe.status = 'completed' THEN 1 END) as success_count,
+          COUNT(CASE WHEN fe.status = 'failed' THEN 1 END) as failure_count,
+          MAX(fe.triggered_at) as last_execution
+        FROM auto_engagement_flows aef
+        LEFT JOIN flow_executions fe ON fe.flow_id = aef.id
+        WHERE aef.user_id = $1
+        GROUP BY aef.id, aef.name, aef.priority, aef.is_enabled
+        ORDER BY aef.priority ASC`,
+        [userId]
+      );
+
+      // Get action success rates
+      const actionStatsResult = await pool.query(
+        `SELECT 
+          fa.action_type,
+          COUNT(fal.id) as total_actions,
+          COUNT(CASE WHEN fal.status = 'completed' THEN 1 END) as successful_actions,
+          COUNT(CASE WHEN fal.status = 'failed' THEN 1 END) as failed_actions,
+          COUNT(CASE WHEN fal.status = 'skipped' THEN 1 END) as skipped_actions
+        FROM flow_actions fa
+        LEFT JOIN flow_action_logs fal ON fal.action_id = fa.id
+        WHERE fa.flow_id IN (
+          SELECT id FROM auto_engagement_flows WHERE user_id = $1
+        )
+        GROUP BY fa.action_type`,
+        [userId]
+      );
+
+      // Get recent executions timeline (last 30 days)
+      const timelineResult = await pool.query(
+        `SELECT 
+          DATE(triggered_at) as date,
+          COUNT(*) as execution_count,
+          COUNT(CASE WHEN status = 'completed' THEN 1 END) as success_count
+        FROM flow_executions
+        WHERE flow_id IN (
+          SELECT id FROM auto_engagement_flows WHERE user_id = $1
+        )
+        AND triggered_at >= NOW() - INTERVAL '30 days'
+        GROUP BY DATE(triggered_at)
+        ORDER BY date ASC`,
+        [userId]
+      );
+
+      res.json({
+        success: true,
+        data: {
+          summary: {
+            total_flows: flows.length,
+            enabled_flows: flows.filter(f => f.is_enabled).length,
+            total_executions: parseInt(allExecutionsResult.rows[0]?.total_executions || '0'),
+            completed_executions: parseInt(allExecutionsResult.rows[0]?.completed_count || '0'),
+            failed_executions: parseInt(allExecutionsResult.rows[0]?.failed_count || '0'),
+            success_rate: allExecutionsResult.rows[0]?.total_executions > 0
+              ? ((parseInt(allExecutionsResult.rows[0].completed_count) / parseInt(allExecutionsResult.rows[0].total_executions)) * 100).toFixed(2)
+              : '0'
+          },
+          flow_statistics: flowStatsResult.rows.map((row: any) => ({
+            flow_id: row.flow_id,
+            flow_name: row.flow_name,
+            priority: row.priority,
+            is_enabled: row.is_enabled,
+            execution_count: parseInt(row.execution_count || '0'),
+            success_count: parseInt(row.success_count || '0'),
+            failure_count: parseInt(row.failure_count || '0'),
+            success_rate: row.execution_count > 0
+              ? ((parseInt(row.success_count) / parseInt(row.execution_count)) * 100).toFixed(2)
+              : '0',
+            last_execution: row.last_execution
+          })),
+          action_statistics: actionStatsResult.rows.map((row: any) => ({
+            action_type: row.action_type,
+            total_actions: parseInt(row.total_actions || '0'),
+            successful_actions: parseInt(row.successful_actions || '0'),
+            failed_actions: parseInt(row.failed_actions || '0'),
+            skipped_actions: parseInt(row.skipped_actions || '0'),
+            success_rate: row.total_actions > 0
+              ? ((parseInt(row.successful_actions) / parseInt(row.total_actions)) * 100).toFixed(2)
+              : '0'
+          })),
+          timeline: timelineResult.rows.map((row: any) => ({
+            date: row.date,
+            execution_count: parseInt(row.execution_count || '0'),
+            success_count: parseInt(row.success_count || '0')
+          }))
+        }
+      });
+
+    } catch (error) {
+      logger.error('[AutoEngagementFlowController] Error getting analytics:', error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to get analytics'
+      });
+    }
+  }
 }
 
 export const autoEngagementFlowController = new AutoEngagementFlowController();

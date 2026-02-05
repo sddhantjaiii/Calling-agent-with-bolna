@@ -139,4 +139,17 @@ export const autoEngagementService = {
   async getFlowStatistics(id: string): Promise<FlowStatisticsResponse> {
     return apiService.get<FlowStatisticsResponse>(API_ENDPOINTS.AUTO_ENGAGEMENT.FLOW_STATISTICS(id));
   },
+
+  // Test execution (simulation)
+  async testFlowExecution(id: string, contactData: any): Promise<any> {
+    return apiService.post<any>(
+      API_ENDPOINTS.AUTO_ENGAGEMENT.FLOW_TEST(id),
+      { contact_data: contactData }
+    );
+  },
+
+  // Analytics
+  async getAnalytics(): Promise<any> {
+    return apiService.get<any>(API_ENDPOINTS.AUTO_ENGAGEMENT.ANALYTICS);
+  },
 };

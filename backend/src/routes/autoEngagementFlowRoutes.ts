@@ -66,6 +66,11 @@ router.get('/flows/:id/statistics', (req: Request, res: Response) =>
   autoEngagementFlowController.getFlowStatistics(req as AuthenticatedRequest, res)
 );
 
+// Test flow execution (simulation mode)
+router.post('/flows/:id/test', (req: Request, res: Response) => 
+  autoEngagementFlowController.testFlowExecution(req as AuthenticatedRequest, res)
+);
+
 /**
  * Execution Routes
  */
@@ -83,6 +88,15 @@ router.get('/executions/:id', (req: Request, res: Response) =>
 // Cancel a running execution
 router.post('/executions/:id/cancel', (req: Request, res: Response) => 
   autoEngagementFlowController.cancelExecution(req as AuthenticatedRequest, res)
+);
+
+/**
+ * Analytics Routes
+ */
+
+// Get analytics for all flows
+router.get('/analytics', (req: Request, res: Response) => 
+  autoEngagementFlowController.getAnalytics(req as AuthenticatedRequest, res)
 );
 
 export default router;

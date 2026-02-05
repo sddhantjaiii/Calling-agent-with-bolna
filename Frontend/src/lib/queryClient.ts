@@ -75,6 +75,7 @@ export const queryKeys = {
       : ['autoEngagement', 'executions'] as const,
     executionDetails: (id: string) => ['autoEngagement', 'executions', id] as const,
     statistics: (flowId: string) => ['autoEngagement', 'flows', flowId, 'statistics'] as const,
+    analytics: () => ['autoEngagement', 'analytics'] as const,
   },
 } as const;
 

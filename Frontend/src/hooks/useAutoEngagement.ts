@@ -257,3 +257,55 @@ export const useAutoEngagementStatistics = (flowId: string | null) => {
     refetch,
   };
 };
+
+/**
+ * Hook for getting analytics dashboard data
+ */
+export const useAutoEngagementAnalytics = () => {
+  const { user } = useAuth();
+
+  const {
+    data: analyticsData,
+    isLoading,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: queryKeys.autoEngagement.analytics(),
+    queryFn: () => autoEngagementService.getAnalytics(),
+    enabled: !!user,
+    refetchInterval: 60000, // Refresh every minute
+  });
+
+  const analytics = analyticsData?.data || null;
+
+  return {
+    analytics,
+    isLoading,
+    error,
+    refetch,
+  };
+};
+
+/**
+ * Hook for test mode execution
+ */
+export const useTestFlowExecution = () => {
+  const queryClient = useQueryClient();
+
+  const { mutateAsync: testFlow, isPending: isTesting } = useMutation({
+    mutationFn: ({ flowId, contactData }: { flowId: string; contactData: any }) =>
+      autoEngagementService.testFlowExecution(flowId, contactData),
+    onSuccess: () => {
+      toast.success('Test execution completed successfully');
+    },
+    onError: (error: any) => {
+      const message = error?.response?.data?.error || error.message || 'Test execution failed';
+      toast.error(message);
+    },
+  });
+
+  return {
+    testFlow,
+    isTesting,
+  };
+};

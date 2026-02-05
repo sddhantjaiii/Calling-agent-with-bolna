@@ -339,10 +339,12 @@ export const API_ENDPOINTS = {
     FLOW_ACTIONS: (id: string) => `${API_URL}/auto-engagement/flows/${id}/actions`,
     FLOW_EXECUTIONS: (id: string) => `${API_URL}/auto-engagement/flows/${id}/executions`,
     FLOW_STATISTICS: (id: string) => `${API_URL}/auto-engagement/flows/${id}/statistics`,
+    FLOW_TEST: (id: string) => `${API_URL}/auto-engagement/flows/${id}/test`,
     PRIORITIES_BULK_UPDATE: `${API_URL}/auto-engagement/flows/priorities/bulk-update`,
     EXECUTIONS: `${API_URL}/auto-engagement/executions`,
     EXECUTION: (id: string) => `${API_URL}/auto-engagement/executions/${id}`,
     EXECUTION_CANCEL: (id: string) => `${API_URL}/auto-engagement/executions/${id}/cancel`,
+    ANALYTICS: `${API_URL}/auto-engagement/analytics`,
   },
 
   // Webhooks (for reference, not typically called from frontend)
