@@ -65,6 +65,17 @@ export const queryKeys = {
   
   // Dashboard queries (additional)
   dashboard: ['dashboard'] as const,
+
+  // Auto Engagement Flow queries
+  autoEngagement: {
+    flows: () => ['autoEngagement', 'flows'] as const,
+    flow: (id: string) => ['autoEngagement', 'flows', id] as const,
+    executions: (params?: any) => params 
+      ? ['autoEngagement', 'executions', params] as const 
+      : ['autoEngagement', 'executions'] as const,
+    executionDetails: (id: string) => ['autoEngagement', 'executions', id] as const,
+    statistics: (flowId: string) => ['autoEngagement', 'flows', flowId, 'statistics'] as const,
+  },
 } as const;
 
 // Cache invalidation utilities
