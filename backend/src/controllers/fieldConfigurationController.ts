@@ -143,13 +143,18 @@ export class FieldConfigurationController {
         field_definitions: []
       };
 
+      // Ensure enabled_fields is always an array
+      const enabledFields = Array.isArray(fieldConfiguration.enabled_fields) 
+        ? fieldConfiguration.enabled_fields 
+        : [];
+
       // Generate extraction JSON
-      const extractionJSON = generateExtractionJSON(fieldConfiguration.enabled_fields);
+      const extractionJSON = generateExtractionJSON(enabledFields);
 
       res.json({
         userId,
         userEmail: user.email,
-        enabledFields: fieldConfiguration.enabled_fields,
+        enabledFields: enabledFields,
         extractionJSON,
         instructions: {
           step1: 'Copy the extractionJSON object below',

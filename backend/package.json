@@ -17,7 +17,6 @@
     "migrate:status": "ts-node src/scripts/migrate.ts status",
     "migrate:reset": "ts-node src/scripts/migrate.ts reset",
     "test-email": "ts-node src/scripts/testEmail.ts",
-    "test-custom-fields": "ts-node src/scripts/test-custom-fields-extraction.ts",
     "refresh-kpi": "ts-node src/scripts/refresh-kpi-materialized-view.ts",
     "verify-materialized-view": "ts-node src/scripts/verify-materialized-view.ts",
     "test-dashboard-performance": "ts-node src/scripts/test-dashboard-performance.ts",

@@ -224,9 +224,11 @@ export function getEnabledFieldDefinitions(enabledFieldKeys: string[]): FieldDef
 /**
  * Get only custom fields (non-core fields)
  */
-export function getCustomFieldDefinitions(enabledFieldKeys: string[]): FieldDefinition[] {
+export function getCustomFieldDefinitions(enabledFieldKeys: string[] = []): FieldDefinition[] {
+  // Handle undefined or null input
+  const keys = enabledFieldKeys || [];
   return FIELD_LIBRARY.filter(field => 
-    enabledFieldKeys.includes(field.key) && !field.core
+    keys.includes(field.key) && !field.core
   );
 }
 
@@ -261,8 +263,10 @@ export function getFieldsByCategory(): Record<FieldCategory, FieldDefinition[]> 
  * 4. Reasoning object
  * 5. Extraction object with core fields + custom fields
  */
-export function generateExtractionJSON(enabledFieldKeys: string[]): object {
-  const customFields = getCustomFieldDefinitions(enabledFieldKeys);
+export function generateExtractionJSON(enabledFieldKeys: string[] = []): object {
+  // Ensure enabledFieldKeys is always an array
+  const keys = Array.isArray(enabledFieldKeys) ? enabledFieldKeys : [];
+  const customFields = getCustomFieldDefinitions(keys);
   
   // Build custom_fields object with extraction hints
   const customFieldsObject = customFields.reduce((acc, field) => {
