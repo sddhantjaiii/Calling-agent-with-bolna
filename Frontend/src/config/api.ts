@@ -330,6 +330,21 @@ export const API_ENDPOINTS = {
     CUSTOM_FIELDS_STATS: `${API_URL}/admin/custom-fields/statistics`,
   },
 
+  // Auto Engagement Flows
+  AUTO_ENGAGEMENT: {
+    FLOWS: `${API_URL}/auto-engagement/flows`,
+    FLOW: (id: string) => `${API_URL}/auto-engagement/flows/${id}`,
+    FLOW_TOGGLE: (id: string) => `${API_URL}/auto-engagement/flows/${id}/toggle`,
+    FLOW_CONDITIONS: (id: string) => `${API_URL}/auto-engagement/flows/${id}/conditions`,
+    FLOW_ACTIONS: (id: string) => `${API_URL}/auto-engagement/flows/${id}/actions`,
+    FLOW_EXECUTIONS: (id: string) => `${API_URL}/auto-engagement/flows/${id}/executions`,
+    FLOW_STATISTICS: (id: string) => `${API_URL}/auto-engagement/flows/${id}/statistics`,
+    PRIORITIES_BULK_UPDATE: `${API_URL}/auto-engagement/flows/priorities/bulk-update`,
+    EXECUTIONS: `${API_URL}/auto-engagement/executions`,
+    EXECUTION: (id: string) => `${API_URL}/auto-engagement/executions/${id}`,
+    EXECUTION_CANCEL: (id: string) => `${API_URL}/auto-engagement/executions/${id}/cancel`,
+  },
+
   // Webhooks (for reference, not typically called from frontend)
   WEBHOOKS: {
     ELEVENLABS_POST_CALL: `${API_URL}/webhooks/elevenlabs/post-call`,
