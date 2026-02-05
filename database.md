@@ -5064,3 +5064,191 @@ $function$
 ---
 
 *End of Database Schema Documentation*
+
+---
+
+## public.auto_engagement_flows
+
+**Description**: Main configuration table for automated engagement flows. Stores flow definitions with priority-based execution.
+
+### Columns
+
+| Column Name | Data Type | Nullable | Default | Description |
+|------------|-----------|----------|---------|-------------|
+| `id` | uuid | NO | uuid_generate_v4() | Primary key |
+| `user_id` | uuid | NO | - | Owner of the flow (FK to users) |
+| `name` | character varying(255) | NO | - | Flow name |
+| `description` | text | YES | - | Optional description |
+| `is_enabled` | boolean | YES | false | Whether flow is active |
+| `priority` | integer | NO | 0 | Lower number = higher priority |
+| `use_custom_business_hours` | boolean | YES | false | Whether to use custom business hours |
+| `business_hours_start` | time without time zone | YES | - | Business hours start time |
+| `business_hours_end` | time without time zone | YES | - | Business hours end time |
+| `business_hours_timezone` | character varying(100) | YES | - | IANA timezone identifier |
+| `created_at` | timestamp with time zone | YES | CURRENT_TIMESTAMP | Creation timestamp |
+| `updated_at` | timestamp with time zone | YES | CURRENT_TIMESTAMP | Last update timestamp |
+| `created_by` | uuid | YES | - | User who created the flow (FK to users) |
+
+### Indexes
+
+- **PRIMARY KEY**: `auto_engagement_flows_pkey` ON (id)
+- **UNIQUE**: `unique_user_priority` ON (user_id, priority)
+- **INDEX**: `idx_flows_user_enabled` ON (user_id, is_enabled)
+- **INDEX**: `idx_flows_priority` ON (user_id, priority) WHERE is_enabled = true
+- **INDEX**: `idx_flows_created_at` ON (created_at DESC)
+
+### Foreign Keys
+
+- `user_id` → `users(id)` ON DELETE CASCADE
+- `created_by` → `users(id)`
+
+---
+
+## public.flow_trigger_conditions
+
+**Description**: Defines conditions that trigger a flow execution. Multiple conditions use AND logic.
+
+### Columns
+
+| Column Name | Data Type | Nullable | Default | Description |
+|------------|-----------|----------|---------|-------------|
+| `id` | uuid | NO | uuid_generate_v4() | Primary key |
+| `flow_id` | uuid | NO | - | Parent flow (FK to auto_engagement_flows) |
+| `condition_type` | character varying(50) | NO | - | Type: lead_source, entry_type, custom_field |
+| `condition_operator` | character varying(20) | NO | equals | Operator: equals, any, contains, not_equals |
+| `condition_value` | character varying(255) | YES | - | Value to match (null for 'any') |
+| `created_at` | timestamp with time zone | YES | CURRENT_TIMESTAMP | Creation timestamp |
+
+### Indexes
+
+- **PRIMARY KEY**: `flow_trigger_conditions_pkey` ON (id)
+- **INDEX**: `idx_conditions_flow` ON (flow_id)
+
+### Foreign Keys
+
+- `flow_id` → `auto_engagement_flows(id)` ON DELETE CASCADE
+
+### Constraints
+
+- **CHECK**: `valid_condition_type` - condition_type IN ('lead_source', 'entry_type', 'custom_field')
+- **CHECK**: `valid_condition_operator` - condition_operator IN ('equals', 'any', 'contains', 'not_equals')
+
+---
+
+## public.flow_actions
+
+**Description**: Sequential actions to execute within a flow. Supports conditional execution based on previous action results.
+
+### Columns
+
+| Column Name | Data Type | Nullable | Default | Description |
+|------------|-----------|----------|---------|-------------|
+| `id` | uuid | NO | uuid_generate_v4() | Primary key |
+| `flow_id` | uuid | NO | - | Parent flow (FK to auto_engagement_flows) |
+| `action_order` | integer | NO | - | Execution sequence (1, 2, 3...) |
+| `action_type` | character varying(50) | NO | - | Type: ai_call, whatsapp_message, email, wait |
+| `action_config` | jsonb | NO | {} | Action configuration (agent_id, template_id, etc.) |
+| `condition_type` | character varying(50) | YES | - | Condition: call_outcome, always, previous_action_status |
+| `condition_value` | character varying(50) | YES | - | Value: missed, failed, answered, success, failed |
+| `created_at` | timestamp with time zone | YES | CURRENT_TIMESTAMP | Creation timestamp |
+
+### Indexes
+
+- **PRIMARY KEY**: `flow_actions_pkey` ON (id)
+- **UNIQUE**: `unique_flow_action_order` ON (flow_id, action_order)
+- **INDEX**: `idx_actions_flow_order` ON (flow_id, action_order)
+- **INDEX**: `idx_actions_type` ON (action_type)
+
+### Foreign Keys
+
+- `flow_id` → `auto_engagement_flows(id)` ON DELETE CASCADE
+
+### Constraints
+
+- **CHECK**: `valid_action_type` - action_type IN ('ai_call', 'whatsapp_message', 'email', 'wait')
+- **CHECK**: `valid_condition_type` - condition_type IS NULL OR condition_type IN ('call_outcome', 'always', 'previous_action_status')
+- **CHECK**: `positive_action_order` - action_order > 0
+
+---
+
+## public.flow_executions
+
+**Description**: Tracks each flow execution instance for a contact. Provides complete audit trail.
+
+### Columns
+
+| Column Name | Data Type | Nullable | Default | Description |
+|------------|-----------|----------|---------|-------------|
+| `id` | uuid | NO | uuid_generate_v4() | Primary key |
+| `flow_id` | uuid | NO | - | Executed flow (FK to auto_engagement_flows) |
+| `contact_id` | uuid | NO | - | Target contact (FK to contacts) |
+| `user_id` | uuid | NO | - | Owner (FK to users) |
+| `triggered_at` | timestamp with time zone | YES | CURRENT_TIMESTAMP | Execution start time |
+| `status` | character varying(50) | YES | running | Status: running, completed, failed, cancelled, skipped |
+| `current_action_step` | integer | YES | 1 | Current action being executed |
+| `completed_at` | timestamp with time zone | YES | - | Execution completion time |
+| `error_message` | text | YES | - | Error details if failed |
+| `metadata` | jsonb | YES | {} | Trigger source, matched conditions, etc. |
+| `is_test_run` | boolean | YES | false | Whether this is a test execution |
+
+### Indexes
+
+- **PRIMARY KEY**: `flow_executions_pkey` ON (id)
+- **INDEX**: `idx_executions_flow` ON (flow_id, triggered_at DESC)
+- **INDEX**: `idx_executions_contact` ON (contact_id)
+- **INDEX**: `idx_executions_user_status` ON (user_id, status, triggered_at DESC)
+- **INDEX**: `idx_executions_test` ON (is_test_run) WHERE is_test_run = true
+- **INDEX**: `idx_executions_status` ON (status, triggered_at DESC)
+
+### Foreign Keys
+
+- `flow_id` → `auto_engagement_flows(id)` ON DELETE CASCADE
+- `contact_id` → `contacts(id)` ON DELETE CASCADE
+- `user_id` → `users(id)` ON DELETE CASCADE
+
+### Constraints
+
+- **CHECK**: `valid_execution_status` - status IN ('running', 'completed', 'failed', 'cancelled', 'skipped')
+
+---
+
+## public.flow_action_logs
+
+**Description**: Individual action execution results within a flow execution. Provides action-level logging and error tracking.
+
+### Columns
+
+| Column Name | Data Type | Nullable | Default | Description |
+|------------|-----------|----------|---------|-------------|
+| `id` | uuid | NO | uuid_generate_v4() | Primary key |
+| `flow_execution_id` | uuid | NO | - | Parent execution (FK to flow_executions) |
+| `action_id` | uuid | NO | - | Action definition (FK to flow_actions) |
+| `action_type` | character varying(50) | NO | - | Type: ai_call, whatsapp_message, email, wait |
+| `action_order` | integer | NO | - | Execution sequence number |
+| `started_at` | timestamp with time zone | YES | CURRENT_TIMESTAMP | Action start time |
+| `completed_at` | timestamp with time zone | YES | - | Action completion time |
+| `status` | character varying(50) | YES | pending | Status: pending, running, success, failed, skipped |
+| `result_data` | jsonb | YES | {} | Action results (call_id, message_id, email_id, etc.) |
+| `error_message` | text | YES | - | Error details if failed |
+| `skip_reason` | character varying(255) | YES | - | Why action was skipped |
+
+### Indexes
+
+- **PRIMARY KEY**: `flow_action_logs_pkey` ON (id)
+- **INDEX**: `idx_action_logs_execution` ON (flow_execution_id, action_order)
+- **INDEX**: `idx_action_logs_status` ON (status)
+- **INDEX**: `idx_action_logs_started_at` ON (started_at DESC)
+
+### Foreign Keys
+
+- `flow_execution_id` → `flow_executions(id)` ON DELETE CASCADE
+- `action_id` → `flow_actions(id)` ON DELETE CASCADE
+
+### Constraints
+
+- **CHECK**: `valid_action_log_status` - status IN ('pending', 'running', 'success', 'failed', 'skipped')
+
+---
+
+*Auto Engagement Flow tables added: February 5, 2026*
+*Migration: 1027_create_auto_engagement_flows.sql*
