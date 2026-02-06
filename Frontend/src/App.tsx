@@ -20,6 +20,11 @@ import Dashboard from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
 import LeadProfileTab from "./components/chat/LeadProfileTab";
 import ChatDataPage from "./pages/ChatDataPage";
+import AutoEngagementFlows from "./pages/AutoEngagementFlows";
+import AutoEngagementFlowBuilder from "./pages/AutoEngagementFlowBuilder";
+import AutoEngagementExecutions from "./pages/AutoEngagementExecutions";
+import AutoEngagementExecutionDetail from "./pages/AutoEngagementExecutionDetail";
+import AutoEngagementAnalytics from "./pages/AutoEngagementAnalytics";
 import AdminLayout from "./components/admin/AdminLayout";
 import { EnhancedLeadCardDemo } from "./components/leads/EnhancedLeadCardDemo";
 import AdminDashboard from "./components/admin/AdminDashboard";
@@ -116,6 +121,56 @@ function App() {
                             <Suspense fallback={<div>Loading...</div>}>
                               {React.createElement(lazy(() => import('./components/dashboard/GoogleCalendarCallback')))}
                             </Suspense>
+                          </ProtectedRoute>
+                        }
+                      />
+
+                      {/* Auto Engagement Flows Routes */}
+                      <Route
+                        path="/dashboard/auto-engagement"
+                        element={
+                          <ProtectedRoute>
+                            <AutoEngagementFlows />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/dashboard/auto-engagement/create"
+                        element={
+                          <ProtectedRoute>
+                            <AutoEngagementFlowBuilder />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/dashboard/auto-engagement/:id/edit"
+                        element={
+                          <ProtectedRoute>
+                            <AutoEngagementFlowBuilder />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/dashboard/auto-engagement/executions"
+                        element={
+                          <ProtectedRoute>
+                            <AutoEngagementExecutions />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/dashboard/auto-engagement/executions/:id"
+                        element={
+                          <ProtectedRoute>
+                            <AutoEngagementExecutionDetail />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/dashboard/auto-engagement/analytics"
+                        element={
+                          <ProtectedRoute>
+                            <AutoEngagementAnalytics />
                           </ProtectedRoute>
                         }
                       />

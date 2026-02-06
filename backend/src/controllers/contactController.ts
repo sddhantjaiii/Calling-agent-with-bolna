@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { ContactService } from '../services/contactService';
 import { logger } from '../utils/logger';
 import { queryCache } from '../services/queryCacheService';
+import { AutoEngagementTriggerService } from '../services/autoEngagementTriggerService';
 
 // Contact controller - handles contact management and bulk uploads
 export class ContactController {
@@ -153,6 +154,22 @@ export class ContactController {
 
       // Invalidate contacts cache after creating
       queryCache.invalidateTable('contacts');
+
+      // Trigger auto-engagement flows (non-blocking, with enhanced error tracking)
+      AutoEngagementTriggerService.onContactCreated(contact, userId).catch(error => {
+        logger.error('Error triggering auto-engagement flow:', {
+          error: error instanceof Error ? error.message : String(error),
+          contactId: contact.id,
+          userId: userId,
+          stack: error instanceof Error ? error.stack : undefined
+        });
+        
+        // TODO: Add monitoring/alerting for production
+        // - Increment failure counter in metrics system
+        // - Send alert if failure rate exceeds threshold
+        // - Store failed trigger attempts for retry queue
+        // Don't fail the request if auto-engagement fails
+      });
 
       res.status(201).json({
         success: true,

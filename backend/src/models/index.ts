@@ -10,3 +10,8 @@ export * from './Contact';
 export * from './CreditTransaction';
 export * from './AdminAuditLog';
 export * from './FailureLog';
+
+// Auto Engagement Flow Models
+export * from './AutoEngagementFlow';
+export * from './FlowComponents';
+export * from './FlowExecution';
