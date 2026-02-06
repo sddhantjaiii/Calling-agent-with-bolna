@@ -1,18 +1,14 @@
-import { pool } from '../config/database';
 import { logger } from '../utils/logger';
 import { FlowExecutionModel, FlowActionLogModel } from '../models/FlowExecution';
 import {
   FlowWithDetails,
-  FlowExecutionContext,
   FlowAction,
-  ActionType,
   AICallActionConfig,
   WhatsAppActionConfig,
   EmailActionConfig,
   WaitActionConfig
 } from '../types/autoEngagement';
 import { ContactInterface } from '../models/Contact';
-import { bolnaService } from './bolnaService';
 import { CallQueueModel } from '../models/CallQueue';
 
 /**
@@ -197,6 +193,15 @@ export class FlowExecutionService {
 
   /**
    * Check if action should be executed based on conditions
+   * 
+   * CONDITIONAL EXECUTION LOGIC:
+   * - condition_value "answered" means: Execute this action ONLY if call was answered (stop flow if successful)
+   * - condition_value "missed" means: Execute this action ONLY if call was NOT answered (fallback action)
+   * - condition_value "failed" means: Execute this action ONLY if call failed (error handling)
+   * 
+   * Example flow:
+   * 1. AI Call action (no condition)
+   * 2. WhatsApp action (condition: "missed") -> Only executes if call was missed
    */
   private static shouldExecuteAction(
     action: FlowAction,
@@ -216,14 +221,17 @@ export class FlowExecutionService {
       const expectedOutcome = action.condition_value;
       const actualOutcome = previousActionResult.call_outcome;
 
+      // If we expect "answered" and call WAS answered, DON'T execute next action (flow complete)
       if (expectedOutcome === 'answered' && actualOutcome === 'answered') {
         return { execute: false, reason: 'Call was answered - stopping flow' };
       }
 
+      // If we expect "missed" and call was NOT answered, DO execute (fallback action)
       if (expectedOutcome === 'missed' && actualOutcome !== 'answered') {
         return { execute: true };
       }
 
+      // If we expect "failed" and call DID fail, DO execute (error handling)
       if (expectedOutcome === 'failed' && actualOutcome === 'failed') {
         return { execute: true };
       }
@@ -323,6 +331,10 @@ export class FlowExecutionService {
 
   /**
    * Execute WhatsApp message action
+   * 
+   * ⚠️ PLACEHOLDER IMPLEMENTATION - PHASE 8
+   * This action type is not yet functional. Configuration is accepted but execution is not implemented.
+   * Future implementation will integrate with Chat Agent Server for WhatsApp Business API.
    */
   private static async executeWhatsAppAction(
     config: WhatsAppActionConfig,
@@ -336,14 +348,14 @@ export class FlowExecutionService {
         phoneNumber: contact.phone_number
       });
 
-      // TODO: Integrate with WhatsApp sending service
-      // For now, just log the action
-      logger.warn('[FlowExecutionService] WhatsApp integration not yet implemented');
+      // PHASE 8: Integrate with Chat Agent Server for WhatsApp Business API
+      logger.warn('[FlowExecutionService] WhatsApp integration not yet implemented (Phase 8)');
 
       return {
         whatsapp_sent: false,
         status: 'not_implemented',
-        template_id: config.template_id
+        template_id: config.template_id,
+        message: 'WhatsApp integration pending - Phase 8'
       };
     } catch (error) {
       logger.error('[FlowExecutionService] Error executing WhatsApp action', {
@@ -356,6 +368,10 @@ export class FlowExecutionService {
 
   /**
    * Execute email action
+   * 
+   * ⚠️ PLACEHOLDER IMPLEMENTATION - PHASE 8
+   * This action type is not yet functional. Configuration is accepted but execution is not implemented.
+   * Future implementation will integrate with email service provider.
    */
   private static async executeEmailAction(
     config: EmailActionConfig,
@@ -373,14 +389,14 @@ export class FlowExecutionService {
         throw new Error('Contact has no email address');
       }
 
-      // TODO: Integrate with email sending service
-      // For now, just log the action
-      logger.warn('[FlowExecutionService] Email integration not yet implemented');
+      // PHASE 8: Integrate with email sending service
+      logger.warn('[FlowExecutionService] Email integration not yet implemented (Phase 8)');
 
       return {
         email_sent: false,
         status: 'not_implemented',
-        template_id: config.email_template_id
+        template_id: config.email_template_id,
+        message: 'Email integration pending - Phase 8'
       };
     } catch (error) {
       logger.error('[FlowExecutionService] Error executing email action', {
@@ -393,6 +409,10 @@ export class FlowExecutionService {
 
   /**
    * Execute wait action
+   * 
+   * ⚠️ PLACEHOLDER IMPLEMENTATION - PHASE 8
+   * This action type is not yet functional. Currently returns immediately instead of scheduling.
+   * Future implementation will use job queue (Bull/BullMQ) for proper scheduling.
    */
   private static async executeWaitAction(config: WaitActionConfig): Promise<any> {
     try {
@@ -400,14 +420,15 @@ export class FlowExecutionService {
         durationMinutes: config.duration_minutes
       });
 
-      // For now, wait actions are not actually implemented
+      // PHASE 8: Implement with job queue for proper scheduling
       // In a real implementation, this would schedule the next action
-      logger.warn('[FlowExecutionService] Wait action not yet implemented - continuing immediately');
+      logger.warn('[FlowExecutionService] Wait action not yet implemented (Phase 8) - continuing immediately');
 
       return {
         waited: false,
         status: 'not_implemented',
-        duration_minutes: config.duration_minutes
+        duration_minutes: config.duration_minutes,
+        message: 'Wait/scheduling integration pending - Phase 8'
       };
     } catch (error) {
       logger.error('[FlowExecutionService] Error executing wait action', {

@@ -1,12 +1,9 @@
-import { pool } from '../config/database';
 import { logger } from '../utils/logger';
 import { AutoEngagementFlowModel } from '../models/AutoEngagementFlow';
-import { FlowExecutionModel, FlowActionLogModel } from '../models/FlowExecution';
+import { FlowExecutionModel } from '../models/FlowExecution';
 import {
   FlowWithDetails,
-  FlowExecutionContext,
-  TriggerMatchResult,
-  ActionType
+  TriggerMatchResult
 } from '../types/autoEngagement';
 import { ContactInterface } from '../models/Contact';
 

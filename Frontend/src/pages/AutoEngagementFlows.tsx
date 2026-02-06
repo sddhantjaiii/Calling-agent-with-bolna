@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useTheme } from '@/components/theme/ThemeProvider';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -21,11 +20,9 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { useAutoEngagementFlows } from '@/hooks/useAutoEngagement';
 import { Plus, Edit, Trash2, BarChart3, PlayCircle, PauseCircle, GripVertical } from 'lucide-react';
-import { toast } from 'sonner';
 import type { AutoEngagementFlow } from '@/types/autoEngagement';
 
 const AutoEngagementFlows: React.FC = () => {
-  const { theme } = useTheme();
   const navigate = useNavigate();
   const {
     flows,

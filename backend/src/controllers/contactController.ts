@@ -155,9 +155,19 @@ export class ContactController {
       // Invalidate contacts cache after creating
       queryCache.invalidateTable('contacts');
 
-      // Trigger auto-engagement flows (non-blocking)
+      // Trigger auto-engagement flows (non-blocking, with enhanced error tracking)
       AutoEngagementTriggerService.onContactCreated(contact, userId).catch(error => {
-        logger.error('Error triggering auto-engagement flow:', error);
+        logger.error('Error triggering auto-engagement flow:', {
+          error: error instanceof Error ? error.message : String(error),
+          contactId: contact.id,
+          userId: userId,
+          stack: error instanceof Error ? error.stack : undefined
+        });
+        
+        // TODO: Add monitoring/alerting for production
+        // - Increment failure counter in metrics system
+        // - Send alert if failure rate exceeds threshold
+        // - Store failed trigger attempts for retry queue
         // Don't fail the request if auto-engagement fails
       });
 

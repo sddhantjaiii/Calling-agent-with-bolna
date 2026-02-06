@@ -290,8 +290,6 @@ export const useAutoEngagementAnalytics = () => {
  * Hook for test mode execution
  */
 export const useTestFlowExecution = () => {
-  const queryClient = useQueryClient();
-
   const { mutateAsync: testFlow, isPending: isTesting } = useMutation({
     mutationFn: ({ flowId, contactData }: { flowId: string; contactData: any }) =>
       autoEngagementService.testFlowExecution(flowId, contactData),
