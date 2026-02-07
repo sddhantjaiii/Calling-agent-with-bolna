@@ -223,6 +223,28 @@ const Sidebar = ({
       icon: Plug,
     },
     {
+      id: "auto-engagement",
+      label: "Auto Engagement",
+      icon: BarChart3,
+      subTabs: [
+        {
+          id: "auto-engagement-flows",
+          label: "Flow Manager",
+          icon: Target,
+        },
+        {
+          id: "auto-engagement-executions",
+          label: "Execution Logs",
+          icon: Bell,
+        },
+        {
+          id: "auto-engagement-analytics",
+          label: "Analytics",
+          icon: BarChart3,
+        },
+      ],
+    },
+    {
       id: "profile",
       label: "Settings",
       icon: SettingsIcon,
@@ -237,6 +259,8 @@ const Sidebar = ({
       setActiveSubTab("campaigns-list");
     } else if (tabId === "dialer") {
       setActiveSubTab("dialer-make-call");
+    } else if (tabId === "auto-engagement") {
+      setActiveSubTab("auto-engagement-flows");
     }
   };
 

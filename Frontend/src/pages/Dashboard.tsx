@@ -12,6 +12,9 @@ import SalespersonAgent from "@/components/dashboard/SalespersonAgent";
 import Campaigns from "@/pages/Campaigns";
 import CampaignSettings from "@/pages/CampaignSettings";
 import Templates from "@/pages/Templates";
+import AutoEngagementFlows from "@/pages/AutoEngagementFlows";
+import AutoEngagementExecutions from "@/pages/AutoEngagementExecutions";
+import AutoEngagementAnalytics from "@/pages/AutoEngagementAnalytics";
 import { useTheme } from "@/components/theme/ThemeProvider";
 import { useAgents } from "@/contexts/AgentContext";
 import { NavigationProvider, useNavigation } from "@/contexts/NavigationContext";
@@ -272,6 +275,16 @@ const DashboardContent = ({
     }
     if (activeTab === "integrations") {
       return <Integrations />;
+    }
+    if (activeTab === "auto-engagement") {
+      if (activeSubTab === "auto-engagement-executions") {
+        return <AutoEngagementExecutions />;
+      }
+      if (activeSubTab === "auto-engagement-analytics") {
+        return <AutoEngagementAnalytics />;
+      }
+      // Default to flows manager
+      return <AutoEngagementFlows />;
     }
     return (
       <DashboardErrorBoundary>

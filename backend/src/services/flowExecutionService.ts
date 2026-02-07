@@ -9,7 +9,7 @@ import {
   WaitActionConfig
 } from '../types/autoEngagement';
 import { ContactInterface } from '../models/Contact';
-import { CallQueueModel } from '../models/CallQueue';
+import { CallService } from './callService';
 
 /**
  * FlowExecutionService
@@ -305,23 +305,31 @@ export class FlowExecutionService {
       logger.info('[FlowExecutionService] Executing AI call action', {
         agentId: config.agent_id,
         contactId: contact.id,
-        phoneNumber: contact.phone_number
+        phoneNumber: contact.phone_number,
+        userId: userId, // Debug: Check if userId is passed correctly
+        contactName: contact.name
       });
 
-      // Add call to queue - it will be processed by the existing queue system
-      const queueEntry = await CallQueueModel.addDirectCallToQueue({
-        user_id: userId,
-        contact_id: contact.id,
-        agent_id: config.agent_id,
-        phone_number: contact.phone_number,
-        contact_name: contact.name,
-        priority: 100 // Auto-engagement calls get high priority
+      // Call Bolna directly for immediate execution
+      const callResult = await CallService.initiateCall({
+        userId: userId,
+        contactId: contact.id,
+        agentId: config.agent_id,
+        phoneNumber: contact.phone_number,
+        metadata: { source: 'auto_engagement_flow' }
+      });
+
+      logger.info('[FlowExecutionService] Call initiated successfully', {
+        contactId: contact.id,
+        callId: callResult.callId,
+        executionId: callResult.executionId
       });
 
       return {
-        call_queued: true,
-        queue_id: queueEntry.id,
-        call_outcome: 'queued', // Will be updated by webhook
+        call_initiated: true,
+        call_id: callResult.callId,
+        execution_id: callResult.executionId,
+        call_outcome: 'initiated', // Will be updated by webhook
         agent_id: config.agent_id
       };
     } catch (error) {

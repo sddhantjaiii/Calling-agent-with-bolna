@@ -191,7 +191,7 @@ export class FlowExecutionModel {
       `UPDATE flow_executions 
        SET status = $1, 
            error_message = $2,
-           completed_at = CASE WHEN $1 IN ('completed', 'failed', 'cancelled', 'skipped') THEN CURRENT_TIMESTAMP ELSE completed_at END
+           completed_at = CASE WHEN $1::VARCHAR IN ('completed', 'failed', 'cancelled', 'skipped') THEN CURRENT_TIMESTAMP ELSE completed_at END
        WHERE id = $3
        RETURNING *`,
       [status, errorMessage || null, id]
@@ -335,7 +335,7 @@ export class FlowActionLogModel {
            result_data = $2,
            error_message = $3,
            skip_reason = $4,
-           completed_at = CASE WHEN $1 IN ('success', 'failed', 'skipped') THEN CURRENT_TIMESTAMP ELSE completed_at END
+           completed_at = CASE WHEN $1::VARCHAR IN ('success', 'failed', 'skipped') THEN CURRENT_TIMESTAMP ELSE completed_at END
        WHERE id = $5
        RETURNING *`,
       [

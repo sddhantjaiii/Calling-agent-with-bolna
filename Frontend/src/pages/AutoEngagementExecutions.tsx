@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTheme } from '@/components/theme/ThemeProvider';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import AutoEngagementExecutionDetailModal from '@/components/autoEngagement/AutoEngagementExecutionDetailModal';
 import {
   Table,
   TableBody,
@@ -33,6 +34,8 @@ const AutoEngagementExecutions: React.FC = () => {
   const { theme } = useTheme();
   const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [selectedExecutionId, setSelectedExecutionId] = useState<string | null>(null);
 
   const {
     executions,
@@ -74,6 +77,16 @@ const AutoEngagementExecutions: React.FC = () => {
     } catch (error) {
       console.error('Failed to cancel execution:', error);
     }
+  };
+
+  const handleViewExecution = (executionId: string) => {
+    setSelectedExecutionId(executionId);
+    setIsDetailModalOpen(true);
+  };
+
+  const handleCloseDetailModal = () => {
+    setIsDetailModalOpen(false);
+    setSelectedExecutionId(null);
   };
 
   if (isLoading) {
@@ -204,7 +217,7 @@ const AutoEngagementExecutions: React.FC = () => {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => navigate(`/dashboard/auto-engagement/executions/${execution.id}`)}
+                            onClick={() => handleViewExecution(execution.id)}
                           >
                             <Eye className="h-4 w-4" />
                           </Button>
@@ -292,6 +305,13 @@ const AutoEngagementExecutions: React.FC = () => {
           </Card>
         </div>
       )}
+
+      {/* Execution Detail Modal */}
+      <AutoEngagementExecutionDetailModal
+        open={isDetailModalOpen}
+        onClose={handleCloseDetailModal}
+        executionId={selectedExecutionId}
+      />
     </div>
   );
 };

@@ -1,0 +1,367 @@
+{
+  "name": "🧪 SniperThink Lead Automation - WITH TEST DATA",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n// 🧪 SAMPLE TEST DATA - TradeIndia & IndiaMART Leads\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n// This node simulates what the Gmail Trigger + Email Parser would produce\n// Use this for testing the workflow without waiting for real emails\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nconst sampleLeads = [\n  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  // SAMPLE 1: TradeIndia Lead - Complete Data\n  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  {\n    rawEml: `Subject: Trade Enquiry for Corrugated Boxes from Mumbai\nFrom: noreply@tradeindia.com\nDate: Thu, 06 Feb 2026 14:30:00 +0530\n\n*************************************************************\n                    BUYER ENQUIRY DETAILS\n*************************************************************\n\nSender Name : Rajesh Kumar\nCompany : ABC Packaging Solutions Pvt Ltd\nMobile No : +91 9876543210\nPhone No : +91 22 12345678\nEmail : rajesh.kumar@abcpackaging.com\nCity : Mumbai\nState : Maharashtra\nIP/Country : 103.123.45.67 / India\n\nProduct Details : Corrugated Packaging Boxes\nQuantity Required : 5000 Units\nApproximate Order Value(INR) : Rs 5 Lakh - Rs 10 Lakh\nRequirement Type : Bulk Order\n\nRequirement Details : \nWe need corrugated boxes for export packaging. Size: 18x12x10 inches.\nDouble wall construction with 5-ply strength.\nCustom printing with company logo required.\nDelivery needed within 15 days.\n\nBuyer Filled Details : Looking for competitive quotes from manufacturers only.\n\n*************************************************************\n                    END OF ENQUIRY\n*************************************************************`,\n    fromEmail: \"noreply@tradeindia.com\",\n    subject: \"Trade Enquiry for Corrugated Boxes from Mumbai\",\n    date: \"1738836000000\",\n    hasAttachment: true\n  },\n  \n  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  // SAMPLE 2: IndiaMART Lead - Complete Data\n  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  {\n    rawEml: `Subject: Enquiry for Industrial Safety Helmets from Priya Sharma\nFrom: noreply@indiamart.com\nDate: Thu, 06 Feb 2026 15:45:00 +0530\n\nDear Supplier,\n\nYou have received a new enquiry from IndiaMART.\n\n═══════════════════════════════════════════════════════\nBUYER INFORMATION\n═══════════════════════════════════════════════════════\n\nName : Priya Sharma\nCompany Name : Safety First Industries\nMobile : 9988776655\nEmail : priya.sharma@safetyfirst.in\nCity : Delhi\nState : Delhi\nCountry : India\n\n═══════════════════════════════════════════════════════\nPRODUCT REQUIREMENT\n═══════════════════════════════════════════════════════\n\nI am looking for Industrial Safety Helmets\nQuantity : 2000 pieces\nProbable Requirement Type : Immediate\nProbable Order Value : Rs 1 Lakh - Rs 5 Lakh\nApplication : Construction sites and factories\nGSM : Not Applicable\n\nAdditional Requirements:\nNeed ISI certified helmets with adjustable chin straps.\nColors: White (1500), Yellow (500)\nRain guard attachment required.\nUrgent requirement - please quote within 24 hours.\n\n═══════════════════════════════════════════════════════\n\nPlease respond to this enquiry at the earliest.\n\nRegards,\nIndiaMART Team`,\n    fromEmail: \"noreply@indiamart.com\",\n    subject: \"Enquiry for Industrial Safety Helmets from Priya Sharma\",\n    date: \"1738840500000\",\n    hasAttachment: true\n  },\n  \n  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  // SAMPLE 3: TradeIndia Lead - Minimal Data\n  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  {\n    rawEml: `Subject: Enquiry for Office Furniture\nFrom: noreply@tradeindia.com\nDate: Thu, 06 Feb 2026 16:20:00 +0530\n\nSender Name : Amit Patel\nMobile No : 9123456789\nCity : Ahmedabad\nProduct Details : Office Chairs and Desks\nQuantity Required : 50 Sets\nRequirement Details : Need ergonomic office furniture for new office setup.`,\n    fromEmail: \"noreply@tradeindia.com\",\n    subject: \"Enquiry for Office Furniture\",\n    date: \"1738842600000\",\n    hasAttachment: true\n  },\n  \n  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  // SAMPLE 4: IndiaMART Lead - Export Enquiry\n  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  {\n    rawEml: `Subject: Export Enquiry for Organic Spices from Bangalore\nFrom: noreply@indiamart.com\nDate: Thu, 06 Feb 2026 17:00:00 +0530\n\nName : Mohammed Khan\nCompany Name : Khan Exports International\nMobile : +91 9876501234\nEmail : mohammed@khanexports.com\nCity : Bangalore\nState : Karnataka\n\nI am looking for Organic Turmeric Powder & Cumin Seeds\nQuantity : 10 Tons\nProbable Requirement Type : Regular Supply\nProbable Order Value : Above Rs 10 Lakh\nApplication : Export to Middle East markets\n\nLooking for suppliers with FSSAI and Organic certifications.\nNeed samples before bulk order.\nMonthly requirement once approved.\n\nBangalore, Karnataka, India`,\n    fromEmail: \"noreply@indiamart.com\",\n    subject: \"Export Enquiry for Organic Spices from Bangalore\",\n    date: \"1738845000000\",\n    hasAttachment: true\n  },\n  \n  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  // SAMPLE 5: Generic Business Email\n  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  {\n    rawEml: `Subject: Bulk Order Inquiry\nFrom: neha.gupta@xyzcompany.com\nDate: Thu, 06 Feb 2026 18:15:00 +0530\n\nHello,\n\nI am Neha Gupta from XYZ Company, Chennai.\nWe are interested in purchasing industrial pumps for our new project.\n\nContact: +91 9988771122\nEmail: neha.gupta@xyzcompany.com\n\nQuantity: 20 units\nBudget: Rs 15-20 Lakhs\nDelivery: Chennai, Tamil Nadu\n\nPlease share your catalog and best pricing.\n\nRegards,\nNeha Gupta\nProcurement Manager\nXYZ Company`,\n    fromEmail: \"neha.gupta@xyzcompany.com\",\n    subject: \"Bulk Order Inquiry\",\n    date: \"1738849500000\",\n    hasAttachment: false\n  },\n  \n  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  // SAMPLE 6: TradeIndia - Multiple Phone Numbers\n  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  {\n    rawEml: `Subject: Enquiry for Plastic Raw Materials\nFrom: noreply@tradeindia.com\nDate: Thu, 06 Feb 2026 19:00:00 +0530\n\nSender Name : Suresh Industries\nCompany : Suresh Plastic Manufacturing\nMobile No : 9876543210, 9876543211\nPhone No : 020-12345678\nEmail : suresh@plasticmanufacturing.com\nCity : Pune\nState : Maharashtra\nProduct Details : PVC Granules & HDPE Raw Material\nQuantity Required : 100 MT\nApproximate Order Value(INR) : Above Rs 50 Lakh\nRequirement Type : Regular Monthly Supply\nRequirement Details : We are manufacturers of plastic products. Need regular supply of PVC and HDPE granules.`,\n    fromEmail: \"noreply@tradeindia.com\",\n    subject: \"Enquiry for Plastic Raw Materials\",\n    date: \"1738852200000\",\n    hasAttachment: true\n  }\n];\n\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n// Return sample leads in the format that Gmail nodes would produce\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nreturn sampleLeads.map((lead, index) => ({\n  json: {\n    attachmentName: `attachment_${index}`,\n    rawEml: lead.rawEml,\n    hasAttachment: lead.hasAttachment,\n    fromEmail: lead.fromEmail,\n    subject: lead.subject,\n    date: lead.date\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "id": "test-data-node",
+      "name": "🧪 TEST: Sample Lead Data",
+      "notes": "⚠️ FOR TESTING ONLY\n\nThis node generates 6 sample leads:\n1. TradeIndia - Corrugated Boxes (Complete)\n2. IndiaMART - Safety Helmets (Complete)\n3. TradeIndia - Office Furniture (Minimal)\n4. IndiaMART - Organic Spices (Export)\n5. Generic - Business Email\n6. TradeIndia - Multiple Phones\n\nDisable this node and enable Gmail Trigger for production!"
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {}
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.3,
+      "position": [250, 500],
+      "id": "gmail-trigger-node",
+      "name": "📧 Gmail Trigger (PRODUCTION)",
+      "notes": "Enable this for production.\nDisable test data node above.",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "YOUR_GMAIL_OAUTH_ID",
+          "name": "Gmail account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "messageId": "={{ $json.id }}",
+        "simple": false,
+        "options": {
+          "dataPropertyAttachmentsPrefixName": "attachment_",
+          "downloadAttachments": true
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [500, 500],
+      "id": "get-email-node",
+      "name": "📩 Get Email Details (PRODUCTION)",
+      "notes": "Only used with Gmail Trigger",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "YOUR_GMAIL_OAUTH_ID",
+          "name": "Gmail account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract EML attachments from email\nconst results = [];\n\nfor (let i = 0; i < items.length; i++) {\n  const binary = items[i].binary;\n  if (!binary) {\n    // No attachments - use email body instead\n    results.push({\n      json: {\n        attachmentName: 'email-body',\n        rawEml: items[i].json.snippet || items[i].json.body || '',\n        hasAttachment: false,\n        fromEmail: items[i].json.from || '',\n        subject: items[i].json.subject || '',\n        date: items[i].json.internalDate || new Date().toISOString()\n      }\n    });\n    continue;\n  }\n  \n  for (const key in binary) {\n    if (!key.startsWith(\"attachment_\")) continue;\n    \n    const buffer = await this.helpers.getBinaryDataBuffer(i, key);\n    results.push({\n      json: {\n        attachmentName: key,\n        rawEml: buffer.toString(\"utf8\"),\n        hasAttachment: true,\n        fromEmail: items[i].json.from || '',\n        subject: items[i].json.subject || '',\n        date: items[i].json.internalDate || new Date().toISOString()\n      }\n    });\n  }\n}\n\nreturn results.length ? results : [{ json: { error: \"NO_DATA_FOUND\" } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [750, 500],
+      "id": "extract-eml-node",
+      "name": "🔍 Extract Email Content (PRODUCTION)",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [750, 300],
+      "id": "merge-node",
+      "name": "🔀 Merge Test/Production Data",
+      "notes": "Combines data from either:\n- Test node (for testing)\n- OR Gmail flow (for production)"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n// 📋 COMPREHENSIVE LEAD PARSER FOR TRADEINDIA & INDIAMART\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n// Extracts structured data from lead emails\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nconst inputItems = items;\nconst outputItems = [];\n\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n// HELPER FUNCTIONS\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nfunction decodeQuotedPrintable(text) {\n  if (!text) return \"\";\n  return text\n    .replace(/=\\r?\\n/g, '')\n    .replace(/=[0-9A-F]{2}/gi, (match) => \n      String.fromCharCode(parseInt(match.substr(1), 16))\n    );\n}\n\nfunction cleanText(text) {\n  if (!text) return null;\n  let clean = text.replace(/<[^>]*>?/gm, ' ');\n  clean = clean.replace(/['\"]/g, ''); \n  clean = clean.replace(/\\s+/g, ' ').trim();\n  return clean || null;\n}\n\nfunction extractPhones(text) {\n  if (!text) return [];\n  const pattern = /(?:\\+91|91)?[\\-\\s]?[6-9]\\d{9}/g;\n  const matches = text.match(pattern) || [];\n  \n  const uniquePhones = [];\n  matches.forEach(p => {\n    let cleanP = p.replace(/\\D/g, '');\n    \n    if (cleanP.length > 10 && cleanP.startsWith('91')) {\n      cleanP = \"+\" + cleanP;\n    } else if (cleanP.length === 10) {\n      cleanP = \"+91\" + cleanP;\n    }\n    \n    if (!uniquePhones.includes(cleanP)) {\n      uniquePhones.push(cleanP);\n    }\n  });\n  return uniquePhones;\n}\n\nfunction extractEmail(text) {\n  if (!text) return null;\n  const emailPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}/g;\n  const matches = text.match(emailPattern);\n  return matches ? matches[0] : null;\n}\n\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n// MAIN PARSING LOGIC\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nfor (const item of inputItems) {\n  let rawEml = item.json.rawEml;\n  if (!rawEml) continue;\n\n  // Truncate if too large\n  if (rawEml.length > 25000) {\n    rawEml = rawEml.substring(0, 25000);\n  }\n\n  const decodedEml = decodeQuotedPrintable(rawEml);\n\n  // Extract metadata\n  const subjectMatch = decodedEml.match(/^Subject:\\s*(.*)/m);\n  const subject = subjectMatch ? cleanText(subjectMatch[1]) : item.json.subject || \"\";\n\n  const fromMatch = decodedEml.match(/^From:\\s*(.*)/m);\n  const fromHeader = fromMatch ? fromMatch[1] : item.json.fromEmail || \"\";\n\n  const dateMatch = decodedEml.match(/^Date:\\s*(.*)/m);\n  let dateStr = null;\n  if (dateMatch) {\n    try {\n      const d = new Date(dateMatch[1]);\n      if (!isNaN(d)) {\n        dateStr = d.toISOString();\n      }\n    } catch (e) {}\n  }\n  if (!dateStr && item.json.date) {\n    try {\n      dateStr = new Date(parseInt(item.json.date)).toISOString();\n    } catch (e) {}\n  }\n\n  // Detect source\n  let source = \"Email\";\n  if (/tradeindia/i.test(fromHeader) || /tradeindia/i.test(subject)) {\n    source = \"TradeIndia\";\n  } else if (/indiamart/i.test(fromHeader) || /indiamart/i.test(subject)) {\n    source = \"IndiaMART\";\n  } else if (/justdial/i.test(fromHeader) || /justdial/i.test(subject)) {\n    source = \"JustDial\";\n  } else if (/exportersindia/i.test(fromHeader) || /exportersindia/i.test(subject)) {\n    source = \"ExportersIndia\";\n  }\n\n  const data = {};\n  \n  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  // TRADEINDIA PATTERNS\n  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  if (source === \"TradeIndia\") {\n    const patterns = {\n      \"Sender Name\": /Sender Name\\s*:\\s*([^*\\r\\n]*)/i,\n      \"Company Name\": /Company\\s*:\\s*([^*\\r\\n]*)/i,\n      \"Mobile\": /Mobile No\\s*:\\s*(.*)/i,\n      \"Phone\": /Phone No\\s*:\\s*(.*)/i,\n      \"Email\": /Email\\s*:\\s*(.*)/i,\n      \"City\": /City\\s*:\\s*(.*)/i,\n      \"State\": /State\\s*:\\s*(.*)/i,\n      \"Country\": /IP\\/Country\\s*:\\s*.*?\\/([^\\n\\r]*)/i,\n      \"Product Name\": /Product Details\\s*:\\s*(.*)/i,\n      \"Quantity\": /Quantity Required\\s*:\\s*(.*)/i,\n      \"Order Value\": /Approximate Order Value\\(INR\\)\\s*:\\s*(.*)/i,\n      \"Requirement Type\": /Requirement Type\\s*:\\s*(.*)/i,\n      \"Requirement Details\": /Requirement Details\\s*:\\s*([\\s\\S]*?)(?=\\*|\\n\\n)/i \n    };\n\n    for (const [key, regex] of Object.entries(patterns)) {\n      const match = decodedEml.match(regex);\n      if (match) data[key] = cleanText(match[1]);\n    }\n  } \n  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  // INDIAMART PATTERNS\n  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  else {\n    const patterns = {\n      \"Sender Name\": /Name\\s*:\\s*(.*)/i,\n      \"Company Name\": /Company Name\\s*:\\s*(.*)/i,\n      \"Mobile\": /Mobile\\s*:\\s*(.*)/i,\n      \"Email\": /Email\\s*:\\s*(.*)/i,\n      \"City\": /City\\s*:\\s*(.*)/i,\n      \"Product Name\": /I am looking for\\s*(.*)/i,\n      \"Quantity\": /Quantity\\s*:\\s*(.*)/i,\n      \"Requirement Type\": /Probable Requirement Type\\s*:\\s*(.*)/i,\n      \"Order Value\": /Probable Order Value\\s*:\\s*(.*)/i,\n      \"Application\": /Application\\s*:\\s*(.*)/i,\n      \"GSM\": /GSM\\s*:\\s*(.*)/i\n    };\n\n    for (const [key, regex] of Object.entries(patterns)) {\n      const match = decodedEml.match(regex);\n      if (match) data[key] = cleanText(match[1]);\n    }\n    \n    // Extract product from subject\n    if (!data[\"Product Name\"]) {\n      const subjParts = subject.split(\"Enquiry for\");\n      if (subjParts.length > 1) {\n        data[\"Product Name\"] = cleanText(subjParts[1].split(\"from\")[0]);\n      }\n    }\n    \n    // Extract city from address\n    if (!data[\"City\"]) {\n       const addrMatch = decodedEml.match(/([A-Za-z\\s]+),\\s*([A-Za-z\\s]+),\\s*India/);\n       if (addrMatch) {\n         data[\"City\"] = cleanText(addrMatch[1]);\n         data[\"State\"] = cleanText(addrMatch[2]);\n         data[\"Country\"] = \"India\";\n       }\n    }\n  }\n\n  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  // EXTRACT PHONE NUMBERS\n  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  const rawPhones = (data[\"Mobile\"] || \"\") + \" \" + (data[\"Phone\"] || \"\");\n  const phoneList = extractPhones(rawPhones);\n\n  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  // BUILD COMPREHENSIVE NOTES\n  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  let reqParts = [];\n  if (subject) reqParts.push(`Lead from: ${subject}`);\n  \n  if (data[\"Requirement Details\"]) {\n    reqParts.push(data[\"Requirement Details\"]);\n  }\n  if (data[\"Application\"]) {\n    reqParts.push(`Application: ${data[\"Application\"]}`);\n  }\n  if (data[\"GSM\"]) {\n    reqParts.push(`GSM: ${data[\"GSM\"]}`);\n  }\n  if (data[\"Quantity\"]) {\n    reqParts.push(`Quantity: ${data[\"Quantity\"]}`);\n  }\n  if (data[\"Order Value\"]) {\n    reqParts.push(`Order Value: ${data[\"Order Value\"]}`);\n  }\n  if (data[\"Requirement Type\"]) {\n    reqParts.push(`Type: ${data[\"Requirement Type\"]}`);\n  }\n  \n  const buyerFilled = decodedEml.match(/Buyer Filled Details\\s*:\\s*(.*)/i);\n  if (buyerFilled) reqParts.push(`Details: ${cleanText(buyerFilled[1])}`);\n\n  const finalNotes = reqParts.join(\" | \");\n\n  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  // OUTPUT STRUCTURED DATA\n  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  const row = {\n    \"lead_date\": dateStr,\n    \"source\": source,\n    \"sender_name\": data[\"Sender Name\"],\n    \"company_name\": data[\"Company Name\"],\n    \"phone_1\": phoneList[0],\n    \"phone_2\": phoneList[1],\n    \"phone_3\": phoneList[2],\n    \"email\": data[\"Email\"] || extractEmail(decodedEml),\n    \"city\": data[\"City\"],\n    \"state\": data[\"State\"],\n    \"country\": data[\"Country\"] || \"India\",\n    \"product_name\": data[\"Product Name\"],\n    \"notes\": finalNotes,\n    \"raw_subject\": subject\n  };\n\n  outputItems.push({ json: row });\n}\n\nreturn outputItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1000, 300],
+      "id": "parse-lead-node",
+      "name": "🧮 Parse Lead Data",
+      "notes": "Extracts:\n- Contact info (name, phone, email)\n- Company details\n- Lead source\n- Product/service requirements\n- Notes"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "filter-valid-phone",
+              "leftValue": "={{ $json['phone_1'] }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [1250, 300],
+      "id": "filter-leads-node",
+      "name": "✅ Filter Valid Leads",
+      "notes": "Only process leads with valid phone numbers"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n// 🎯 PREPARE API PAYLOAD FOR SNIPERTHINK\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n// ⚠️ IMPORTANT CONFIGURATION:\n// This creates contacts ONLY - no immediate call.\n// Auto Engagement Flows will handle the calling based on your rules.\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n// ⚙️ CONFIGURATION - REPLACE WITH YOUR AGENT ID\nconst AGENT_ID = \"YOUR-AGENT-UUID-FROM-DASHBOARD\";\n// Get this from: Dashboard → Agents → Click agent → Copy Agent ID\n\nconst outputItems = [];\n\nfor (const item of items) {\n  const lead = item.json;\n  \n  // Skip if no valid phone number\n  if (!lead.phone_1) {\n    console.log('Skipping lead - no phone number:', lead.sender_name);\n    continue;\n  }\n  \n  // Build the lead name (use Sender Name, fallback to Company Name)\n  let leadName = lead.sender_name;\n  if (!leadName) {\n    leadName = lead.company_name;\n  }\n  if (!leadName) {\n    leadName = \"Lead from \" + (lead.source || \"Email\");\n  }\n  \n  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  // BUILD API PAYLOAD\n  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  const payload = {\n    agent_id: AGENT_ID,\n    lead_name: leadName,\n    recipient_phone_number: lead.phone_1,\n    email: lead.email || null,\n    Source: lead.source || \"n8n_gmail\",\n    Notes: lead.notes || null,\n    company: lead.company_name || null,\n    city: lead.city || null,\n    country: lead.country || \"India\"\n  };\n  \n  // Remove null fields (optional fields)\n  Object.keys(payload).forEach(key => {\n    if (payload[key] === null || payload[key] === undefined) {\n      delete payload[key];\n    }\n  });\n  \n  outputItems.push({ json: payload });\n}\n\nconsole.log(`Prepared ${outputItems.length} leads for API`);\nreturn outputItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1500, 300],
+      "id": "prepare-payload-node",
+      "name": "📦 Prepare API Payload",
+      "notes": "⚠️ EDIT THIS NODE:\nReplace AGENT_ID with your actual agent UUID from dashboard"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://calling-agent-with-bolna-production.up.railway.app/api/webhooks/n8n/lead-call",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "responseFormat": "json"
+            }
+          },
+          "retry": {
+            "retry": {
+              "maxRetries": 3,
+              "retryInterval": 5000
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1750, 300],
+      "id": "api-call-node",
+      "name": "🚀 Create Contact & Initiate Call",
+      "notes": "Sends lead to webhook.\nCreates/updates contact.\nInitiates AI call immediately.\nAuto Engagement Flow also triggers after."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "check-success",
+              "leftValue": "={{ $json.body.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2000, 300],
+      "id": "check-response-node",
+      "name": "❓ Check Success"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n// ✅ SUCCESS LOGGING\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nconst response = $input.first().json;\nconst body = response.body || {};\nconst data = body.data || {};\n\nconsole.log('✅ Contact created successfully');\nconsole.log('Contact ID:', data.contact_id);\nconsole.log('Call ID:', data.call_id);\nconsole.log('Execution ID:', data.execution_id);\n\nreturn [{\n  json: {\n    status: \"✅ SUCCESS\",\n    message: \"Contact created and AI call initiated\",\n    contact_id: data.contact_id,\n    call_id: data.call_id,\n    execution_id: data.execution_id,\n    contact_created: data.contact_created,\n    call_status: data.status,\n    request_id: body.request_id,\n    processing_time_ms: body.processing_time_ms,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2250, 200],
+      "id": "log-success-node",
+      "name": "✅ Log Success"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n// ❌ ERROR LOGGING\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nconst response = $input.first().json;\nconst body = response.body || {};\n\nconsole.error('❌ Failed to create contact');\nconsole.error('Status Code:', response.statusCode);\nconsole.error('Error:', body.error);\nconsole.error('Details:', body.details);\n\nreturn [{\n  json: {\n    status: \"❌ FAILED\",\n    error: body.error || \"Unknown error\",\n    details: body.details,\n    statusCode: response.statusCode,\n    request_id: body.request_id,\n    timestamp: new Date().toISOString(),\n    // Include for debugging\n    full_response: response\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2250, 400],
+      "id": "log-failure-node",
+      "name": "❌ Log Failure"
+    }
+  ],
+  "connections": {
+    "🧪 TEST: Sample Lead Data": {
+      "main": [
+        [
+          {
+            "node": "🔀 Merge Test/Production Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📧 Gmail Trigger (PRODUCTION)": {
+      "main": [
+        [
+          {
+            "node": "📩 Get Email Details (PRODUCTION)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📩 Get Email Details (PRODUCTION)": {
+      "main": [
+        [
+          {
+            "node": "🔍 Extract Email Content (PRODUCTION)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 Extract Email Content (PRODUCTION)": {
+      "main": [
+        [
+          {
+            "node": "🔀 Merge Test/Production Data",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "🔀 Merge Test/Production Data": {
+      "main": [
+        [
+          {
+            "node": "🧮 Parse Lead Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧮 Parse Lead Data": {
+      "main": [
+        [
+          {
+            "node": "✅ Filter Valid Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ Filter Valid Leads": {
+      "main": [
+        [
+          {
+            "node": "📦 Prepare API Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 Prepare API Payload": {
+      "main": [
+        [
+          {
+            "node": "🚀 Create Contact & Initiate Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚀 Create Contact & Initiate Call": {
+      "main": [
+        [
+          {
+            "node": "❓ Check Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "❓ Check Success": {
+      "main": [
+        [
+          {
+            "node": "✅ Log Success",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "❌ Log Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2026-02-07T00:00:00.000Z",
+      "updatedAt": "2026-02-07T00:00:00.000Z",
+      "id": "lead-automation-test",
+      "name": "Lead Automation - Testing"
+    }
+  ],
+  "triggerCount": 0,
+  "updatedAt": "2026-02-07T00:00:00.000Z",
+  "versionId": "1"
+}

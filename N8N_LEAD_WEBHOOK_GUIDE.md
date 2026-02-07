@@ -1,10 +1,26 @@
-# n8n Lead Capture & Call Webhook
+# n8n Lead Capture Webhook (Contact Creation Only)
 
 ## Overview
 
 This webhook endpoint allows external automation tools (n8n, Zapier, Make, etc.) to:
 1. Create or update a contact in the CRM
-2. Immediately initiate a call to that contact using Bolna.ai
+2. **Auto Engagement Flows** automatically handle calling/follow-up based on configured rules
+
+**Important Change:** This webhook NO LONGER initiates calls directly. All calling is handled by Auto Engagement Flows for consistency and to avoid duplicate calls.
+
+## How It Works
+
+```
+n8n Sends Lead Data
+    ↓
+Webhook Creates/Updates Contact
+    ↓
+Auto Engagement Flow Triggers Automatically
+    ↓
+Flow Matches by Source Field
+    ↓
+Flow Executes Actions (Call, WhatsApp, Email, etc.)
+```
 
 ## Endpoint
 
@@ -41,25 +57,37 @@ Returns health status of the endpoint and database connectivity.
 ### Field Details
 
 | Field | Type | Required | Description |
+| Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `agent_id` | UUID | ✅ Yes | Bolna Agent ID (the `bolna_agent_id` field from your agent) |
+| `agent_id` | UUID | ✅ Yes | **Bolna Agent ID** (NOT regular agent ID - get from agent settings) |
 | `lead_name` | String | ✅ Yes | Full name of the lead |
 | `recipient_phone_number` | String | ✅ Yes | Phone number with ISD code (e.g., +91 for India) |
 | `email` | String | No | Email address for follow-up |
-| `Source` | String | No | Lead source identifier (stored in `auto_creation_source`) |
+| `Source` | String | No | **Lead source identifier** (IMPORTANT - used by Auto Engagement Flow for matching) |
 | `Notes` | String | No | Any notes about the lead - appended if contact exists |
 | `company` | String | No | Company/business name |
 | `city` | String | No | City location |
 | `country` | String | No | Country |
 
+**⚠️ Important:** The `Source` field is critical! It determines which Auto Engagement Flow will handle this lead.
+
+Example:
+- `Source: "TradeIndia"` → Triggers "TradeIndia Follow-up Flow"
+- `Source: "IndiaMART"` → Triggers "IndiaMART Follow-up Flow"
+- No `Source` → Triggers catch-all flow (if configured)
+
 ## Authentication
 
-Authentication is handled via the `agent_id` field (which is the Bolna Agent ID):
-- The `agent_id` must match a `bolna_agent_id` in the agents table
+Authentication is handled via the `agent_id` field (which is the **Bolna Agent ID**):
+- The `agent_id` must match a `bolna_agent_id` in the agents table (NOT the regular agent ID!)
 - The agent must be active (`is_active = true`)
-- The associated user must have sufficient credits
+- The user associated with the agent is used for contact creation
 
-The user associated with the agent is used for all operations (contact creation, call billing, etc.).
+**How to get Bolna Agent ID:**
+1. Go to Dashboard → Agents
+2. Click on your agent
+3. Look for "Bolna Agent ID" field
+4. Copy the UUID
 
 ## Response
 
@@ -68,18 +96,28 @@ The user associated with the agent is used for all operations (contact creation,
 ```json
 {
   "success": true,
-  "message": "Lead captured and call initiated",
+  "message": "Lead captured successfully - Auto Engagement Flow will handle follow-up",
   "data": {
     "contact_id": "uuid",
     "contact_created": true,  // false if existing contact was updated
-    "call_id": "uuid",
-    "execution_id": "bolna-execution-id",
-    "status": "initiated"
+    "source": "TradeIndia",
+    "auto_engagement_enabled": true,
+    "note": "Contact will be processed by Auto Engagement Flow based on configured rules"
   },
   "request_id": "n8n-xxx-xxx",
   "processing_time_ms": 234
 }
 ```
+
+**What happens next?**
+1. Auto Engagement Flow matches by `Source` field
+2. Checks flow priority (if multiple matches)
+3. Executes flow actions sequentially:
+   - AI Call (optional)
+   - WhatsApp message (optional)
+   - Email (optional)
+   - Wait actions
+4. Applies conditional logic (e.g., "If call not answered → send WhatsApp")
 
 ### Error Responses
 
@@ -88,10 +126,8 @@ The user associated with the agent is used for all operations (contact creation,
 | 400 | Missing required field: agent_id | agent_id not provided |
 | 400 | Missing required field: lead_name | lead_name not provided |
 | 400 | Missing required field: recipient_phone_number | Phone number not provided |
-| 400 | Agent is not configured for calling | Agent doesn't have bolna_agent_id |
-| 401 | Invalid agent_id - agent not found | agent_id doesn't exist in database |
+| 401 | Invalid agent_id - agent not found | agent_id doesn't exist in database (wrong Bolna Agent ID) |
 | 401 | Agent is not active | Agent exists but is deactivated |
-| 402 | Insufficient credits to make call | User has no credits |
 | 429 | Call limit reached | Concurrency limit reached, try again |
 | 500 | Failed to process lead | Server error |
 

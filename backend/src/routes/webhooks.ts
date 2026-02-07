@@ -29,20 +29,20 @@ router.post('/bolna',
 );
 
 /**
- * N8N LEAD CAPTURE & CALL WEBHOOK
+ * N8N LEAD CAPTURE WEBHOOK (Contact Creation Only)
  * 
  * External lead capture endpoint for n8n, Zapier, and other automation tools.
- * Creates/updates contact and initiates a call in one request.
+ * Creates/updates contact and lets Auto Engagement Flows handle calling.
  * 
  * Authentication: Uses agent_id existence in database (agent must be active)
  * 
  * Expected Payload:
  * {
- *   "agent_id": "uuid",                    // Required: Our agent ID
+ *   "agent_id": "uuid",                    // Required: Bolna Agent ID (NOT regular agent ID!)
  *   "lead_name": "John Doe",               // Required: Lead's name
  *   "recipient_phone_number": "+919876543210", // Required: Phone with ISD
  *   "email": "john@example.com",           // Optional
- *   "Source": "TradeIndia",                // Optional: Lead source
+ *   "Source": "TradeIndia",                // Optional: Lead source (IMPORTANT - used by Auto Engagement Flow)
  *   "Notes": "Interested in...",           // Optional
  *   "company": "ABC Corp",                 // Optional
  *   "city": "Mumbai",                      // Optional
@@ -52,15 +52,21 @@ router.post('/bolna',
  * Response (201):
  * {
  *   "success": true,
- *   "message": "Lead captured and call initiated",
+ *   "message": "Lead captured successfully - Auto Engagement Flow will handle follow-up",
  *   "data": {
  *     "contact_id": "uuid",
  *     "contact_created": true/false,
- *     "call_id": "uuid",
- *     "execution_id": "bolna-execution-id",
- *     "status": "initiated"
+ *     "source": "TradeIndia",
+ *     "auto_engagement_enabled": true,
+ *     "note": "Contact will be processed by Auto Engagement Flow based on configured rules"
  *   }
  * }
+ * 
+ * After contact creation, Auto Engagement Flow automatically:
+ * 1. Matches flow by Source field (auto_creation_source)
+ * 2. Checks priority (lower = higher priority)
+ * 3. Executes flow actions (AI call, WhatsApp, Email, etc.)
+ * 4. Applies conditional logic based on outcomes
  */
 router.post('/n8n/lead-call',
   n8nWebhookController.handleLeadCaptureAndCall.bind(n8nWebhookController)

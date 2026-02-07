@@ -1,16 +1,16 @@
 import { Request, Response } from 'express';
 import Agent from '../models/Agent';
 import Contact from '../models/Contact';
-import { CallService, CallInitiationRequest } from '../services/callService';
 import { ContactService } from '../services/contactService';
+import { AutoEngagementTriggerService } from '../services/autoEngagementTriggerService';
 import { logger } from '../utils/logger';
 import { pool } from '../config/database';
 
 /**
- * n8n Lead Capture & Call Webhook Controller
+ * n8n Lead Capture Webhook Controller
  * 
  * Handles incoming lead data from external sources (n8n, Zapier, etc.)
- * and initiates a call to the lead using Bolna.ai
+ * Creates/updates contacts and lets Auto Engagement Flows handle calling
  * 
  * Authentication: Uses bolna_agent_id existence in database as authentication
  * The bolna_agent_id must exist and agent must be active, the associated user_id is used for operations
@@ -19,11 +19,15 @@ import { pool } from '../config/database';
  * 1. Validate bolna_agent_id exists and agent is active
  * 2. Get user_id from agent
  * 3. Create or update contact (upsert by phone number)
- * 4. Initiate call using existing CallService
+ * 4. Auto Engagement Flow triggers automatically based on Source field
+ * 
+ * Note: This webhook NO LONGER initiates calls directly.
+ * All calling is handled by Auto Engagement Flows for consistency.
  */
 export class N8nWebhookController {
   /**
-   * Handle incoming lead capture and call initiation
+   * Handle incoming lead capture (contact creation only)
+   * Auto Engagement Flows will handle calling based on configured rules
    * 
    * Expected payload:
    * {
@@ -31,12 +35,18 @@ export class N8nWebhookController {
    *   "lead_name": "John Doe",      // Required: Lead's name
    *   "recipient_phone_number": "+919876543210", // Required: Phone number with ISD
    *   "email": "john@example.com",  // Optional
-   *   "Source": "TradeIndia",       // Optional: Lead source (stored in auto_creation_source)
+   *   "Source": "TradeIndia",       // Optional: Lead source (IMPORTANT - used by Auto Engagement Flow matching)
    *   "Notes": "Interested in...",  // Optional
    *   "company": "ABC Corp",        // Optional
    *   "city": "Mumbai",             // Optional
    *   "country": "India"            // Optional
    * }
+   * 
+   * After contact creation, Auto Engagement Flows automatically:
+   * 1. Match flow by Source field (auto_creation_source)
+   * 2. Check priority (lower = higher priority)
+   * 3. Execute flow actions (AI call, WhatsApp, Email, etc.)
+   * 4. Apply conditional logic based on outcomes
    */
   async handleLeadCaptureAndCall(req: Request, res: Response): Promise<void> {
     const startTime = Date.now();
@@ -184,45 +194,42 @@ export class N8nWebhookController {
         logger.info(`[${requestId}] New contact created: ${contact.id}`);
       }
 
-      // ==================== INITIATE CALL ====================
-      
-      logger.info(`[${requestId}] Initiating call to ${normalizedPhone}`);
-      
-      const callRequest: CallInitiationRequest = {
-        agentId: agentDbId,  // Use internal database agent ID
-        phoneNumber: normalizedPhone,
-        userId: userId,
-        contactId: contact.id,
-        fromPhoneNumber: payload.from_phone_number || undefined, // Pass direct from_phone_number if provided
-        metadata: {
-          source: payload.Source || 'n8n_webhook',
-          request_id: requestId,
-          is_new_contact: isNewContact
-        }
-      };
+      // ==================== TRIGGER AUTO ENGAGEMENT FLOW ====================
+      // For new contacts, trigger Auto Engagement Flow matching and execution
+      if (isNewContact) {
+        logger.info(`[${requestId}] Triggering Auto Engagement Flow for new contact`);
+        // Trigger asynchronously - don't wait for completion
+        AutoEngagementTriggerService.onContactCreated(contact, userId)
+          .catch(err => {
+            logger.error(`[${requestId}] Auto Engagement Flow trigger failed (non-blocking):`, {
+              error: err.message,
+              contactId: contact.id
+            });
+          });
+      }
 
-      // Initiate the call
-      const callResult = await CallService.initiateCall(callRequest);
-
+      // ==================== RESPONSE ====================
+      // Contact created/updated successfully
+      // Auto Engagement Flow will handle calling automatically based on Source field
+      
       const processingTime = Date.now() - startTime;
-      logger.info(`[${requestId}] Call initiated successfully`, {
-        callId: callResult.callId,
-        executionId: callResult.executionId,
+      logger.info(`[${requestId}] Lead captured successfully - Auto Engagement Flow will trigger`, {
         contactId: contact.id,
         isNewContact,
+        source: payload.Source || 'n8n_webhook',
         processingTimeMs: processingTime
       });
 
       // Return success response
       res.status(201).json({
         success: true,
-        message: 'Lead captured and call initiated',
+        message: 'Lead captured successfully - Auto Engagement Flow will handle follow-up',
         data: {
           contact_id: contact.id,
           contact_created: isNewContact,
-          call_id: callResult.callId,
-          execution_id: callResult.executionId,
-          status: callResult.status
+          source: payload.Source || 'n8n_webhook',
+          auto_engagement_enabled: true,
+          note: 'Contact will be processed by Auto Engagement Flow based on configured rules'
         },
         request_id: requestId,
         processing_time_ms: processingTime
@@ -237,30 +244,10 @@ export class N8nWebhookController {
         processingTimeMs: processingTime
       });
 
-      // Handle specific error types
-      if (error.message?.includes('Concurrency limit')) {
-        res.status(429).json({
-          success: false,
-          error: 'Call limit reached - please try again shortly',
-          details: error.message,
-          request_id: requestId
-        });
-        return;
-      }
-
-      if (error.message?.includes('Insufficient credits')) {
-        res.status(402).json({
-          success: false,
-          error: 'Insufficient credits to make call',
-          request_id: requestId
-        });
-        return;
-      }
-
       // Generic error response
       res.status(500).json({
         success: false,
-        error: 'Failed to process lead and initiate call',
+        error: 'Failed to process lead',
         details: error.message,
         request_id: requestId
       });

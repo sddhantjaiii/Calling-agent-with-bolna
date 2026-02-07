@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { useTheme } from '@/components/theme/ThemeProvider';
 import { Button } from '@/components/ui/button';
@@ -25,6 +26,8 @@ import { useAutoEngagementFlows, useAutoEngagementFlow } from '@/hooks/useAutoEn
 import { useAgents } from '@/hooks/useAgents';
 import { ArrowLeft, Save, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import apiService from '@/services/apiService';
+import { API_ENDPOINTS } from '@/config/api';
 import type { CreateFlowRequest, ActionType, ConditionType, ConditionOperator } from '@/types/autoEngagement';
 
 interface FormValues {
@@ -47,6 +50,15 @@ const AutoEngagementFlowBuilder: React.FC = () => {
   const { flow, isLoading: isLoadingFlow } = useAutoEngagementFlow(id || null);
   const { createFlow, updateFlow, isCreating, isUpdating } = useAutoEngagementFlows();
   const { agents, loading: loadingAgents } = useAgents();
+
+  // Fetch phone numbers for dropdown
+  const { data: phoneNumbers = [] } = useQuery({
+    queryKey: ['phone-numbers'],
+    queryFn: async () => {
+      const response = await apiService.get(API_ENDPOINTS.PHONE_NUMBERS.LIST);
+      return response.data || [];
+    },
+  });
 
   const [triggerConditions, setTriggerConditions] = useState<Array<{
     condition_type: ConditionType;
@@ -193,10 +205,10 @@ const AutoEngagementFlowBuilder: React.FC = () => {
 
   if (isEditMode && isLoadingFlow) {
     return (
-      <div className="container mx-auto py-8">
+      <div className="p-6">
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 dark:border-gray-100 mx-auto"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto"></div>
             <p className="mt-4 text-gray-600 dark:text-gray-400">Loading flow...</p>
           </div>
         </div>
@@ -205,19 +217,23 @@ const AutoEngagementFlowBuilder: React.FC = () => {
   }
 
   return (
-    <div className="container mx-auto py-8 max-w-4xl">
-      <div className="mb-6">
-        <Button variant="ghost" onClick={() => navigate('/dashboard/auto-engagement')}>
+    <div className="p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <Button 
+          variant="ghost" 
+          onClick={() => navigate('/dashboard/auto-engagement')}
+          className="hover:bg-gray-100 dark:hover:bg-gray-800"
+        >
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Flows
         </Button>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)}>
-        <Card>
+        <Card className="border-gray-200 dark:border-gray-700">
           <CardHeader>
-            <CardTitle>{isEditMode ? 'Edit Flow' : 'Create New Flow'}</CardTitle>
-            <CardDescription>
+            <CardTitle className="text-2xl">{isEditMode ? 'Edit Flow' : 'Create New Flow'}</CardTitle>
+            <CardDescription className="text-gray-600 dark:text-gray-400">
               Configure your automated engagement flow with triggers and actions
             </CardDescription>
           </CardHeader>
@@ -246,24 +262,27 @@ const AutoEngagementFlowBuilder: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="priority">Priority (0 = highest)</Label>
+                  <Label htmlFor="priority" className="text-sm font-medium">
+                    Priority (0 = highest)
+                  </Label>
                   <Input
                     id="priority"
                     type="number"
                     min={0}
                     {...register('priority', { valueAsNumber: true })}
+                    className="mt-1"
                   />
                 </div>
 
-                <div className="flex items-center space-x-2 pt-8">
+                <div className="flex items-center space-x-2 pt-7">
                   <Switch
                     id="is_enabled"
                     checked={watch('is_enabled')}
                     onCheckedChange={(checked) => setValue('is_enabled', checked)}
                   />
-                  <Label htmlFor="is_enabled" className="cursor-pointer">
+                  <Label htmlFor="is_enabled" className="cursor-pointer text-sm font-medium">
                     Enabled
                   </Label>
                 </div>
@@ -271,7 +290,7 @@ const AutoEngagementFlowBuilder: React.FC = () => {
             </div>
 
             {/* Business Hours */}
-            <div className="space-y-4">
+            <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-gray-700">
               <div className="flex items-center space-x-2">
                 <Switch
                   id="use_custom_business_hours"
@@ -325,21 +344,35 @@ const AutoEngagementFlowBuilder: React.FC = () => {
             </div>
 
             {/* Trigger Conditions */}
-            <div className="space-y-4">
+            <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-gray-700">
               <div className="flex items-center justify-between">
-                <Label>Trigger Conditions</Label>
-                <Button type="button" size="sm" onClick={addTriggerCondition}>
+                <div>
+                  <Label className="text-lg font-semibold">Trigger Conditions</Label>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    Define when this flow should be triggered
+                  </p>
+                </div>
+                <Button 
+                  type="button" 
+                  size="sm" 
+                  onClick={addTriggerCondition}
+                  className="bg-teal-600 hover:bg-teal-700 text-white"
+                >
                   <Plus className="mr-2 h-4 w-4" />
                   Add Condition
                 </Button>
               </div>
 
               {triggerConditions.length === 0 && (
-                <p className="text-sm text-gray-500">No conditions = matches all contacts</p>
+                <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    No conditions = matches all contacts
+                  </p>
+                </div>
               )}
 
               {triggerConditions.map((condition, index) => (
-                <Card key={index}>
+                <Card key={index} className="border-gray-200 dark:border-gray-700">
                   <CardContent className="pt-6">
                     <div className="grid grid-cols-4 gap-4">
                       <div>
@@ -412,32 +445,51 @@ const AutoEngagementFlowBuilder: React.FC = () => {
             </div>
 
             {/* Actions */}
-            <div className="space-y-4">
+            <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-gray-700">
               <div className="flex items-center justify-between">
-                <Label>Actions (executed in order)</Label>
-                <Button type="button" size="sm" onClick={addAction}>
+                <div>
+                  <Label className="text-lg font-semibold">Actions (executed in order)</Label>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    Define the sequence of actions to perform
+                  </p>
+                </div>
+                <Button 
+                  type="button" 
+                  size="sm" 
+                  onClick={addAction}
+                  className="bg-teal-600 hover:bg-teal-700 text-white"
+                >
                   <Plus className="mr-2 h-4 w-4" />
                   Add Action
                 </Button>
               </div>
 
               {actions.length === 0 && (
-                <p className="text-sm text-gray-500">Add at least one action</p>
+                <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Add at least one action to execute when conditions match
+                  </p>
+                </div>
               )}
 
               {actions
                 .sort((a, b) => a.action_order - b.action_order)
                 .map((action, index) => (
-                  <Card key={index}>
+                  <Card key={index} className="border-gray-200 dark:border-gray-700">
                     <CardContent className="pt-6">
                       <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <Label>Action {action.action_order}</Label>
+                        <div className="flex items-center justify-between pb-4 border-b border-gray-200 dark:border-gray-700">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-base px-3 py-1">
+                              Step {action.action_order}
+                            </Badge>
+                          </div>
                           <Button
                             type="button"
-                            variant="destructive"
+                            variant="ghost"
                             size="sm"
                             onClick={() => removeAction(index)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -497,16 +549,26 @@ const AutoEngagementFlowBuilder: React.FC = () => {
                               </Select>
                             </div>
                             <div>
-                              <Label>Phone Number ID</Label>
-                              <Input
+                              <Label>Phone Number</Label>
+                              <Select
                                 value={action.action_config.phone_number_id || ''}
-                                onChange={(e) => {
+                                onValueChange={(value) => {
                                   const updated = [...actions];
-                                  updated[index].action_config.phone_number_id = e.target.value;
+                                  updated[index].action_config.phone_number_id = value;
                                   setActions(updated);
                                 }}
-                                placeholder="Phone number ID"
-                              />
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select phone number" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {phoneNumbers.map((phone: any) => (
+                                    <SelectItem key={phone.id} value={phone.id}>
+                                      {phone.phone_number} {phone.friendly_name ? `(${phone.friendly_name})` : ''}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
                             </div>
                           </div>
                         )}
@@ -530,9 +592,11 @@ const AutoEngagementFlowBuilder: React.FC = () => {
 
                         {/* Placeholder for WhatsApp and Email */}
                         {(action.action_type === 'whatsapp_message' || action.action_type === 'email') && (
-                          <p className="text-sm text-gray-500">
-                            Configuration for {action.action_type} coming soon
-                          </p>
+                          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                            <p className="text-sm text-blue-700 dark:text-blue-300">
+                              Configuration for {action.action_type.replace('_', ' ')} coming soon
+                            </p>
+                          </div>
                         )}
                       </div>
                     </CardContent>
@@ -541,15 +605,20 @@ const AutoEngagementFlowBuilder: React.FC = () => {
             </div>
 
             {/* Submit */}
-            <div className="flex items-center justify-end space-x-4 pt-6 border-t">
+            <div className="flex items-center justify-end space-x-4 pt-6 border-t border-gray-200 dark:border-gray-700">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => navigate('/dashboard/auto-engagement')}
+                className="border-gray-300 dark:border-gray-600"
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={isCreating || isUpdating}>
+              <Button 
+                type="submit" 
+                disabled={isCreating || isUpdating}
+                className="bg-teal-600 hover:bg-teal-700 text-white"
+              >
                 <Save className="mr-2 h-4 w-4" />
                 {isEditMode ? 'Update Flow' : 'Create Flow'}
               </Button>

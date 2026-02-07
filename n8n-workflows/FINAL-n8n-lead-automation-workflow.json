@@ -1,0 +1,415 @@
+{
+  "name": "🚀 SniperThink Lead Automation - Contact Creation Only",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {
+          "labelIds": ["INBOX"],
+          "sender": "",
+          "subject": ""
+        }
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.3,
+      "position": [250, 300],
+      "id": "gmail-trigger-node",
+      "name": "📧 Gmail Trigger",
+      "notes": "Configure filters:\n- Specific sender emails (e.g., noreply@tradeindia.com)\n- Subject contains keywords (e.g., 'Enquiry', 'Lead')\n- Labels (e.g., 'Leads', 'Business')",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "YOUR_GMAIL_OAUTH_ID",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "messageId": "={{ $json.id }}",
+        "simple": false,
+        "options": {
+          "dataPropertyAttachmentsPrefixName": "attachment_",
+          "downloadAttachments": true
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [500, 300],
+      "id": "get-email-node",
+      "name": "📩 Get Email Details",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "YOUR_GMAIL_OAUTH_ID",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract EML attachments from email\nconst results = [];\n\nfor (let i = 0; i < items.length; i++) {\n  const binary = items[i].binary;\n  if (!binary) {\n    // No attachments - use email body instead\n    results.push({\n      json: {\n        attachmentName: 'email-body',\n        rawEml: items[i].json.snippet || items[i].json.body || '',\n        hasAttachment: false,\n        fromEmail: items[i].json.from || '',\n        subject: items[i].json.subject || '',\n        date: items[i].json.internalDate || new Date().toISOString()\n      }\n    });\n    continue;\n  }\n  \n  for (const key in binary) {\n    if (!key.startsWith(\"attachment_\")) continue;\n    \n    const buffer = await this.helpers.getBinaryDataBuffer(i, key);\n    results.push({\n      json: {\n        attachmentName: key,\n        rawEml: buffer.toString(\"utf8\"),\n        hasAttachment: true,\n        fromEmail: items[i].json.from || '',\n        subject: items[i].json.subject || '',\n        date: items[i].json.internalDate || new Date().toISOString()\n      }\n    });\n  }\n}\n\nreturn results.length ? results : [{ json: { error: \"NO_DATA_FOUND\" } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [750, 300],
+      "id": "extract-eml-node",
+      "name": "🔍 Extract Email Content"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n// 📋 COMPREHENSIVE LEAD PARSER FOR TRADEINDIA & INDIAMART\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n// Extracts structured data from lead emails\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nconst inputItems = items;\nconst outputItems = [];\n\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n// HELPER FUNCTIONS\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nfunction decodeQuotedPrintable(text) {\n  if (!text) return \"\";\n  return text\n    .replace(/=\\r?\\n/g, '')\n    .replace(/=[0-9A-F]{2}/gi, (match) => \n      String.fromCharCode(parseInt(match.substr(1), 16))\n    );\n}\n\nfunction cleanText(text) {\n  if (!text) return null;\n  let clean = text.replace(/<[^>]*>?/gm, ' ');\n  clean = clean.replace(/['\"]/g, ''); \n  clean = clean.replace(/\\s+/g, ' ').trim();\n  return clean || null;\n}\n\nfunction extractPhones(text) {\n  if (!text) return [];\n  const pattern = /(?:\\+91|91)?[\\-\\s]?[6-9]\\d{9}/g;\n  const matches = text.match(pattern) || [];\n  \n  const uniquePhones = [];\n  matches.forEach(p => {\n    let cleanP = p.replace(/\\D/g, '');\n    \n    if (cleanP.length > 10 && cleanP.startsWith('91')) {\n      cleanP = \"+\" + cleanP;\n    } else if (cleanP.length === 10) {\n      cleanP = \"+91\" + cleanP;\n    }\n    \n    if (!uniquePhones.includes(cleanP)) {\n      uniquePhones.push(cleanP);\n    }\n  });\n  return uniquePhones;\n}\n\nfunction extractEmail(text) {\n  if (!text) return null;\n  const emailPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}/g;\n  const matches = text.match(emailPattern);\n  return matches ? matches[0] : null;\n}\n\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n// MAIN PARSING LOGIC\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\nfor (const item of inputItems) {\n  let rawEml = item.json.rawEml;\n  if (!rawEml) continue;\n\n  // Truncate if too large\n  if (rawEml.length > 25000) {\n    rawEml = rawEml.substring(0, 25000);\n  }\n\n  const decodedEml = decodeQuotedPrintable(rawEml);\n\n  // Extract metadata\n  const subjectMatch = decodedEml.match(/^Subject:\\s*(.*)/m);\n  const subject = subjectMatch ? cleanText(subjectMatch[1]) : item.json.subject || \"\";\n\n  const fromMatch = decodedEml.match(/^From:\\s*(.*)/m);\n  const fromHeader = fromMatch ? fromMatch[1] : item.json.fromEmail || \"\";\n\n  const dateMatch = decodedEml.match(/^Date:\\s*(.*)/m);\n  let dateStr = null;\n  if (dateMatch) {\n    try {\n      const d = new Date(dateMatch[1]);\n      if (!isNaN(d)) {\n        dateStr = d.toISOString();\n      }\n    } catch (e) {}\n  }\n  if (!dateStr && item.json.date) {\n    try {\n      dateStr = new Date(parseInt(item.json.date)).toISOString();\n    } catch (e) {}\n  }\n\n  // Detect source\n  let source = \"Email\";\n  if (/tradeindia/i.test(fromHeader) || /tradeindia/i.test(subject)) {\n    source = \"TradeIndia\";\n  } else if (/indiamart/i.test(fromHeader) || /indiamart/i.test(subject)) {\n    source = \"IndiaMART\";\n  } else if (/justdial/i.test(fromHeader) || /justdial/i.test(subject)) {\n    source = \"JustDial\";\n  } else if (/exportersindia/i.test(fromHeader) || /exportersindia/i.test(subject)) {\n    source = \"ExportersIndia\";\n  }\n\n  const data = {};\n  \n  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  // TRADEINDIA PATTERNS\n  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  if (source === \"TradeIndia\") {\n    const patterns = {\n      \"Sender Name\": /Sender Name\\s*:\\s*([^*\\r\\n]*)/i,\n      \"Company Name\": /Company\\s*:\\s*([^*\\r\\n]*)/i,\n      \"Mobile\": /Mobile No\\s*:\\s*(.*)/i,\n      \"Phone\": /Phone No\\s*:\\s*(.*)/i,\n      \"Email\": /Email\\s*:\\s*(.*)/i,\n      \"City\": /City\\s*:\\s*(.*)/i,\n      \"State\": /State\\s*:\\s*(.*)/i,\n      \"Country\": /IP\\/Country\\s*:\\s*.*?\\/([^\\n\\r]*)/i,\n      \"Product Name\": /Product Details\\s*:\\s*(.*)/i,\n      \"Quantity\": /Quantity Required\\s*:\\s*(.*)/i,\n      \"Order Value\": /Approximate Order Value\\(INR\\)\\s*:\\s*(.*)/i,\n      \"Requirement Type\": /Requirement Type\\s*:\\s*(.*)/i,\n      \"Requirement Details\": /Requirement Details\\s*:\\s*([\\s\\S]*?)(?=\\*|\\n\\n)/i \n    };\n\n    for (const [key, regex] of Object.entries(patterns)) {\n      const match = decodedEml.match(regex);\n      if (match) data[key] = cleanText(match[1]);\n    }\n  } \n  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  // INDIAMART PATTERNS\n  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  else {\n    const patterns = {\n      \"Sender Name\": /Name\\s*:\\s*(.*)/i,\n      \"Company Name\": /Company Name\\s*:\\s*(.*)/i,\n      \"Mobile\": /Mobile\\s*:\\s*(.*)/i,\n      \"Email\": /Email\\s*:\\s*(.*)/i,\n      \"City\": /City\\s*:\\s*(.*)/i,\n      \"Product Name\": /I am looking for\\s*(.*)/i,\n      \"Quantity\": /Quantity\\s*:\\s*(.*)/i,\n      \"Requirement Type\": /Probable Requirement Type\\s*:\\s*(.*)/i,\n      \"Order Value\": /Probable Order Value\\s*:\\s*(.*)/i,\n      \"Application\": /Application\\s*:\\s*(.*)/i,\n      \"GSM\": /GSM\\s*:\\s*(.*)/i\n    };\n\n    for (const [key, regex] of Object.entries(patterns)) {\n      const match = decodedEml.match(regex);\n      if (match) data[key] = cleanText(match[1]);\n    }\n    \n    // Extract product from subject\n    if (!data[\"Product Name\"]) {\n      const subjParts = subject.split(\"Enquiry for\");\n      if (subjParts.length > 1) {\n        data[\"Product Name\"] = cleanText(subjParts[1].split(\"from\")[0]);\n      }\n    }\n    \n    // Extract city from address\n    if (!data[\"City\"]) {\n       const addrMatch = decodedEml.match(/([A-Za-z\\s]+),\\s*([A-Za-z\\s]+),\\s*India/);\n       if (addrMatch) {\n         data[\"City\"] = cleanText(addrMatch[1]);\n         data[\"State\"] = cleanText(addrMatch[2]);\n         data[\"Country\"] = \"India\";\n       }\n    }\n  }\n\n  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  // EXTRACT PHONE NUMBERS\n  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  const rawPhones = (data[\"Mobile\"] || \"\") + \" \" + (data[\"Phone\"] || \"\");\n  const phoneList = extractPhones(rawPhones);\n\n  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  // BUILD COMPREHENSIVE NOTES\n  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  let reqParts = [];\n  if (subject) reqParts.push(`Lead from: ${subject}`);\n  \n  if (data[\"Requirement Details\"]) {\n    reqParts.push(data[\"Requirement Details\"]);\n  }\n  if (data[\"Application\"]) {\n    reqParts.push(`Application: ${data[\"Application\"]}`);\n  }\n  if (data[\"GSM\"]) {\n    reqParts.push(`GSM: ${data[\"GSM\"]}`);\n  }\n  if (data[\"Quantity\"]) {\n    reqParts.push(`Quantity: ${data[\"Quantity\"]}`);\n  }\n  if (data[\"Order Value\"]) {\n    reqParts.push(`Order Value: ${data[\"Order Value\"]}`);\n  }\n  if (data[\"Requirement Type\"]) {\n    reqParts.push(`Type: ${data[\"Requirement Type\"]}`);\n  }\n  \n  const buyerFilled = decodedEml.match(/Buyer Filled Details\\s*:\\s*(.*)/i);\n  if (buyerFilled) reqParts.push(`Details: ${cleanText(buyerFilled[1])}`);\n\n  const finalNotes = reqParts.join(\" | \");\n\n  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  // OUTPUT STRUCTURED DATA\n  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  const row = {\n    \"lead_date\": dateStr,\n    \"source\": source,\n    \"sender_name\": data[\"Sender Name\"],\n    \"company_name\": data[\"Company Name\"],\n    \"phone_1\": phoneList[0],\n    \"phone_2\": phoneList[1],\n    \"phone_3\": phoneList[2],\n    \"email\": data[\"Email\"] || extractEmail(decodedEml),\n    \"city\": data[\"City\"],\n    \"state\": data[\"State\"],\n    \"country\": data[\"Country\"] || \"India\",\n    \"product_name\": data[\"Product Name\"],\n    \"notes\": finalNotes,\n    \"raw_subject\": subject\n  };\n\n  outputItems.push({ json: row });\n}\n\nreturn outputItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1000, 300],
+      "id": "parse-lead-node",
+      "name": "🧮 Parse Lead Data",
+      "notes": "Extracts:\n- Contact info (name, phone, email)\n- Company details\n- Lead source\n- Product/service requirements\n- Notes"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "filter-valid-phone",
+              "leftValue": "={{ $json['phone_1'] }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [1250, 300],
+      "id": "filter-leads-node",
+      "name": "✅ Filter Valid Leads",
+      "notes": "Only process leads with valid phone numbers"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n// 🎯 PREPARE API PAYLOAD FOR SNIPERTHINK\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n// ⚠️ IMPORTANT CONFIGURATION:\n// This creates contacts ONLY - no immediate call.\n// Auto Engagement Flows will handle the calling based on your rules.\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n// ⚙️ CONFIGURATION - REPLACE WITH YOUR AGENT ID\nconst AGENT_ID = \"YOUR-AGENT-UUID-FROM-DASHBOARD\";\n// Get this from: Dashboard → Agents → Click agent → Copy Agent ID\n\nconst outputItems = [];\n\nfor (const item of items) {\n  const lead = item.json;\n  \n  // Skip if no valid phone number\n  if (!lead.phone_1) {\n    console.log('Skipping lead - no phone number:', lead.sender_name);\n    continue;\n  }\n  \n  // Build the lead name (use Sender Name, fallback to Company Name)\n  let leadName = lead.sender_name;\n  if (!leadName) {\n    leadName = lead.company_name;\n  }\n  if (!leadName) {\n    leadName = \"Lead from \" + (lead.source || \"Email\");\n  }\n  \n  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  // BUILD API PAYLOAD\n  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n  const payload = {\n    agent_id: AGENT_ID,\n    lead_name: leadName,\n    recipient_phone_number: lead.phone_1,\n    email: lead.email || null,\n    Source: lead.source || \"n8n_gmail\",\n    Notes: lead.notes || null,\n    company: lead.company_name || null,\n    city: lead.city || null,\n    country: lead.country || \"India\"\n  };\n  \n  // Remove null fields (optional fields)\n  Object.keys(payload).forEach(key => {\n    if (payload[key] === null || payload[key] === undefined) {\n      delete payload[key];\n    }\n  });\n  \n  outputItems.push({ json: payload });\n}\n\nconsole.log(`Prepared ${outputItems.length} leads for API`);\nreturn outputItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1500, 300],
+      "id": "prepare-payload-node",
+      "name": "📦 Prepare API Payload",
+      "notes": "⚠️ EDIT THIS NODE:\nReplace AGENT_ID with your actual agent UUID from dashboard"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://calling-agent-with-bolna-production.up.railway.app/api/webhooks/n8n/lead-call",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "responseFormat": "json"
+            }
+          },
+          "retry": {
+            "retry": {
+              "maxRetries": 3,
+              "retryInterval": 5000
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1750, 300],
+      "id": "api-call-node",
+      "name": "🚀 Create Contact & Initiate Call",
+      "notes": "Sends lead to webhook.\nCreates/updates contact.\nInitiates AI call immediately.\nAuto Engagement Flow also triggers after."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "check-success",
+              "leftValue": "={{ $json.body.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2000, 300],
+      "id": "check-response-node",
+      "name": "❓ Check Success"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n// ✅ SUCCESS LOGGING\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nconst response = $input.first().json;\nconst body = response.body || {};\nconst data = body.data || {};\n\nconsole.log('✅ Contact created successfully');\nconsole.log('Contact ID:', data.contact_id);\nconsole.log('Call ID:', data.call_id);\nconsole.log('Execution ID:', data.execution_id);\n\nreturn [{\n  json: {\n    status: \"✅ SUCCESS\",\n    message: \"Contact created and AI call initiated\",\n    contact_id: data.contact_id,\n    call_id: data.call_id,\n    execution_id: data.execution_id,\n    contact_created: data.contact_created,\n    call_status: data.status,\n    request_id: body.request_id,\n    processing_time_ms: body.processing_time_ms,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2250, 200],
+      "id": "log-success-node",
+      "name": "✅ Log Success"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n// ❌ ERROR LOGGING\n// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nconst response = $input.first().json;\nconst body = response.body || {};\n\nconsole.error('❌ Failed to create contact');\nconsole.error('Status Code:', response.statusCode);\nconsole.error('Error:', body.error);\nconsole.error('Details:', body.details);\n\nreturn [{\n  json: {\n    status: \"❌ FAILED\",\n    error: body.error || \"Unknown error\",\n    details: body.details,\n    statusCode: response.statusCode,\n    request_id: body.request_id,\n    timestamp: new Date().toISOString(),\n    // Include for debugging\n    full_response: response\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2250, 400],
+      "id": "log-failure-node",
+      "name": "❌ Log Failure"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "Lead Tracking Sheet"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $json.timestamp }}",
+            "status": "={{ $json.status }}",
+            "contact_id": "={{ $json.contact_id }}",
+            "call_id": "={{ $json.call_id }}",
+            "execution_id": "={{ $json.execution_id }}",
+            "contact_created": "={{ $json.contact_created }}",
+            "processing_time": "={{ $json.processing_time_ms }}",
+            "notes": "={{ $json.message }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "contact_id",
+              "displayName": "Contact ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "call_id",
+              "displayName": "Call ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2500, 200],
+      "id": "log-to-sheet-node",
+      "name": "📊 Log to Google Sheets",
+      "notes": "OPTIONAL: Track all contact creations\nRemove this node if not needed",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "YOUR_SHEETS_OAUTH_ID",
+          "name": "Google Sheets account"
+        }
+      },
+      "disabled": true
+    }
+  ],
+  "connections": {
+    "📧 Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "📩 Get Email Details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📩 Get Email Details": {
+      "main": [
+        [
+          {
+            "node": "🔍 Extract Email Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 Extract Email Content": {
+      "main": [
+        [
+          {
+            "node": "🧮 Parse Lead Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧮 Parse Lead Data": {
+      "main": [
+        [
+          {
+            "node": "✅ Filter Valid Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ Filter Valid Leads": {
+      "main": [
+        [
+          {
+            "node": "📦 Prepare API Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📦 Prepare API Payload": {
+      "main": [
+        [
+          {
+            "node": "🚀 Create Contact & Initiate Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚀 Create Contact & Initiate Call": {
+      "main": [
+        [
+          {
+            "node": "❓ Check Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "❓ Check Success": {
+      "main": [
+        [
+          {
+            "node": "✅ Log Success",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "❌ Log Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ Log Success": {
+      "main": [
+        [
+          {
+            "node": "📊 Log to Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": ""
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2026-02-07T00:00:00.000Z",
+      "updatedAt": "2026-02-07T00:00:00.000Z",
+      "id": "lead-automation",
+      "name": "Lead Automation"
+    }
+  ],
+  "triggerCount": 0,
+  "updatedAt": "2026-02-07T00:00:00.000Z",
+  "versionId": "1"
+}

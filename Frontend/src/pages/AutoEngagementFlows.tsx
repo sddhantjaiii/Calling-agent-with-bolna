@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import AutoEngagementFlowBuilderModal from '@/components/autoEngagement/AutoEngagementFlowBuilderModal';
 import {
   Table,
   TableBody,
@@ -35,6 +36,23 @@ const AutoEngagementFlows: React.FC = () => {
   } = useAutoEngagementFlows();
 
   const [deletingFlowId, setDeletingFlowId] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingFlowId, setEditingFlowId] = useState<string | null>(null);
+
+  const handleCreateFlow = () => {
+    setEditingFlowId(null);
+    setIsModalOpen(true);
+  };
+
+  const handleEditFlow = (flowId: string) => {
+    setEditingFlowId(flowId);
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setEditingFlowId(null);
+  };
 
   const handleToggleFlow = async (flow: AutoEngagementFlow) => {
     try {
@@ -103,8 +121,8 @@ const AutoEngagementFlows: React.FC = () => {
             </CardDescription>
           </div>
           <Button
-            onClick={() => navigate('/dashboard/auto-engagement/create')}
-            className="ml-auto"
+            onClick={handleCreateFlow}
+            className="ml-auto bg-teal-600 hover:bg-teal-700 text-white"
           >
             <Plus className="mr-2 h-4 w-4" />
             Create Flow
@@ -120,7 +138,7 @@ const AutoEngagementFlows: React.FC = () => {
               <p className="text-gray-600 dark:text-gray-400 mb-4">
                 Create your first auto-engagement flow to start automatically reaching out to new leads
               </p>
-              <Button onClick={() => navigate('/dashboard/auto-engagement/create')}>
+              <Button onClick={handleCreateFlow} className="bg-teal-600 hover:bg-teal-700 text-white">
                 <Plus className="mr-2 h-4 w-4" />
                 Create Your First Flow
               </Button>
@@ -193,7 +211,7 @@ const AutoEngagementFlows: React.FC = () => {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => navigate(`/dashboard/auto-engagement/${flow.id}/edit`)}
+                              onClick={() => handleEditFlow(flow.id)}
                             >
                               <Edit className="h-4 w-4" />
                             </Button>
@@ -229,6 +247,13 @@ const AutoEngagementFlows: React.FC = () => {
           <p>• You can configure business hours for each flow</p>
         </CardContent>
       </Card>
+
+      {/* Flow Builder Modal */}
+      <AutoEngagementFlowBuilderModal
+        open={isModalOpen}
+        onClose={handleCloseModal}
+        flowId={editingFlowId}
+      />
     </div>
   );
 };

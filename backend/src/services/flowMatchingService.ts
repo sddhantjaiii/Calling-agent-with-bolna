@@ -167,9 +167,15 @@ export class FlowMatchingService {
     // Evaluate based on operator
     switch (condition_operator) {
       case 'equals':
-        return actualValue === condition_value;
+        // Case-insensitive comparison for string values
+        if (actualValue === null && condition_value === null) return true;
+        if (actualValue === null || condition_value === null) return false;
+        return actualValue.toLowerCase() === condition_value.toLowerCase();
       case 'not_equals':
-        return actualValue !== condition_value;
+        // Case-insensitive comparison for string values
+        if (actualValue === null && condition_value === null) return false;
+        if (actualValue === null || condition_value === null) return true;
+        return actualValue.toLowerCase() !== condition_value.toLowerCase();
       case 'contains':
         return actualValue ? actualValue.toLowerCase().includes((condition_value || '').toLowerCase()) : false;
       default:
