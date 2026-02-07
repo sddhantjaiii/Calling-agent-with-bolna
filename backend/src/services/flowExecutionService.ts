@@ -576,6 +576,9 @@ export class FlowExecutionService {
    * - Persisting scheduled state to database
    * - Using job queue (Bull/BullMQ) for reliable scheduling
    * - Enforcing maximum duration limits
+   * 
+   * ⚠️ wait_until_business_hours flag is logged but not currently implemented.
+   * Future enhancement should add business hours scheduling logic.
    */
   private static async executeWaitAction(config: WaitActionConfig): Promise<any> {
     try {
@@ -583,6 +586,12 @@ export class FlowExecutionService {
         durationMinutes: config.duration_minutes,
         waitUntilBusinessHours: config.wait_until_business_hours
       });
+
+      // Note: wait_until_business_hours is currently not implemented
+      // The action will always wait for the specified duration regardless of business hours
+      if (config.wait_until_business_hours) {
+        logger.warn('[FlowExecutionService] wait_until_business_hours flag is set but not implemented');
+      }
 
       // Simple in-memory delay - suitable for short waits only
       const durationMs = config.duration_minutes * 60 * 1000;
@@ -599,7 +608,6 @@ export class FlowExecutionService {
         waited: true,
         status: 'completed',
         duration_minutes: config.duration_minutes,
-        wait_until_business_hours: config.wait_until_business_hours || false,
         message: `Waited for ${config.duration_minutes} minutes`
       };
     } catch (error) {

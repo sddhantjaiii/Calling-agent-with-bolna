@@ -17,7 +17,7 @@ export const emailTemplateService = {
    * Create a new email template
    */
   createTemplate: async (data: CreateEmailTemplateRequest): Promise<EmailTemplate> => {
-    const response = await apiService.post<EmailTemplateResponse>('/email-templates', data);
+    const response = await apiService.post<EmailTemplate>('/email-templates', data);
     if (!response.data) {
       throw new Error('No data returned from create template API');
     }
@@ -28,7 +28,7 @@ export const emailTemplateService = {
    * Get email template by ID
    */
   getTemplate: async (templateId: string): Promise<EmailTemplate> => {
-    const response = await apiService.get<EmailTemplateResponse>(`/email-templates/${templateId}`);
+    const response = await apiService.get<EmailTemplate>(`/email-templates/${templateId}`);
     if (!response.data) {
       throw new Error('No data returned from get template API');
     }
@@ -44,13 +44,17 @@ export const emailTemplateService = {
     limit?: number;
     offset?: number;
   }): Promise<{ templates: EmailTemplate[]; total: number }> => {
-    const response = await apiService.get<EmailTemplateListResponse>('/email-templates', { params });
+    const response = await apiService.get<EmailTemplate[]>('/email-templates', { params });
     if (!response.data) {
       throw new Error('No data returned from list templates API');
     }
+    
+    // Read pagination from top-level response (follows backend pattern)
+    const pagination = (response as any).pagination || { total: response.data.length };
+    
     return {
       templates: response.data,
-      total: response.pagination.total
+      total: pagination.total
     };
   },
 
@@ -61,7 +65,7 @@ export const emailTemplateService = {
     templateId: string,
     data: UpdateEmailTemplateRequest
   ): Promise<EmailTemplate> => {
-    const response = await apiService.patch<EmailTemplateResponse>(
+    const response = await apiService.patch<EmailTemplate>(
       `/email-templates/${templateId}`,
       data
     );

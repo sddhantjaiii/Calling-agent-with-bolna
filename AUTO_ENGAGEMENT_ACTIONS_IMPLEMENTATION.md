@@ -15,7 +15,7 @@ February 7, 2026
 
 **Implementation:**
 - Sends WhatsApp template messages via Chat Agent Server API
-- Endpoint: `POST ${CHAT_AGENT_SERVER_URL}/api/v1/send-template`
+- Endpoint: `POST ${CHAT_AGENT_SERVER_URL}/api/v1/send`
 - Variable mapping support for contact field replacement
 - Error handling with detailed logging
 
