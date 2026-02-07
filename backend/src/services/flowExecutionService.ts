@@ -408,17 +408,24 @@ export class FlowExecutionService {
         }
       );
 
+      // Chat Agent Server returns {success, data} envelope
+      if (!response.data?.success) {
+        throw new Error(response.data?.message || 'WhatsApp send failed');
+      }
+
+      const messageId = response.data.data?.message_id;
+
       logger.info('[FlowExecutionService] WhatsApp message sent successfully', {
         contactId: contact.id,
         templateId: config.template_id,
-        messageId: response.data?.message_id
+        messageId: messageId
       });
 
       return {
         whatsapp_sent: true,
         status: 'sent',
         template_id: config.template_id,
-        message_id: response.data?.message_id,
+        message_id: messageId,
         to_phone: contact.phone_number
       };
     } catch (error) {
@@ -502,6 +509,9 @@ export class FlowExecutionService {
       }
 
       // Send email via Gmail with correct parameter format
+      // Compute the effective text body (what will actually be sent)
+      const effectiveTextBody = bodyText || bodyHtml.replace(/<[^>]*>/g, ''); // Strip HTML for text version
+
       const result = await gmailService.sendEmail(userId, {
         to: {
           address: contact.email,
@@ -509,7 +519,7 @@ export class FlowExecutionService {
         },
         subject: subject,
         htmlBody: bodyHtml,
-        textBody: bodyText || bodyHtml.replace(/<[^>]*>/g, ''), // Strip HTML for text version
+        textBody: effectiveTextBody,
         fromEmail: gmailStatus.email,
         fromName: config.from_name
       });
@@ -519,7 +529,7 @@ export class FlowExecutionService {
         throw new Error(result.error || 'Failed to send email via Gmail');
       }
 
-      // Create email record in database
+      // Create email record in database with the exact text body that was sent
       const emailId = uuidv4();
       await pool.query(
         `INSERT INTO emails (
@@ -536,7 +546,7 @@ export class FlowExecutionService {
           contact.name,
           subject,
           bodyHtml,
-          bodyText,
+          effectiveTextBody, // Use the same text body that was sent
           'sent',
           result.messageId
         ]
