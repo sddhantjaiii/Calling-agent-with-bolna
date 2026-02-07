@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
 import { Plus, Trash2, Edit, Eye, Mail } from 'lucide-react';
 import emailTemplateService from '@/services/emailTemplateService';
-import { EmailTemplate } from '@/types/emailTemplate';
+import { EmailTemplate, UpdateEmailTemplateRequest } from '@/types/emailTemplate';
 import {
   Dialog,
   DialogContent,

@@ -372,9 +372,6 @@ export class FlowExecutionService {
         throw new Error('WhatsApp service not configured. Please set CHAT_AGENT_SERVER_URL environment variable.');
       }
 
-      // Import axios dynamically to avoid circular dependencies
-      const axios = require('axios');
-
       // Prepare variable mappings from contact data
       const variables: Record<string, string> = {};
       if (config.variable_mappings) {

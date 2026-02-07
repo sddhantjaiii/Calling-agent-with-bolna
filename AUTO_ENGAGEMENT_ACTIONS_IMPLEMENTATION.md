@@ -244,7 +244,7 @@ CHAT_AGENT_SERVER_URL=http://localhost:4000
 
 1. **Wait Action:**
    - Current implementation uses in-memory `setTimeout`
-   - Not suitable for very long delays (> 1 hour)
+   - Maximum supported delay is 24 hours (1440 minutes); longer delays are not supported
    - Not persistent across server restarts
    - Recommended: Implement with job queue for production
 

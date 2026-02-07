@@ -121,13 +121,13 @@ export class EmailTemplateModel {
     // Add ordering and pagination
     query += ' ORDER BY created_at DESC';
 
-    if (options?.limit) {
+    if (options && options.limit !== undefined) {
       query += ` LIMIT $${paramIndex}`;
       params.push(options.limit);
       paramIndex++;
     }
 
-    if (options?.offset) {
+    if (options && options.offset !== undefined) {
       query += ` OFFSET $${paramIndex}`;
       params.push(options.offset);
     }
