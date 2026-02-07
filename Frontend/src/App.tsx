@@ -25,6 +25,7 @@ import AutoEngagementFlowBuilder from "./pages/AutoEngagementFlowBuilder";
 import AutoEngagementExecutions from "./pages/AutoEngagementExecutions";
 import AutoEngagementExecutionDetail from "./pages/AutoEngagementExecutionDetail";
 import AutoEngagementAnalytics from "./pages/AutoEngagementAnalytics";
+import EmailTemplates from "./pages/EmailTemplates";
 import AdminLayout from "./components/admin/AdminLayout";
 import { EnhancedLeadCardDemo } from "./components/leads/EnhancedLeadCardDemo";
 import AdminDashboard from "./components/admin/AdminDashboard";
@@ -171,6 +172,14 @@ function App() {
                         element={
                           <ProtectedRoute>
                             <AutoEngagementAnalytics />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/dashboard/email-templates"
+                        element={
+                          <ProtectedRoute>
+                            <EmailTemplates />
                           </ProtectedRoute>
                         }
                       />

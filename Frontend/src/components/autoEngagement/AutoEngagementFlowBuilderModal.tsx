@@ -28,7 +28,18 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { useAutoEngagementFlows, useAutoEngagementFlow } from '@/hooks/useAutoEngagement';
 import { useAgents } from '@/hooks/useAgents';
-import { Save, Plus, Trash2 } from 'lucide-react';
+import { Save, Plus, Trash2, HelpCircle, ChevronDown, ChevronUp, Info, Lightbulb } from 'lucide-react';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 import apiService from '@/services/apiService';
 import { API_ENDPOINTS } from '@/config/api';
@@ -62,6 +73,32 @@ const AutoEngagementFlowBuilderModal: React.FC<AutoEngagementFlowBuilderModalPro
   const { flow, isLoading: isLoadingFlow } = useAutoEngagementFlow(flowId || null);
   const { createFlow, updateFlow, isCreating, isUpdating } = useAutoEngagementFlows();
   const { agents, loading: loadingAgents } = useAgents();
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
+
+  // Predefined options for dropdowns
+  const leadSourceOptions = [
+    'IndiaMART',
+    'TradeIndia',
+    'JustDial',
+    'Website Form',
+    'Facebook Ads',
+    'Google Ads',
+    'LinkedIn',
+    'Referral',
+    'Cold Email',
+    'Other',
+  ];
+
+  const entryTypeOptions = [
+    'Manual Upload',
+    'API Import',
+    'Webhook',
+    'n8n Integration',
+    'Zapier',
+    'CSV Import',
+    'Excel Import',
+    'Other',
+  ];
 
   // Fetch phone numbers for dropdown
   const { data: phoneNumbersData } = useQuery({
@@ -227,6 +264,72 @@ const AutoEngagementFlowBuilderModal: React.FC<AutoEngagementFlowBuilderModalPro
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          {/* Setup Guide */}
+          <Collapsible open={isGuideOpen} onOpenChange={setIsGuideOpen}>
+            <Card className="border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-900/20">
+              <CollapsibleTrigger asChild>
+                <div className="p-4 cursor-pointer hover:bg-teal-100 dark:hover:bg-teal-900/30 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <Lightbulb className="h-5 w-5 text-teal-600" />
+                      <div>
+                        <h3 className="font-semibold text-teal-900 dark:text-teal-100">Setup Guide</h3>
+                        <p className="text-sm text-teal-700 dark:text-teal-300">Learn how to create an effective automation flow</p>
+                      </div>
+                    </div>
+                    {isGuideOpen ? <ChevronUp className="h-5 w-5 text-teal-600" /> : <ChevronDown className="h-5 w-5 text-teal-600" />}
+                  </div>
+                </div>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent className="pt-0 pb-4 space-y-4 text-sm">
+                  <div className="space-y-3">
+                    <div>
+                      <h4 className="font-semibold text-teal-900 dark:text-teal-100 mb-2">📝 Step 1: Basic Information</h4>
+                      <ul className="list-disc list-inside space-y-1 text-teal-800 dark:text-teal-200 ml-2">
+                        <li><strong>Name:</strong> Give your flow a clear, descriptive name (e.g., "IndiaMART - AI Call Follow-up")</li>
+                        <li><strong>Priority:</strong> Lower numbers run first (0 = highest priority)</li>
+                        <li><strong>Business Hours:</strong> Optional - restrict flow to specific times/timezone</li>
+                      </ul>
+                    </div>
+                    
+                    <div>
+                      <h4 className="font-semibold text-teal-900 dark:text-teal-100 mb-2">🎯 Step 2: Trigger Conditions</h4>
+                      <ul className="list-disc list-inside space-y-1 text-teal-800 dark:text-teal-200 ml-2">
+                        <li><strong>Lead Source:</strong> Select from common sources (IndiaMART, TradeIndia, etc.)</li>
+                        <li><strong>Entry Type:</strong> How contacts enter (Manual Upload, API, Webhook, etc.)</li>
+                        <li><strong>Custom Field:</strong> Any custom field in your contact data</li>
+                        <li><strong>No Conditions:</strong> Matches ALL contacts (use for universal flows)</li>
+                        <li><strong>Multiple Conditions:</strong> ALL must match (AND logic)</li>
+                      </ul>
+                    </div>
+                    
+                    <div>
+                      <h4 className="font-semibold text-teal-900 dark:text-teal-100 mb-2">⚡ Step 3: Actions</h4>
+                      <ul className="list-disc list-inside space-y-1 text-teal-800 dark:text-teal-200 ml-2">
+                        <li><strong>AI Call:</strong> Automated voice call with your AI agent</li>
+                        <li><strong>WhatsApp Message:</strong> Send template message via WhatsApp</li>
+                        <li><strong>Email:</strong> Send automated email</li>
+                        <li><strong>Wait:</strong> Add delay between actions (e.g., wait 2 hours before calling)</li>
+                      </ul>
+                    </div>
+                    
+                    <div className="bg-white dark:bg-gray-800 p-3 rounded-lg border border-teal-300 dark:border-teal-700">
+                      <h4 className="font-semibold text-teal-900 dark:text-teal-100 mb-2">💡 Example Flow:</h4>
+                      <div className="text-xs space-y-1 text-teal-800 dark:text-teal-200">
+                        <p><strong>Trigger:</strong> Lead Source = "IndiaMART"</p>
+                        <p><strong>Action 1:</strong> Wait 5 minutes</p>
+                        <p><strong>Action 2:</strong> AI Call with "Sales Agent"</p>
+                        <p><strong>Action 3:</strong> If answered → Send WhatsApp with meeting link</p>
+                        <p><strong>Result:</strong> Auto-call IndiaMART leads, send follow-up if they answer</p>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
+
           {/* Basic Info */}
           <div className="space-y-4">
             <div>
@@ -371,7 +474,23 @@ const AutoEngagementFlowBuilderModal: React.FC<AutoEngagementFlowBuilderModalPro
                 <CardContent className="pt-6">
                   <div className="grid grid-cols-4 gap-4">
                     <div>
-                      <Label>Type</Label>
+                      <Label className="flex items-center space-x-1">
+                        <span>Type</span>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpCircle className="h-3 w-3 text-gray-400" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="text-xs max-w-xs">
+                                <strong>Lead Source:</strong> Where contact came from<br/>
+                                <strong>Entry Type:</strong> How contact entered system<br/>
+                                <strong>Custom Field:</strong> Any custom data field
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </Label>
                       <Select
                         value={condition.condition_type}
                         onValueChange={(value) => {
@@ -391,7 +510,24 @@ const AutoEngagementFlowBuilderModal: React.FC<AutoEngagementFlowBuilderModalPro
                       </Select>
                     </div>
                     <div>
-                      <Label>Operator</Label>
+                      <Label className="flex items-center space-x-1">
+                        <span>Operator</span>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <HelpCircle className="h-3 w-3 text-gray-400" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="text-xs max-w-xs">
+                                <strong>Equals:</strong> Exact match<br/>
+                                <strong>Not Equals:</strong> Doesn't match<br/>
+                                <strong>Contains:</strong> Partial match<br/>
+                                <strong>Any:</strong> Matches anything
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </Label>
                       <Select
                         value={condition.condition_operator}
                         onValueChange={(value) => {
@@ -412,16 +548,88 @@ const AutoEngagementFlowBuilderModal: React.FC<AutoEngagementFlowBuilderModalPro
                       </Select>
                     </div>
                     <div>
-                      <Label>Value</Label>
-                      <Input
-                        value={condition.condition_value || ''}
-                        onChange={(e) => {
-                          const updated = [...triggerConditions];
-                          updated[index].condition_value = e.target.value;
-                          setTriggerConditions(updated);
-                        }}
-                        placeholder="e.g., IndiaMART"
-                      />
+                      <Label className="flex items-center space-x-1">
+                        <span>Value</span>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Info className="h-3 w-3 text-gray-400" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="text-xs">
+                                {condition.condition_type === 'lead_source' && 'Select common lead source or enter custom value'}
+                                {condition.condition_type === 'entry_type' && 'Select how contacts enter your system'}
+                                {condition.condition_type === 'custom_field' && 'Enter custom field name and value'}
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </Label>
+                      {condition.condition_type === 'lead_source' ? (
+                        <Select
+                          value={condition.condition_value || ''}
+                          onValueChange={(value) => {
+                            const updated = [...triggerConditions];
+                            updated[index].condition_value = value === 'custom' ? '' : value;
+                            setTriggerConditions(updated);
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select lead source" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {leadSourceOptions.map((source) => (
+                              <SelectItem key={source} value={source}>
+                                {source}
+                              </SelectItem>
+                            ))}
+                            <SelectItem value="custom">Custom (type below)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : condition.condition_type === 'entry_type' ? (
+                        <Select
+                          value={condition.condition_value || ''}
+                          onValueChange={(value) => {
+                            const updated = [...triggerConditions];
+                            updated[index].condition_value = value === 'custom' ? '' : value;
+                            setTriggerConditions(updated);
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select entry type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {entryTypeOptions.map((type) => (
+                              <SelectItem key={type} value={type}>
+                                {type}
+                              </SelectItem>
+                            ))}
+                            <SelectItem value="custom">Custom (type below)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          value={condition.condition_value || ''}
+                          onChange={(e) => {
+                            const updated = [...triggerConditions];
+                            updated[index].condition_value = e.target.value;
+                            setTriggerConditions(updated);
+                          }}
+                          placeholder="Enter custom field value"
+                        />
+                      )}
+                      {/* Custom value input when 'custom' is selected */}
+                      {(condition.condition_value === '' && (condition.condition_type === 'lead_source' || condition.condition_type === 'entry_type')) && (
+                        <Input
+                          className="mt-2"
+                          placeholder="Enter custom value"
+                          onChange={(e) => {
+                            const updated = [...triggerConditions];
+                            updated[index].condition_value = e.target.value;
+                            setTriggerConditions(updated);
+                          }}
+                        />
+                      )}
                     </div>
                     <div className="flex items-end">
                       <Button

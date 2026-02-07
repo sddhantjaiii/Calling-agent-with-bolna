@@ -206,6 +206,18 @@ const Sidebar = ({
       id: "templates",
       label: "Templates",
       icon: Send,
+      subTabs: [
+        {
+          id: "whatsapp-templates",
+          label: "WhatsApp Templates",
+          icon: Send,
+        },
+        {
+          id: "email-templates",
+          label: "Email Templates",
+          icon: FileText,
+        },
+      ],
     },
     {
       id: "lead-intelligence",
@@ -261,6 +273,8 @@ const Sidebar = ({
       setActiveSubTab("dialer-make-call");
     } else if (tabId === "auto-engagement") {
       setActiveSubTab("auto-engagement-flows");
+    } else if (tabId === "templates") {
+      setActiveSubTab("whatsapp-templates");
     }
   };
 

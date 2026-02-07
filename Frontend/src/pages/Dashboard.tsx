@@ -12,6 +12,7 @@ import SalespersonAgent from "@/components/dashboard/SalespersonAgent";
 import Campaigns from "@/pages/Campaigns";
 import CampaignSettings from "@/pages/CampaignSettings";
 import Templates from "@/pages/Templates";
+import EmailTemplates from "@/pages/EmailTemplates";
 import AutoEngagementFlows from "@/pages/AutoEngagementFlows";
 import AutoEngagementExecutions from "@/pages/AutoEngagementExecutions";
 import AutoEngagementAnalytics from "@/pages/AutoEngagementAnalytics";
@@ -214,6 +215,13 @@ const DashboardContent = ({
       return <Campaigns />;
     }
     if (activeTab === "templates") {
+      if (activeSubTab === "whatsapp-templates") {
+        return <Templates />;
+      }
+      if (activeSubTab === "email-templates") {
+        return <EmailTemplates />;
+      }
+      // Default to WhatsApp templates
       return <Templates />;
     }
     if (activeTab === "lead-intelligence") {
