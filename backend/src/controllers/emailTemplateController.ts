@@ -187,13 +187,22 @@ export const updateEmailTemplate = async (req: Request, res: Response): Promise<
     const data: UpdateEmailTemplateRequest = req.body;
 
     // Auto-extract variables if subject or body changed but variables not provided
-    if ((data.subject || data.body_html || data.body_text) && !data.variables) {
+    const hasSubject = 'subject' in data;
+    const hasBodyHtml = 'body_html' in data;
+    const hasBodyText = 'body_text' in data;
+    const hasVariables = 'variables' in data;
+
+    if ((hasSubject || hasBodyHtml || hasBodyText) && !hasVariables) {
       const existing = await EmailTemplateModel.findById(id, userId);
       if (existing) {
+        const subject = data.subject !== undefined ? data.subject : existing.subject;
+        const bodyHtml = data.body_html !== undefined ? data.body_html : (existing.body_html || '');
+        const bodyText = data.body_text !== undefined ? data.body_text : (existing.body_text || '');
+
         data.variables = EmailTemplateModel.extractVariables(
-          data.subject || existing.subject,
-          data.body_html || existing.body_html || '',
-          data.body_text || existing.body_text || ''
+          subject,
+          bodyHtml,
+          bodyText
         );
       }
     }

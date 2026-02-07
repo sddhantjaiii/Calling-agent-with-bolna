@@ -115,6 +115,7 @@ const AutoEngagementFlowBuilderModal: React.FC<AutoEngagementFlowBuilderModalPro
     condition_type: ConditionType;
     condition_operator: ConditionOperator;
     condition_value: string | null;
+    is_custom?: boolean; // Track if custom option is selected
   }>>([]);
 
   const [actions, setActions] = useState<Array<{
@@ -567,10 +568,16 @@ const AutoEngagementFlowBuilderModal: React.FC<AutoEngagementFlowBuilderModalPro
                       </Label>
                       {condition.condition_type === 'lead_source' ? (
                         <Select
-                          value={condition.condition_value || ''}
+                          value={condition.is_custom ? '__custom__' : (condition.condition_value || '')}
                           onValueChange={(value) => {
                             const updated = [...triggerConditions];
-                            updated[index].condition_value = value === 'custom' ? '' : value;
+                            if (value === '__custom__') {
+                              updated[index].is_custom = true;
+                              updated[index].condition_value = '';
+                            } else {
+                              updated[index].is_custom = false;
+                              updated[index].condition_value = value;
+                            }
                             setTriggerConditions(updated);
                           }}
                         >
@@ -583,15 +590,21 @@ const AutoEngagementFlowBuilderModal: React.FC<AutoEngagementFlowBuilderModalPro
                                 {source}
                               </SelectItem>
                             ))}
-                            <SelectItem value="custom">Custom (type below)</SelectItem>
+                            <SelectItem value="__custom__">Custom (type below)</SelectItem>
                           </SelectContent>
                         </Select>
                       ) : condition.condition_type === 'entry_type' ? (
                         <Select
-                          value={condition.condition_value || ''}
+                          value={condition.is_custom ? '__custom__' : (condition.condition_value || '')}
                           onValueChange={(value) => {
                             const updated = [...triggerConditions];
-                            updated[index].condition_value = value === 'custom' ? '' : value;
+                            if (value === '__custom__') {
+                              updated[index].is_custom = true;
+                              updated[index].condition_value = '';
+                            } else {
+                              updated[index].is_custom = false;
+                              updated[index].condition_value = value;
+                            }
                             setTriggerConditions(updated);
                           }}
                         >
@@ -604,7 +617,7 @@ const AutoEngagementFlowBuilderModal: React.FC<AutoEngagementFlowBuilderModalPro
                                 {type}
                               </SelectItem>
                             ))}
-                            <SelectItem value="custom">Custom (type below)</SelectItem>
+                            <SelectItem value="__custom__">Custom (type below)</SelectItem>
                           </SelectContent>
                         </Select>
                       ) : (
@@ -619,9 +632,10 @@ const AutoEngagementFlowBuilderModal: React.FC<AutoEngagementFlowBuilderModalPro
                         />
                       )}
                       {/* Custom value input when 'custom' is selected */}
-                      {(condition.condition_value === '' && (condition.condition_type === 'lead_source' || condition.condition_type === 'entry_type')) && (
+                      {condition.is_custom && (condition.condition_type === 'lead_source' || condition.condition_type === 'entry_type') && (
                         <Input
                           className="mt-2"
+                          value={condition.condition_value || ''}
                           placeholder="Enter custom value"
                           onChange={(e) => {
                             const updated = [...triggerConditions];

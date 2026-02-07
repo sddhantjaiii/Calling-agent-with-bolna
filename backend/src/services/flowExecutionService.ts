@@ -2,6 +2,7 @@ import { logger } from '../utils/logger';
 import { pool } from '../config/database';
 import { v4 as uuidv4 } from 'uuid';
 import axios from 'axios';
+import { gmailService } from './gmailService';
 import { FlowExecutionModel, FlowActionLogModel } from '../models/FlowExecution';
 import {
   FlowWithDetails,
@@ -489,13 +490,15 @@ export class FlowExecutionService {
         bodyText = bodyText.replace(regex, () => value);
       }
 
-      // Import gmail service
-      const gmailService = require('./gmailService').default;
-
       // Check Gmail connection
       const gmailStatus = await gmailService.getGmailStatus(userId);
       if (!gmailStatus.connected || !gmailStatus.hasGmailScope) {
         throw new Error('Gmail is not connected. Please connect Gmail in Settings > Integrations.');
+      }
+
+      // Verify Gmail email address is available
+      if (!gmailStatus.email) {
+        throw new Error('Gmail email address not available. Please reconnect Gmail in Settings > Integrations.');
       }
 
       // Send email via Gmail with correct parameter format
@@ -507,6 +510,7 @@ export class FlowExecutionService {
         subject: subject,
         htmlBody: bodyHtml,
         textBody: bodyText || bodyHtml.replace(/<[^>]*>/g, ''), // Strip HTML for text version
+        fromEmail: gmailStatus.email,
         fromName: config.from_name
       });
 
@@ -526,7 +530,7 @@ export class FlowExecutionService {
           emailId,
           userId,
           contact.id,
-          gmailStatus.email || 'noreply@example.com',
+          gmailStatus.email, // Already verified to exist above
           config.from_name || 'Auto Engagement',
           contact.email,
           contact.name,
