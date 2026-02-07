@@ -343,10 +343,7 @@ export class FlowExecutionService {
 
   /**
    * Execute WhatsApp message action
-   * 
-   * ⚠️ PLACEHOLDER IMPLEMENTATION - PHASE 8
-   * This action type is not yet functional. Configuration is accepted but execution is not implemented.
-   * Future implementation will integrate with Chat Agent Server for WhatsApp Business API.
+   * Sends WhatsApp template message via Chat Agent Server
    */
   private static async executeWhatsAppAction(
     config: WhatsAppActionConfig,
@@ -360,19 +357,70 @@ export class FlowExecutionService {
         phoneNumber: contact.phone_number
       });
 
-      // PHASE 8: Integrate with Chat Agent Server for WhatsApp Business API
-      logger.warn('[FlowExecutionService] WhatsApp integration not yet implemented (Phase 8)');
+      // Check if contact has phone number
+      if (!contact.phone_number) {
+        throw new Error('Contact does not have a phone number');
+      }
+
+      // Check if Chat Agent Server is configured
+      const chatAgentServerUrl = process.env.CHAT_AGENT_SERVER_URL;
+      if (!chatAgentServerUrl) {
+        logger.warn('[FlowExecutionService] CHAT_AGENT_SERVER_URL not configured');
+        throw new Error('WhatsApp service not configured. Please set CHAT_AGENT_SERVER_URL environment variable.');
+      }
+
+      // Import axios dynamically to avoid circular dependencies
+      const axios = require('axios');
+
+      // Prepare variable mappings from contact data
+      const variables: Record<string, string> = {};
+      if (config.variable_mappings) {
+        for (const [key, value] of Object.entries(config.variable_mappings)) {
+          // Map contact fields to template variables
+          const contactValue = (contact as any)[value];
+          if (contactValue) {
+            variables[key] = String(contactValue);
+          }
+        }
+      }
+
+      // Send WhatsApp message via Chat Agent Server
+      // The Chat Agent Server provides template sending API
+      const response = await axios.post(
+        `${chatAgentServerUrl}/api/v1/send-template`,
+        {
+          user_id: userId,
+          phone_number_id: config.whatsapp_phone_number_id,
+          template_id: config.template_id,
+          to_phone: contact.phone_number,
+          variables: variables
+        },
+        {
+          timeout: 30000,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      logger.info('[FlowExecutionService] WhatsApp message sent successfully', {
+        contactId: contact.id,
+        templateId: config.template_id,
+        messageId: response.data?.message_id
+      });
 
       return {
-        whatsapp_sent: false,
-        status: 'not_implemented',
+        whatsapp_sent: true,
+        status: 'sent',
         template_id: config.template_id,
-        message: 'WhatsApp integration pending - Phase 8'
+        message_id: response.data?.message_id,
+        to_phone: contact.phone_number
       };
     } catch (error) {
       logger.error('[FlowExecutionService] Error executing WhatsApp action', {
         error: error instanceof Error ? error.message : error,
-        contactId: contact.id
+        contactId: contact.id,
+        stack: error instanceof Error ? error.stack : undefined
       });
       throw error;
     }
@@ -380,10 +428,7 @@ export class FlowExecutionService {
 
   /**
    * Execute email action
-   * 
-   * ⚠️ PLACEHOLDER IMPLEMENTATION - PHASE 8
-   * This action type is not yet functional. Configuration is accepted but execution is not implemented.
-   * Future implementation will integrate with email service provider.
+   * Sends email via Gmail service with template support
    */
   private static async executeEmailAction(
     config: EmailActionConfig,
@@ -401,19 +446,103 @@ export class FlowExecutionService {
         throw new Error('Contact has no email address');
       }
 
-      // PHASE 8: Integrate with email sending service
-      logger.warn('[FlowExecutionService] Email integration not yet implemented (Phase 8)');
+      // Import pool and uuid for email record creation
+      const { pool } = require('../config/database');
+      const { v4: uuidv4 } = require('uuid');
+
+      // Get email template
+      const templateResult = await pool.query(
+        'SELECT * FROM email_templates WHERE id = $1 AND user_id = $2',
+        [config.email_template_id, userId]
+      );
+
+      if (templateResult.rows.length === 0) {
+        throw new Error(`Email template not found: ${config.email_template_id}`);
+      }
+
+      const template = templateResult.rows[0];
+
+      // Replace variables in subject and body
+      let subject = template.subject || config.subject_override || 'Automated Email';
+      let bodyHtml = template.body_html || '';
+      let bodyText = template.body_text || '';
+
+      // Simple variable replacement - supports {{name}}, {{email}}, {{company}}, etc.
+      const replacements: Record<string, string> = {
+        name: contact.name || '',
+        email: contact.email || '',
+        phone_number: contact.phone_number || '',
+        company: contact.company || '',
+        city: contact.city || '',
+        country: contact.country || '',
+      };
+
+      for (const [key, value] of Object.entries(replacements)) {
+        const regex = new RegExp(`{{${key}}}`, 'g');
+        subject = subject.replace(regex, value);
+        bodyHtml = bodyHtml.replace(regex, value);
+        bodyText = bodyText.replace(regex, value);
+      }
+
+      // Import gmail service
+      const gmailService = require('./gmailService').default;
+
+      // Check Gmail connection
+      const gmailStatus = await gmailService.getGmailStatus(userId);
+      if (!gmailStatus.connected || !gmailStatus.hasGmailScope) {
+        throw new Error('Gmail is not connected. Please connect Gmail in Settings > Integrations.');
+      }
+
+      // Send email via Gmail
+      const result = await gmailService.sendEmail(userId, {
+        to: contact.email,
+        subject: subject,
+        bodyHtml: bodyHtml,
+        bodyText: bodyText || bodyHtml.replace(/<[^>]*>/g, '') // Strip HTML for text version
+      });
+
+      // Create email record in database
+      const emailId = uuidv4();
+      await pool.query(
+        `INSERT INTO emails (
+          id, user_id, contact_id, from_email, from_name, to_email, to_name,
+          subject, body_html, body_text, status, sent_at, external_message_id
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), $12)`,
+        [
+          emailId,
+          userId,
+          contact.id,
+          gmailStatus.email || 'noreply@example.com',
+          config.from_name || 'Auto Engagement',
+          contact.email,
+          contact.name,
+          subject,
+          bodyHtml,
+          bodyText,
+          'sent',
+          result.messageId
+        ]
+      );
+
+      logger.info('[FlowExecutionService] Email sent successfully', {
+        contactId: contact.id,
+        emailId: emailId,
+        messageId: result.messageId
+      });
 
       return {
-        email_sent: false,
-        status: 'not_implemented',
-        template_id: config.email_template_id,
-        message: 'Email integration pending - Phase 8'
+        email_sent: true,
+        status: 'sent',
+        email_id: emailId,
+        message_id: result.messageId,
+        to_email: contact.email,
+        subject: subject
       };
     } catch (error) {
       logger.error('[FlowExecutionService] Error executing email action', {
         error: error instanceof Error ? error.message : error,
-        contactId: contact.id
+        contactId: contact.id,
+        stack: error instanceof Error ? error.stack : undefined
       });
       throw error;
     }
@@ -421,30 +550,38 @@ export class FlowExecutionService {
 
   /**
    * Execute wait action
-   * 
-   * ⚠️ PLACEHOLDER IMPLEMENTATION - PHASE 8
-   * This action type is not yet functional. Currently returns immediately instead of scheduling.
-   * Future implementation will use job queue (Bull/BullMQ) for proper scheduling.
+   * Schedules the flow to continue after a specified delay
    */
   private static async executeWaitAction(config: WaitActionConfig): Promise<any> {
     try {
       logger.info('[FlowExecutionService] Executing wait action', {
-        durationMinutes: config.duration_minutes
+        durationMinutes: config.duration_minutes,
+        waitUntilBusinessHours: config.wait_until_business_hours
       });
 
-      // PHASE 8: Implement with job queue for proper scheduling
-      // In a real implementation, this would schedule the next action
-      logger.warn('[FlowExecutionService] Wait action not yet implemented (Phase 8) - continuing immediately');
+      // For now, implement a simple in-memory delay
+      // In production, this would use a job queue like Bull/BullMQ
+      const durationMs = config.duration_minutes * 60 * 1000;
+
+      // Create a promise that resolves after the specified duration
+      await new Promise(resolve => setTimeout(resolve, durationMs));
+
+      logger.info('[FlowExecutionService] Wait action completed', {
+        durationMinutes: config.duration_minutes,
+        actualWaitMs: durationMs
+      });
 
       return {
-        waited: false,
-        status: 'not_implemented',
+        waited: true,
+        status: 'completed',
         duration_minutes: config.duration_minutes,
-        message: 'Wait/scheduling integration pending - Phase 8'
+        wait_until_business_hours: config.wait_until_business_hours || false,
+        message: `Waited for ${config.duration_minutes} minutes`
       };
     } catch (error) {
       logger.error('[FlowExecutionService] Error executing wait action', {
-        error: error instanceof Error ? error.message : error
+        error: error instanceof Error ? error.message : error,
+        stack: error instanceof Error ? error.stack : undefined
       });
       throw error;
     }
