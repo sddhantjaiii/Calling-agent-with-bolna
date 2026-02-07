@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useTheme } from '@/components/theme/ThemeProvider';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/use-toast';
@@ -37,7 +36,6 @@ import {
 } from '@/components/ui/select';
 
 const EmailTemplates: React.FC = () => {
-  const { theme } = useTheme();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
@@ -59,7 +57,7 @@ const EmailTemplates: React.FC = () => {
   });
 
   // Fetch templates
-  const { data: templatesData, isLoading, refetch } = useQuery({
+  const { data: templatesData, isLoading } = useQuery({
     queryKey: ['email-templates', categoryFilter],
     queryFn: async () => {
       const params = categoryFilter !== 'all' ? { category: categoryFilter } : undefined;

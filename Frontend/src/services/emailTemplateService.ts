@@ -18,6 +18,9 @@ export const emailTemplateService = {
    */
   createTemplate: async (data: CreateEmailTemplateRequest): Promise<EmailTemplate> => {
     const response = await apiService.post<EmailTemplateResponse>('/email-templates', data);
+    if (!response.data) {
+      throw new Error('No data returned from create template API');
+    }
     return response.data;
   },
 
@@ -26,6 +29,9 @@ export const emailTemplateService = {
    */
   getTemplate: async (templateId: string): Promise<EmailTemplate> => {
     const response = await apiService.get<EmailTemplateResponse>(`/email-templates/${templateId}`);
+    if (!response.data) {
+      throw new Error('No data returned from get template API');
+    }
     return response.data;
   },
 
@@ -39,6 +45,9 @@ export const emailTemplateService = {
     offset?: number;
   }): Promise<{ templates: EmailTemplate[]; total: number }> => {
     const response = await apiService.get<EmailTemplateListResponse>('/email-templates', { params });
+    if (!response.data) {
+      throw new Error('No data returned from list templates API');
+    }
     return {
       templates: response.data,
       total: response.pagination.total
@@ -56,6 +65,9 @@ export const emailTemplateService = {
       `/email-templates/${templateId}`,
       data
     );
+    if (!response.data) {
+      throw new Error('No data returned from update template API');
+    }
     return response.data;
   },
 

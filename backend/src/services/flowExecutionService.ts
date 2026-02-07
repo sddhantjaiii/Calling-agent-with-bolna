@@ -385,14 +385,18 @@ export class FlowExecutionService {
       }
 
       // Send WhatsApp message via Chat Agent Server
-      // The Chat Agent Server provides template sending API
+      // Uses the standard /api/v1/send endpoint with contact object
       const response = await axios.post(
-        `${chatAgentServerUrl}/api/v1/send-template`,
+        `${chatAgentServerUrl}/api/v1/send`,
         {
-          user_id: userId,
           phone_number_id: config.whatsapp_phone_number_id,
           template_id: config.template_id,
-          to_phone: contact.phone_number,
+          contact: {
+            phone: contact.phone_number,
+            name: contact.name || undefined,
+            email: contact.email || undefined,
+            company: contact.company || undefined
+          },
           variables: variables
         },
         {
@@ -463,7 +467,8 @@ export class FlowExecutionService {
       const template = templateResult.rows[0];
 
       // Replace variables in subject and body
-      let subject = template.subject || config.subject_override || 'Automated Email';
+      // Apply subject_override if provided, otherwise use template subject
+      let subject = config.subject_override || template.subject || 'Automated Email';
       let bodyHtml = template.body_html || '';
       let bodyText = template.body_text || '';
 
@@ -493,13 +498,22 @@ export class FlowExecutionService {
         throw new Error('Gmail is not connected. Please connect Gmail in Settings > Integrations.');
       }
 
-      // Send email via Gmail
+      // Send email via Gmail with correct parameter format
       const result = await gmailService.sendEmail(userId, {
-        to: contact.email,
+        to: {
+          address: contact.email,
+          name: contact.name || undefined
+        },
         subject: subject,
-        bodyHtml: bodyHtml,
-        bodyText: bodyText || bodyHtml.replace(/<[^>]*>/g, '') // Strip HTML for text version
+        htmlBody: bodyHtml,
+        textBody: bodyText || bodyHtml.replace(/<[^>]*>/g, ''), // Strip HTML for text version
+        fromName: config.from_name
       });
+
+      // Check if email send was successful
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to send email via Gmail');
+      }
 
       // Create email record in database
       const emailId = uuidv4();
@@ -551,6 +565,17 @@ export class FlowExecutionService {
   /**
    * Execute wait action
    * Schedules the flow to continue after a specified delay
+   * 
+   * ⚠️ IMPLEMENTATION NOTE:
+   * This uses in-memory setTimeout which has limitations:
+   * - Ties up the execution worker/slot for the full duration
+   * - Lost on process restart or crash
+   * - Not suitable for long delays (> 1 hour)
+   * 
+   * For production at scale, consider:
+   * - Persisting scheduled state to database
+   * - Using job queue (Bull/BullMQ) for reliable scheduling
+   * - Enforcing maximum duration limits
    */
   private static async executeWaitAction(config: WaitActionConfig): Promise<any> {
     try {
@@ -559,8 +584,7 @@ export class FlowExecutionService {
         waitUntilBusinessHours: config.wait_until_business_hours
       });
 
-      // For now, implement a simple in-memory delay
-      // In production, this would use a job queue like Bull/BullMQ
+      // Simple in-memory delay - suitable for short waits only
       const durationMs = config.duration_minutes * 60 * 1000;
 
       // Create a promise that resolves after the specified duration

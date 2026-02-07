@@ -115,8 +115,32 @@ export const listEmailTemplates = async (req: Request, res: Response): Promise<v
 
     const category = req.query.category as string | undefined;
     const isActive = req.query.is_active === 'true' ? true : req.query.is_active === 'false' ? false : undefined;
-    const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
-    const offset = req.query.offset ? parseInt(req.query.offset as string) : undefined;
+    
+    // Validate and parse limit/offset
+    let limit: number | undefined;
+    let offset: number | undefined;
+    
+    if (req.query.limit) {
+      limit = parseInt(req.query.limit as string);
+      if (isNaN(limit) || limit < 1 || limit > 100) {
+        res.status(400).json({
+          success: false,
+          error: 'Invalid limit parameter. Must be a number between 1 and 100.'
+        });
+        return;
+      }
+    }
+    
+    if (req.query.offset) {
+      offset = parseInt(req.query.offset as string);
+      if (isNaN(offset) || offset < 0) {
+        res.status(400).json({
+          success: false,
+          error: 'Invalid offset parameter. Must be a non-negative number.'
+        });
+        return;
+      }
+    }
 
     const result = await EmailTemplateModel.findByUserId(userId, {
       category,
